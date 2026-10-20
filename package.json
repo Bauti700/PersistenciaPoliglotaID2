@@ -1,0 +1,22 @@
+{
+  "name": "tpo-persistencia-poliglota-grupo12",
+  "version": "1.0.0",
+  "description": "TPO Persistencia Políglota - Grupo 12 - Plataforma de Gestión Logística Internacional e IoT",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "cli": "node src/index.js",
+    "server": "node src/server.js",
+    "seed": "node scripts/seed_all.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "mongodb": "^6.3.0",
+    "neo4j-driver": "^5.15.0",
+    "pg": "^8.11.3",
+    "redis": "^4.6.12"
+  }
+}

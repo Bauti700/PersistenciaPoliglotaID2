@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tpo_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: tpo_logistica
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_postgres.sql:/docker-entrypoint-initdb.d/init.sql
+
+  mongo:
+    image: mongo:6.0
+    container_name: tpo_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: tpo_telemetria
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+
+  neo4j:
+    image: neo4j:5.15
+    container_name: tpo_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/password123
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4jdata:/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: tpo_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  mongodata:
+  neo4jdata:
+  redisdata:
