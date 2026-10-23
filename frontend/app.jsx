@@ -5,6 +5,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dbStatus, setDbStatus] = useState({ postgres: false, mongo: false, neo4j: false, redis: false });
   const [clientes, setClientes] = useState([]);
+  const [contenedores, setContenedores] = useState([]);
   const [envios, setEnvios] = useState([]);
   const [sensores, setSensores] = useState([]);
   const [anomalias, setAnomalias] = useState([]);
@@ -14,6 +15,8 @@ function App() {
 
   // Estados de formularios
   const [nuevoCliente, setNuevoCliente] = useState({ razon_social: '', cuit: '', email: '', pais: 'Argentina' });
+  const [formContenedor, setFormContenedor] = useState({ id_contenedor: '', codigo_internacional: '', tipo: '', capacidad: '', estado: 'DISPONIBLE' });
+  const [contenedorEditando, setContenedorEditando] = useState(null);
   const [nuevaLectura, setNuevaLectura] = useState({ id_sensor: 'SENS-101', id_contenedor: 'CONT-001', id_envio: 'ENV-1001', temperatura: 4.5, humedad: 60, latitud: -34.6037, longitud: -58.3816 });
   const [nuevoEnvio, setNuevoEnvio] = useState({ id_envio: 'ENV-2001', id_cliente: 1, origen: 'Buenos Aires', destino: 'San Pablo', operador: 'Logística Express del Plata', vehiculo: 'AF-204-ZX' });
   const [cachePos, setCachePos] = useState(null);
@@ -37,8 +40,9 @@ function App() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [resCli, resEnv, resSen, resAnom, resRank, resRed] = await Promise.all([
+      const [resCli, resCont, resEnv, resSen, resAnom, resRank, resRed] = await Promise.all([
         fetch(`${API_URL}/clientes`).then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/contenedores`).then(r => r.json()).catch(() => []),
         fetch(`${API_URL}/envios`).then(r => r.json()).catch(() => []),
         fetch(`${API_URL}/sensores`).then(r => r.json()).catch(() => []),
         fetch(`${API_URL}/anomalias/temperatura`).then(r => r.json()).catch(() => []),
@@ -46,6 +50,7 @@ function App() {
         fetch(`${API_URL}/grafo/red`).then(r => r.json()).catch(() => [])
       ]);
       setClientes(resCli || []);
+      setContenedores(Array.isArray(resCont) ? resCont : []);
       setEnvios(resEnv || []);
       setSensores(resSen || []);
       setAnomalias(resAnom || []);
@@ -54,6 +59,11 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const limpiarFormularioContenedor = () => {
+    setContenedorEditando(null);
+    setFormContenedor({ id_contenedor: '', codigo_internacional: '', tipo: '', capacidad: '', estado: 'DISPONIBLE' });
   };
 
   const handleCrearCliente = async (e) => {
@@ -71,6 +81,54 @@ function App() {
       }
     } catch (err) {
       alert("Error: " + err.message);
+    }
+  };
+
+  const handleGuardarContenedor = async (e) => {
+    e.preventDefault();
+    try {
+      const editando = Boolean(contenedorEditando);
+      const url = editando
+        ? `${API_URL}/contenedores/${encodeURIComponent(contenedorEditando)}`
+        : `${API_URL}/contenedores`;
+      const res = await fetch(url, {
+        method: editando ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formContenedor)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar el contenedor.');
+
+      alert(editando ? 'Contenedor actualizado.' : 'Contenedor registrado.');
+      limpiarFormularioContenedor();
+      await cargarDatos();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleEditarContenedor = (contenedor) => {
+    setContenedorEditando(contenedor.id_contenedor);
+    setFormContenedor({
+      id_contenedor: contenedor.id_contenedor,
+      codigo_internacional: contenedor.codigo_internacional,
+      tipo: contenedor.tipo,
+      capacidad: contenedor.capacidad,
+      estado: contenedor.estado
+    });
+  };
+
+  const handleDarDeBajaContenedor = async (contenedor) => {
+    if (!window.confirm(`¿Dar de baja el contenedor ${contenedor.id_contenedor}? Se conservará para mantener la trazabilidad.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/contenedores/${encodeURIComponent(contenedor.id_contenedor)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo dar de baja el contenedor.');
+      alert('Contenedor marcado FUERA_SERVICIO.');
+      if (contenedorEditando === contenedor.id_contenedor) limpiarFormularioContenedor();
+      await cargarDatos();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -161,11 +219,25 @@ function App() {
           />
         )}
 
+        {activeTab === 'contenedores' && (
+          <window.ContenedoresView
+            contenedores={contenedores}
+            form={formContenedor}
+            setForm={setFormContenedor}
+            contenedorEditando={contenedorEditando}
+            onGuardar={handleGuardarContenedor}
+            onEditar={handleEditarContenedor}
+            onDarDeBaja={handleDarDeBajaContenedor}
+            onCancelarEdicion={limpiarFormularioContenedor}
+          />
+        )}
+
         {activeTab === 'telemetria' && (
           <window.TelemetriaView
             nuevaLectura={nuevaLectura}
             setNuevaLectura={setNuevaLectura}
             handleEnviarTelemetria={handleEnviarTelemetria}
+            contenedores={contenedores}
             anomalias={anomalias}
           />
         )}

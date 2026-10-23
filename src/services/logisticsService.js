@@ -1,4 +1,4 @@
-import { ClienteRepository, ComercialRepository } from '../repositories/postgresRepository.js';
+import { ClienteRepository, ComercialRepository, ContenedorRepository } from '../repositories/postgresRepository.js';
 import { MongoTelemetryRepository } from '../repositories/mongoRepository.js';
 import { Neo4jRouteRepository } from '../repositories/neo4jRepository.js';
 import { RedisCacheRepository } from '../repositories/redisRepository.js';
@@ -70,6 +70,20 @@ export class LogisticsService {
    * 3. Si detecta temperatura > 8°C o vibración > 0.5, dispara alerta e incidente.
    */
   static async procesarLecturaSensor({ id_sensor, id_contenedor, id_envio, temperatura, humedad, vibracion, latitud, longitud, nivel_bateria }) {
+    if (id_contenedor) {
+      const contenedor = await ContenedorRepository.obtenerPorId(id_contenedor);
+      if (!contenedor) {
+        const error = new Error(`Contenedor ${id_contenedor} no encontrado.`);
+        error.statusCode = 404;
+        throw error;
+      }
+      if (contenedor.estado === 'FUERA_SERVICIO') {
+        const error = new Error(`El contenedor ${id_contenedor} está fuera de servicio.`);
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
     // 1. Guardar en MongoDB
     const lectura = await MongoTelemetryRepository.registrarLectura({
       id_sensor,

@@ -47,7 +47,7 @@ La tabla `usuarios`, `roles` e `historial_sesiones` **existen en la BD pero no h
 
 La tabla `contenedores` existe, los sensores están en MongoDB, pero no hay menú ni funciones para operarlos.
 
-- [ ] Implementar **CRUD de contenedores** (alta, baja, modificar estado, listar).
+- [x] Implementar **CRUD de contenedores** (alta, baja lógica, modificar estado, listar).
 - [ ] Implementar **CRUD de sensores** (registrar sensor, asociarlo a un contenedor, cambiar estado).
 - [ ] Implementar **listado de sensores inactivos** (útil para el proceso periódico).
 - [ ] Agregar opción en el menú de consola para gestionar contenedores y sensores.
