@@ -2,8 +2,10 @@ function TelemetriaView({
   nuevaLectura,
   setNuevaLectura,
   handleEnviarTelemetria,
+  contenedores = [],
   anomalias = []
 }) {
+  const contenedoresActivos = contenedores.filter(contenedor => contenedor.estado !== 'FUERA_SERVICIO');
   return (
     <div className="card">
       <div className="card-header">
@@ -18,7 +20,19 @@ function TelemetriaView({
           </div>
           <div className="input-group">
             <label>Contenedor Asociado</label>
-            <input type="text" value={nuevaLectura.id_contenedor} onChange={e => setNuevaLectura({...nuevaLectura, id_contenedor: e.target.value})} required />
+            <select
+              value={nuevaLectura.id_contenedor}
+              onChange={e => setNuevaLectura({...nuevaLectura, id_contenedor: e.target.value})}
+              required
+              disabled={contenedoresActivos.length === 0}
+            >
+              {contenedoresActivos.length === 0 && <option value="">No hay contenedores disponibles</option>}
+              {contenedoresActivos.map(contenedor => (
+                <option key={contenedor.id_contenedor} value={contenedor.id_contenedor}>
+                  {contenedor.id_contenedor} — {contenedor.codigo_internacional}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="input-group">
             <label>Temperatura (°C)</label>
@@ -37,7 +51,7 @@ function TelemetriaView({
             <input type="number" step="0.0001" value={nuevaLectura.longitud} onChange={e => setNuevaLectura({...nuevaLectura, longitud: e.target.value})} required />
           </div>
         </div>
-        <button type="submit">📡 Emitir Lectura IoT</button>
+        <button type="submit" disabled={contenedoresActivos.length === 0}>📡 Emitir Lectura IoT</button>
       </form>
 
       <h4>Anomalías de Temperatura Detectadas (&gt; 8°C)</h4>

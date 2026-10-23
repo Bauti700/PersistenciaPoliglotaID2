@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { initDatabaseConnections } from './config/database.js';
-import { ClienteRepository, ComercialRepository } from './repositories/postgresRepository.js';
+import { ClienteRepository, ComercialRepository, ContenedorRepository } from './repositories/postgresRepository.js';
 import { MongoTelemetryRepository } from './repositories/mongoRepository.js';
 import { Neo4jRouteRepository } from './repositories/neo4jRepository.js';
 import { RedisCacheRepository } from './repositories/redisRepository.js';
@@ -14,6 +14,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('frontend'));
+
+function responderError(res, err) {
+  const statusCode = err.statusCode || (err.code === '23505' ? 409 : 500);
+  res.status(statusCode).json({ error: err.message });
+}
 
 // --- HEALTH & STATUS DE BASES DE DATOS ---
 app.get('/api/status', async (req, res) => {
@@ -40,6 +45,54 @@ app.post('/api/clientes', async (req, res) => {
     res.status(201).json(cliente);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- POSTGRESQL: CONTENEDORES ---
+app.get('/api/contenedores', async (req, res) => {
+  try {
+    res.json(await ContenedorRepository.listarTodos());
+  } catch (err) {
+    responderError(res, err);
+  }
+});
+
+app.get('/api/contenedores/:id', async (req, res) => {
+  try {
+    const contenedor = await ContenedorRepository.obtenerPorId(req.params.id);
+    if (!contenedor) return res.status(404).json({ error: 'Contenedor no encontrado.' });
+    res.json(contenedor);
+  } catch (err) {
+    responderError(res, err);
+  }
+});
+
+app.post('/api/contenedores', async (req, res) => {
+  try {
+    const contenedor = await ContenedorRepository.crear(req.body);
+    res.status(201).json(contenedor);
+  } catch (err) {
+    responderError(res, err);
+  }
+});
+
+app.put('/api/contenedores/:id', async (req, res) => {
+  try {
+    const contenedor = await ContenedorRepository.actualizar(req.params.id, req.body);
+    if (!contenedor) return res.status(404).json({ error: 'Contenedor no encontrado.' });
+    res.json(contenedor);
+  } catch (err) {
+    responderError(res, err);
+  }
+});
+
+app.delete('/api/contenedores/:id', async (req, res) => {
+  try {
+    const contenedor = await ContenedorRepository.darDeBaja(req.params.id);
+    if (!contenedor) return res.status(404).json({ error: 'Contenedor no encontrado.' });
+    res.json(contenedor);
+  } catch (err) {
+    responderError(res, err);
   }
 });
 
@@ -94,7 +147,7 @@ app.post('/api/telemetria', async (req, res) => {
     const lectura = await LogisticsService.procesarLecturaSensor(req.body);
     res.status(201).json(lectura);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    responderError(res, err);
   }
 });
 

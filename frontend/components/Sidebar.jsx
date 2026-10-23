@@ -16,6 +16,9 @@ function Sidebar({ activeTab, setActiveTab, dbStatus }) {
         <div className={`nav-item ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}>
           <span>🏢 Clientes & Cuentas (PG)</span>
         </div>
+        <div className={`nav-item ${activeTab === 'contenedores' ? 'active' : ''}`} onClick={() => setActiveTab('contenedores')}>
+          <span>📦 Contenedores (PG)</span>
+        </div>
         <div className={`nav-item ${activeTab === 'telemetria' ? 'active' : ''}`} onClick={() => setActiveTab('telemetria')}>
           <span>📡 Telemetría & IoT (Mongo)</span>
         </div>
