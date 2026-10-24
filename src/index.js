@@ -1,6 +1,6 @@
 import readline from 'readline';
-import { initDatabaseConnections, closeDatabaseConnections } from './config/database.js';
-import { ClienteRepository, ComercialRepository } from './repositories/postgresRepository.js';
+import { initDatabaseConnections, closeDatabaseConnections, pgPool } from './config/database.js';
+import { ClienteRepository, ComercialRepository, ContenedorRepository } from './repositories/postgresRepository.js';
 import { MongoTelemetryRepository } from './repositories/mongoRepository.js';
 import { Neo4jRouteRepository } from './repositories/neo4jRepository.js';
 import { RedisCacheRepository } from './repositories/redisRepository.js';
@@ -20,8 +20,8 @@ function banner() {
         ARQUITECTURA DE PERSISTENCIA POLÍGLOTA (SQL + NoSQL)
 ========================================================================
 Motores soportados:
-  [PostgreSQL] -> Gestión Comercial, Clientes, Facturación, Saldos (ACID)
-  [MongoDB]    -> Telemetría IoT, Lecturas de Sensores, Incidentes, Chat
+  [PostgreSQL] -> Gestión Comercial, Clientes, Contenedores, Facturación (ACID)
+  [MongoDB]    -> Telemetría IoT, Sensores, Incidentes, Alertas, Chat
   [Neo4j]      -> Redes de Transporte, Tramos y Topología Logística
   [Redis]      -> Caché de Última Ubicación GPS, Sesiones con TTL, Riesgos
 ========================================================================
@@ -35,17 +35,20 @@ async function menu() {
   while (!salir) {
     console.log(`
 Seleccione una opción:
-  1. [PostgreSQL] Gestionar Clientes (CRUD y Cuentas Corrientes)
-  2. [PostgreSQL] Emitir Factura y Registrar Pago
-  3. [MongoDB]    Ingresar Lectura de Sensor IoT (Temperatura/GPS/Batería)
-  4. [MongoDB]    Ver Histórico de Lecturas y Detectar Anomalías
-  5. [Neo4j]      Consultar Ruta Completa de un Envío (Grafo de Tramos)
-  6. [Neo4j]      Ver Red de Relaciones (Clientes - Operadores - Envíos)
-  7. [Redis]      Consultar Última Posición GPS en Caché
-  8. [Políglota]  Crear Nuevo Envío Sincronizado (PG + Neo4j + Mongo)
-  9. [Políglota]  Calcular / Consultar Predicción de Riesgo
-  10. [Reporte]   Ranking de Clientes por Volumen Facturado
-  0. Salir
+  1.  [PostgreSQL] Gestionar Clientes (CRUD y Cuentas Corrientes)
+  2.  [PostgreSQL] Gestionar Contenedores (Listado, Alta, Modificación, Baja)
+  3.  [PostgreSQL] Emitir Factura y Registrar Pago
+  4.  [MongoDB]    Ingresar Lectura de Sensor IoT (Temperatura/GPS/Batería)
+  5.  [MongoDB]    Ver Histórico de Lecturas y Detectar Anomalías
+  6.  [MongoDB]    Gestionar Incidentes y Alertas
+  7.  [MongoDB]    Mensajería y Chat entre Actores
+  8.  [Neo4j]      Consultar Ruta Completa de un Envío (Grafo de Tramos)
+  9.  [Neo4j]      Ver Red de Relaciones (Clientes - Operadores - Envíos)
+  10. [Redis]      Consultar Última Posición GPS en Caché
+  11. [Políglota]  Crear Nuevo Envío Sincronizado (PG + Neo4j + Mongo)
+  12. [Políglota]  Calcular / Consultar Predicción de Riesgo
+  13. [Reporte]    Ranking de Clientes por Volumen Facturado
+  0.  Salir
 `);
 
     const opt = (await ask('Opción > ')).trim();
@@ -63,19 +66,92 @@ Seleccione una opción:
             Saldo_CC: `$ ${c.saldo || 0}`
           })));
 
-          const crear = (await ask('¿Desea dar de alta un nuevo cliente? (s/n): ')).toLowerCase();
-          if (crear === 's') {
+          console.log('\nAcciones:');
+          console.log('  1. Dar de alta nuevo cliente');
+          console.log('  2. Ver estado de cuenta corriente de un cliente');
+          console.log('  3. Volver al menú principal');
+          const subOpt = (await ask('Seleccione acción (1-3) > ')).trim();
+
+          if (subOpt === '1') {
             const razon_social = await ask('Razón Social: ');
             const cuit = await ask('CUIT: ');
             const email = await ask('Email: ');
             const pais = await ask('País: ');
             const nuevo = await ClienteRepository.crear({ razon_social, cuit, email, pais });
             console.log('Cliente creado exitosamente:', nuevo);
+          } else if (subOpt === '2') {
+            const id_cliente = await ask('ID del Cliente: ');
+            const estado = await ComercialRepository.obtenerEstadoCuenta(Number(id_cliente));
+            console.log('\nCuenta Corriente:');
+            console.table([estado.cuenta_corriente]);
+            console.log('\nFacturas asociadas:');
+            console.table(estado.facturas);
           }
           break;
         }
 
         case '2': {
+          console.log('\n--- GESTIÓN DE CONTENEDORES (PostgreSQL) ---');
+          const contenedores = await ContenedorRepository.listarTodos();
+          console.table(contenedores.map(c => ({
+            ID: c.id_contenedor,
+            Codigo_Int: c.codigo_internacional,
+            Tipo: c.tipo,
+            Capacidad: `${c.capacidad} kg`,
+            Estado: c.estado
+          })));
+
+          console.log('\nAcciones:');
+          console.log('  1. Dar de alta nuevo contenedor');
+          console.log('  2. Modificar contenedor existente');
+          console.log('  3. Dar de baja contenedor (baja lógica)');
+          console.log('  4. Volver al menú principal');
+          const subOpt = (await ask('Seleccione acción (1-4) > ')).trim();
+
+          if (subOpt === '1') {
+            const id_contenedor = await ask('ID Contenedor (ej: CONT-100): ');
+            const codigo_internacional = await ask('Código Internacional (ej: BICU1234567): ');
+            const tipo = await ask('Tipo (DRY / REEFER / OPEN_TOP): ') || 'REEFER';
+            const capacidad = await ask('Capacidad (kg): ') || '25000';
+            const estado = await ask('Estado (DISPONIBLE / EN_TRANSITO / FUERA_SERVICIO): ') || 'DISPONIBLE';
+
+            const nuevo = await ContenedorRepository.crear({
+              id_contenedor,
+              codigo_internacional,
+              tipo,
+              capacidad: Number(capacidad),
+              estado
+            });
+            console.log('\nContenedor creado exitosamente:', nuevo);
+          } else if (subOpt === '2') {
+            const id = await ask('ID Contenedor a modificar: ');
+            const existente = await ContenedorRepository.obtenerPorId(id);
+            if (!existente) {
+              console.log('Contenedor no encontrado.');
+              break;
+            }
+            console.log('Presione ENTER para mantener el valor actual entre corchetes:');
+            const codigo_internacional = (await ask(`Código Internacional [${existente.codigo_internacional}]: `)).trim() || existente.codigo_internacional;
+            const tipo = (await ask(`Tipo [${existente.tipo}]: `)).trim() || existente.tipo;
+            const capacidad = (await ask(`Capacidad [${existente.capacidad}]: `)).trim() || existente.capacidad;
+            const estado = (await ask(`Estado [${existente.estado}]: `)).trim() || existente.estado;
+
+            const modificado = await ContenedorRepository.actualizar(id, {
+              codigo_internacional,
+              tipo,
+              capacidad: Number(capacidad),
+              estado
+            });
+            console.log('\nContenedor actualizado:', modificado);
+          } else if (subOpt === '3') {
+            const id = await ask('ID Contenedor a dar de baja: ');
+            const res = await ContenedorRepository.darDeBaja(id);
+            console.log(`\nContenedor ${id} dado de baja (estado FUERA_SERVICIO):`, res);
+          }
+          break;
+        }
+
+        case '3': {
           console.log('\n--- FACTURACIÓN Y PAGOS (PostgreSQL) ---');
           const id_cliente = await ask('ID del Cliente: ');
           const importe = await ask('Importe total a facturar ($): ');
@@ -95,7 +171,7 @@ Seleccione una opción:
           break;
         }
 
-        case '3': {
+        case '4': {
           console.log('\n--- INGESTA DE TELEMETRÍA IOT (MongoDB + Redis) ---');
           const id_sensor = await ask('ID Sensor (ej: SENS-101): ') || 'SENS-101';
           const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
@@ -120,7 +196,7 @@ Seleccione una opción:
           break;
         }
 
-        case '4': {
+        case '5': {
           console.log('\n--- HISTÓRICO Y DETECCIÓN DE ANOMALÍAS (MongoDB) ---');
           const id_sensor = await ask('ID Sensor para ver histórico (ej: SENS-101): ') || 'SENS-101';
           const lecturas = await MongoTelemetryRepository.consultarHistoricoLecturas(id_sensor, 5);
@@ -145,7 +221,75 @@ Seleccione una opción:
           break;
         }
 
-        case '5': {
+        case '6': {
+          console.log('\n--- GESTIÓN DE INCIDENTES Y ALERTAS (MongoDB) ---');
+          const incidentes = await MongoTelemetryRepository.listarIncidentesAbiertos();
+          console.log('\nIncidentes actualmente abiertos:');
+          console.table(incidentes.map(i => ({
+            ID: i.id_incidente,
+            Envio: i.id_envio,
+            Tipo: i.tipo,
+            Severidad: i.severidad,
+            Estado: i.estado,
+            Descripcion: i.descripcion,
+            Fecha: i.fecha
+          })));
+
+          const crear = (await ask('¿Desea registrar un nuevo incidente? (s/n): ')).toLowerCase();
+          if (crear === 's') {
+            const id_incidente = `INC-${Date.now().toString().slice(-4)}`;
+            const id_envio = await ask('ID Envío asociado (ej: ENV-1001): ') || 'ENV-1001';
+            const tipo = await ask('Tipo de incidente (DESVIO_RUTA / RUPTURA_CADENA_FRIO / DEMORA): ') || 'RUPTURA_CADENA_FRIO';
+            const severidad = await ask('Severidad (BAJA / MEDIA / ALTA / CRITICA): ') || 'MEDIA';
+            const descripcion = await ask('Descripción del incidente: ') || 'Alerta registrada por operador';
+
+            const nuevo = await MongoTelemetryRepository.registrarIncidente({
+              id_incidente,
+              id_envio,
+              tipo,
+              severidad,
+              descripcion
+            });
+            console.log('\nIncidente registrado en MongoDB:', nuevo);
+          }
+          break;
+        }
+
+        case '7': {
+          console.log('\n--- MENSAJERÍA Y CHAT ENTRE ACTORES (MongoDB) ---');
+          const u1 = await ask('Remitente / Usuario 1 (ej: admin@logistica.com): ') || 'admin@logistica.com';
+          const u2 = await ask('Destinatario / Usuario 2 (ej: carlos@expressplata.com): ') || 'carlos@expressplata.com';
+
+          const mensajes = await MongoTelemetryRepository.obtenerMensajes(u1, u2);
+          console.log(`\nHistorial de mensajes entre ${u1} y ${u2}:`);
+          if (mensajes.length === 0) {
+            console.log('No hay mensajes previos.');
+          } else {
+            console.table(mensajes.map(m => ({
+              De: m.remitente,
+              Para: m.destinatario,
+              Fecha: m.fecha,
+              Mensaje: m.contenido
+            })));
+          }
+
+          const enviar = (await ask('¿Desea enviar un mensaje? (s/n): ')).toLowerCase();
+          if (enviar === 's') {
+            const contenido = await ask('Mensaje a enviar: ');
+            if (contenido.trim()) {
+              const res = await MongoTelemetryRepository.enviarMensaje({
+                remitente: u1,
+                destinatario: u2,
+                contenido: contenido.trim(),
+                tipo: 'PRIVADO'
+              });
+              console.log('Mensaje enviado y persistido en MongoDB:', res);
+            }
+          }
+          break;
+        }
+
+        case '8': {
           console.log('\n--- CONSULTA DE RUTA EN GRAFO (Neo4j) ---');
           const id_envio = await ask('ID del Envío a rastrear (ej: ENV-1001): ') || 'ENV-1001';
           const ruta = await Neo4jRouteRepository.obtenerRutaCompletaEnvio(id_envio);
@@ -161,14 +305,14 @@ Seleccione una opción:
           break;
         }
 
-        case '6': {
+        case '9': {
           console.log('\n--- RED LOGÍSTICA COMPLETA (Neo4j) ---');
           const red = await Neo4jRouteRepository.obtenerRedRelaciones();
           console.table(red);
           break;
         }
 
-        case '7': {
+        case '10': {
           console.log('\n--- CONSULTA DE ÚLTIMA POSICIÓN EN TIEMPO REAL (Redis) ---');
           const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
           const pos = await RedisCacheRepository.obtenerUltimaPosicion(id_contenedor);
@@ -181,7 +325,7 @@ Seleccione una opción:
           break;
         }
 
-        case '8': {
+        case '11': {
           console.log('\n--- ALTA DE ENVÍO POLÍGLOTA ---');
           const id_envio = await ask('Código Envío (ej: ENV-2005): ') || `ENV-${Date.now().toString().slice(-4)}`;
           const id_cliente = await ask('ID Cliente (ej: 1): ') || '1';
@@ -207,7 +351,7 @@ Seleccione una opción:
           break;
         }
 
-        case '9': {
+        case '12': {
           console.log('\n--- PREDICCIÓN DE RIESGO DE DEMORA ---');
           const id_envio = await ask('ID Envío (ej: ENV-1001): ') || 'ENV-1001';
           const riesgo = await LogisticsService.obtenerOPredicirRiesgo(id_envio);
@@ -216,7 +360,7 @@ Seleccione una opción:
           break;
         }
 
-        case '10': {
+        case '13': {
           console.log('\n--- RANKING DE CLIENTES POR VOLUMEN FACTURADO (PostgreSQL) ---');
           const ranking = await ComercialRepository.rankingClientesPorVolumen();
           console.table(ranking);

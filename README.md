@@ -2,7 +2,7 @@
 **Ingeniería de Datos II - UADE**
 
 Plataforma integral de gestión logística internacional y monitoreo de cargas inteligentes con dispositivos IoT utilizando cuatro paradigmas de bases de datos:
-1. **Relacional:** PostgreSQL (Clientes, Facturación, Pagos, Cuentas Corrientes).
+1. **Relacional:** PostgreSQL (Clientes, Contenedores, Facturación, Pagos, Cuentas Corrientes).
 2. **Documental:** MongoDB (Telemetría de Sensores IoT, Eventos, Incidentes, Alertas, Chat).
 3. **Grafos:** Neo4j (Rutas, Envíos, Tramos, Redes entre Clientes y Operadores).
 4. **Clave-Valor:** Redis (Caché de última ubicación GPS, Sesiones con TTL, Predicción de Riesgo).
@@ -29,19 +29,20 @@ Esto descargará y levantará:
 - Neo4j en los puertos `7474` (HTTP) y `7687` (Bolt)
 - Redis en el puerto `6379`
 
-### 2. Instalar dependencias del proyecto
+### 2. Poblar datos iniciales (opcional si es primera vez)
+```bash
+npm run seed
+```
+
+### 3. Instalar dependencias del proyecto
 ```bash
 npm install
 ```
 
-### 3. Iniciar la Aplicación (Servidor API + Frontend React)
+### 4. Iniciar la Aplicación por Consola (Menú Interactivo CLI)
 ```bash
 npm start
 ```
-Luego abre tu navegador en:
-👉 **[http://localhost:3001](http://localhost:3001)**
-
-*(Opcional: Si deseas usar la versión por consola/CLI, puedes ejecutar `npm run cli`)*
 
 ---
 
@@ -54,16 +55,17 @@ Luego abre tu navegador en:
 ├── scripts/
 │   ├── init_postgres.sql        # Esquema DDL y datos de prueba SQL
 │   ├── init_mongo.js            # Colecciones e índices para MongoDB
-│   └── init_neo4j.cypher        # Creación de grafos y relaciones en Neo4j
+│   ├── init_neo4j.cypher        # Creación de grafos y relaciones en Neo4j
+│   └── seed_all.js              # Inicialización unificada de datos
 └── src/
     ├── config/
     │   └── database.js          # Conexiones centralizadas a los 4 motores
     ├── repositories/
-    │   ├── postgresRepository.js# Operaciones CRUD, Facturación, Cuentas Corrientes
-    │   ├── mongoRepository.js   # Ingesta IoT, anomalías, eventos e incidentes
+    │   ├── postgresRepository.js# CRUD Clientes, Contenedores, Facturación, CC
+    │   ├── mongoRepository.js   # Ingesta IoT, anomalías, incidentes y chat
     │   ├── neo4jRepository.js   # Trazabilidad de rutas y red de transporte
     │   └── redisRepository.js   # Sesiones TTL, última posición GPS y caché
     ├── services/
     │   └── logisticsService.js  # Lógica de sincronización políglota
-    └── index.js                 # Aplicación interactiva por consola
+    └── index.js                 # Aplicación interactiva por consola (Menú Principal)
 ```
