@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS cuentas_corrientes (
 CREATE TABLE IF NOT EXISTS facturas (
     id_factura SERIAL PRIMARY KEY,
     id_cliente INT NOT NULL REFERENCES actores(id_actor),
+    tipo_factura VARCHAR(20) DEFAULT 'EMITIDA' CHECK (tipo_factura IN ('EMITIDA', 'RECIBIDA')),
+    numero_comprobante VARCHAR(50),
+    concepto VARCHAR(255),
+    id_envio VARCHAR(50),
     fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     importe_total NUMERIC(12, 2) NOT NULL,
     estado VARCHAR(50) DEFAULT 'PENDIENTE'
@@ -76,15 +80,31 @@ CREATE TABLE IF NOT EXISTS facturas (
 CREATE TABLE IF NOT EXISTS pagos (
     id_pago SERIAL PRIMARY KEY,
     id_factura INT NOT NULL REFERENCES facturas(id_factura) ON DELETE CASCADE,
+    tipo_pago VARCHAR(20) DEFAULT 'COBRO_CLIENTE' CHECK (tipo_pago IN ('COBRO_CLIENTE', 'PAGO_PROVEEDOR', 'PAGO_OPERADOR')),
+    referencia_comprobante VARCHAR(100),
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     monto NUMERIC(12, 2) NOT NULL,
     medio_pago VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cierres_cuentas_corrientes (
+    id_cierre SERIAL PRIMARY KEY,
+    periodo VARCHAR(7) NOT NULL,
+    id_actor INT NOT NULL REFERENCES actores(id_actor) ON DELETE CASCADE,
+    saldo_inicial NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_debe NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_haber NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    saldo_final NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    estado VARCHAR(20) DEFAULT 'CERRADO',
+    CONSTRAINT uq_cierre_actor_periodo UNIQUE (periodo, id_actor)
 );
 
 CREATE TABLE IF NOT EXISTS envios (
     id_envio VARCHAR(50) PRIMARY KEY,
     id_cliente INT NOT NULL REFERENCES actores(id_actor),
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_entrega TIMESTAMP,
     origen VARCHAR(100) NOT NULL,
     destino VARCHAR(100) NOT NULL,
     estado VARCHAR(50) DEFAULT 'CREADO',
@@ -97,6 +117,7 @@ CREATE TABLE IF NOT EXISTS tramos (
     medio_transporte VARCHAR(50) NOT NULL,
     origen VARCHAR(100) NOT NULL,
     destino VARCHAR(100) NOT NULL,
+    costo NUMERIC(12, 2) DEFAULT 15000.00,
     fecha_salida TIMESTAMP,
     fecha_llegada_estimada TIMESTAMP
 );
@@ -151,11 +172,15 @@ INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, fecha
 ('TR-1001-2', 'ENV-1001', 'Terrestre', 'Puerto de Santos', 'San Pablo', CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO facturas (id_factura, id_cliente, importe_total, estado) VALUES
-(1, 1, 45000.00, 'PAGADA'),
-(2, 1, 62000.00, 'PENDIENTE')
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, numero_comprobante, concepto, id_envio, importe_total, estado) VALUES
+(1, 1, 'EMITIDA', 'FC-0001-00000001', 'Flete internacional Buenos Aires - San Pablo', 'ENV-1001', 45000.00, 'PAGADA'),
+(2, 1, 'EMITIDA', 'FC-0001-00000002', 'Flete complementario aduanero', 'ENV-1001', 62000.00, 'PENDIENTE'),
+(3, 3, 'RECIBIDA', 'OP-0001-000451', 'Flete tramo terrestre ENV-1001', 'ENV-1001', 35000.00, 'PENDIENTE'),
+(4, 4, 'RECIBIDA', 'PR-0002-000129', 'Lote 10 Sensores IoT modelo SENS-88', NULL, 80000.00, 'PAGADA')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO pagos (id_factura, monto, medio_pago) VALUES
-(1, 45000.00, 'TRANSFERENCIA_BANCARIA')
+INSERT INTO pagos (id_pago, id_factura, tipo_pago, monto, medio_pago, referencia_comprobante) VALUES
+(1, 1, 'COBRO_CLIENTE', 45000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-SANT-11029'),
+(2, 4, 'PAGO_PROVEEDOR', 80000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BBVA-99412')
 ON CONFLICT DO NOTHING;
+

@@ -109,6 +109,60 @@ db.incidentes.insertMany([
     estado: "ABIERTO",
     descripcion: "Pico de temperatura superior a 8°C registrado por SENS-101.",
     fecha: new Date(Date.now() - 3600000 * 2)
+  },
+  {
+    id_incidente: "INC-202",
+    id_envio: "ENV-1001",
+    tipo: "Demora Aduanera",
+    severidad: "MEDIA",
+    estado: "CERRADO",
+    descripcion: "Retención de documentación en frontera Paso de los Libres.",
+    fecha: new Date(Date.now() - 86400000 * 2)
+  },
+  {
+    id_incidente: "INC-203",
+    id_envio: "ENV-1001",
+    tipo: "Vibración Excesiva",
+    severidad: "BAJA",
+    estado: "CERRADO",
+    descripcion: "Vibración de 0.85g registrada por sensor en bacheo Ruta 14.",
+    fecha: new Date(Date.now() - 86400000 * 1.5)
+  },
+  {
+    id_incidente: "INC-204",
+    id_envio: "ENV-1003",
+    tipo: "Condiciones Climáticas Adversas",
+    severidad: "ALTA",
+    estado: "CERRADO",
+    descripcion: "Paso Cristo Redentor cerrado preventivamente por temporal de nieve.",
+    fecha: new Date(Date.now() - 86400000 * 9)
+  },
+  {
+    id_incidente: "INC-205",
+    id_envio: "ENV-1003",
+    tipo: "Desvío de Ruta",
+    severidad: "MEDIA",
+    estado: "CERRADO",
+    descripcion: "Desvío obligatorio por mantenimiento de calzada RN 7.",
+    fecha: new Date(Date.now() - 86400000 * 8.5)
+  },
+  {
+    id_incidente: "INC-206",
+    id_envio: "ENV-1004",
+    tipo: "Demora Portuaria",
+    severidad: "BAJA",
+    estado: "CERRADO",
+    descripcion: "Demora en atraque de buque en Terminal Santos.",
+    fecha: new Date(Date.now() - 86400000 * 14)
+  },
+  {
+    id_incidente: "INC-207",
+    id_envio: "ENV-1005",
+    tipo: "Ruptura de Cadena de Frío",
+    severidad: "CRITICA",
+    estado: "ABIERTO",
+    descripcion: "Alarma de temperatura 10.4°C en contenedor reefer durante escala.",
+    fecha: new Date(Date.now() - 3600000 * 5)
   }
 ]);
 

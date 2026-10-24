@@ -1,10 +1,11 @@
 import readline from 'readline';
 import { initDatabaseConnections, closeDatabaseConnections, pgPool } from './config/database.js';
-import { ClienteRepository, ComercialRepository, ContenedorRepository } from './repositories/postgresRepository.js';
+import { ActorRepository, ClienteRepository, ComercialRepository, ContenedorRepository } from './repositories/postgresRepository.js';
 import { MongoTelemetryRepository } from './repositories/mongoRepository.js';
 import { Neo4jRouteRepository } from './repositories/neo4jRepository.js';
 import { RedisCacheRepository } from './repositories/redisRepository.js';
 import { LogisticsService } from './services/logisticsService.js';
+import { AnalyticsService } from './services/analyticsService.js';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -35,9 +36,9 @@ async function menu() {
   while (!salir) {
     console.log(`
 Seleccione una opción:
-  1.  [PostgreSQL] Gestionar Clientes (CRUD y Cuentas Corrientes)
+  1.  [PostgreSQL] Gestionar Clientes, Proveedores y Operadores (Actores y CC)
   2.  [PostgreSQL] Gestionar Contenedores (Listado, Alta, Modificación, Baja)
-  3.  [PostgreSQL] Emitir Factura y Registrar Pago
+  3.  [Finanzas]   Gestión Comercial y Financiera (Facturación Clientes/Prov, Pagos, CC y Cierres)
   4.  [MongoDB]    Ingresar Lectura de Sensor IoT (Temperatura/GPS/Batería)
   5.  [MongoDB]    Ver Histórico de Lecturas y Detectar Anomalías
   6.  [MongoDB]    Gestionar Incidentes y Alertas
@@ -48,6 +49,9 @@ Seleccione una opción:
   11. [Políglota]  Crear Nuevo Envío Sincronizado (PG + Neo4j + Mongo)
   12. [Políglota]  Calcular / Consultar Predicción de Riesgo
   13. [Reporte]    Ranking de Clientes por Volumen Facturado
+  14. [Reporte]    Reportes Comerciales Parametrizados (Filtros y Auditoría en MongoDB)
+  15. [Analítica]  Ranking de Rutas con Mayor Cantidad de Incidentes (Mongo + PG + Redis)
+  16. [Analítica]  Análisis Histórico de Desempeño (Tiempos Entrega, Puntualidad y Costos)
   0.  Salir
 `);
 
@@ -56,36 +60,42 @@ Seleccione una opción:
     try {
       switch (opt) {
         case '1': {
-          console.log('\n--- CLIENTES REGISTRADOS (PostgreSQL) ---');
-          const clientes = await ClienteRepository.listarTodos();
-          console.table(clientes.map(c => ({
-            ID: c.id_actor,
-            Razon_Social: c.razon_social,
-            CUIT: c.cuit,
-            Pais: c.pais,
-            Saldo_CC: `$ ${c.saldo || 0}`
+          console.log('\n--- GESTIÓN DE ACTORES Y CUENTAS CORRIENTES (PostgreSQL) ---');
+          const actores = await ActorRepository.listarTodos();
+          console.table(actores.map(a => ({
+            ID: a.id_actor,
+            Tipo: a.tipo_actor,
+            Razon_Social: a.razon_social,
+            CUIT: a.cuit,
+            Pais: a.pais,
+            Saldo_CC: `$ ${a.saldo || 0}`
           })));
 
           console.log('\nAcciones:');
-          console.log('  1. Dar de alta nuevo cliente');
-          console.log('  2. Ver estado de cuenta corriente de un cliente');
+          console.log('  1. Dar de alta nuevo actor (Cliente, Proveedor u Operador)');
+          console.log('  2. Ver estado detallado de cuenta corriente de un actor');
           console.log('  3. Volver al menú principal');
           const subOpt = (await ask('Seleccione acción (1-3) > ')).trim();
 
           if (subOpt === '1') {
+            const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR) [CLIENTE]: ')).trim() || 'CLIENTE';
             const razon_social = await ask('Razón Social: ');
             const cuit = await ask('CUIT: ');
             const email = await ask('Email: ');
             const pais = await ask('País: ');
-            const nuevo = await ClienteRepository.crear({ razon_social, cuit, email, pais });
-            console.log('Cliente creado exitosamente:', nuevo);
+            const direccion = await ask('Dirección (opcional): ') || null;
+            const nuevo = await ActorRepository.crear({ tipo_actor, razon_social, cuit, email, pais, direccion });
+            console.log('\nActor creado exitosamente con cuenta corriente inicializada:', nuevo);
           } else if (subOpt === '2') {
-            const id_cliente = await ask('ID del Cliente: ');
-            const estado = await ComercialRepository.obtenerEstadoCuenta(Number(id_cliente));
+            const id_actor = await ask('ID del Actor: ');
+            const estado = await ComercialRepository.obtenerEstadoCuenta(Number(id_actor));
+            console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
             console.log('\nCuenta Corriente:');
             console.table([estado.cuenta_corriente]);
             console.log('\nFacturas asociadas:');
             console.table(estado.facturas);
+            console.log('\nPagos / Cobros asociados:');
+            console.table(estado.pagos);
           }
           break;
         }
@@ -152,21 +162,332 @@ Seleccione una opción:
         }
 
         case '3': {
-          console.log('\n--- FACTURACIÓN Y PAGOS (PostgreSQL) ---');
-          const id_cliente = await ask('ID del Cliente: ');
-          const importe = await ask('Importe total a facturar ($): ');
-          const factura = await ComercialRepository.emitirFactura({ id_cliente: Number(id_cliente), importe_total: Number(importe) });
-          console.log(`Factura N° ${factura.id_factura} emitida correctamente con estado ${factura.estado}.`);
+          console.log(`
+========================================================================
+             MÓDULO DE GESTIÓN COMERCIAL Y FINANCIERA
+========================================================================
+1. [Clientes]           Emitir Factura de Venta y Registrar Cobro
+2. [Proveedores/Oper.]  Registrar Factura Recibida y Realizar Pago
+                        (Recepción de facturas ya confeccionadas externamente)
+3. [Cuentas Corrientes] Consultar Saldos y Estado de Cuenta por Actor
+4. [Cuentas Corrientes] Listar Todas las Cuentas Corrientes (Saldos Generales)
+5. [Automatización]     Facturación Automática de Envíos (Cierre / Entrega)
+6. [Contabilidad]       Cierre Mensual de Cuentas Corrientes (Ejecutar / Histórico)
+7. [Reportes]           Solicitar Reporte Comercial Parametrizado (Guardado en MongoDB)
+0. Volver al menú principal
+`);
+          const subCom = (await ask('Seleccione operación comercial (0-7) > ')).trim();
 
-          const pagar = (await ask('¿Desea registrar el cobro de esta factura ahora? (s/n): ')).toLowerCase();
-          if (pagar === 's') {
-            const medio = await ask('Medio de pago (TRANSFERENCIA/EFECTIVO/TARJETA): ');
-            const pago = await ComercialRepository.registrarPago({
-              id_factura: factura.id_factura,
-              monto: Number(importe),
-              medio_pago: medio.toUpperCase()
+          if (subCom === '1') {
+            console.log('\n--- FACTURACIÓN A CLIENTES (EMISIÓN DE VENTA) ---');
+            const clientes = await ActorRepository.listarTodos('CLIENTE');
+            console.table(clientes.map(c => ({
+              ID: c.id_actor,
+              Razon_Social: c.razon_social,
+              CUIT: c.cuit,
+              Pais: c.pais,
+              Saldo_CC: `$ ${c.saldo}`
+            })));
+
+            const id_cliente = await ask('ID del Cliente: ');
+            const importe = await ask('Importe total a facturar ($): ');
+            const concepto = await ask('Concepto de facturación [Servicio de flete y logística internacional]: ') || 'Servicio de flete y logística internacional';
+            const id_envio = (await ask('ID Envío asociado (opcional, ej: ENV-1001): ')).trim() || null;
+
+            const factura = await ComercialRepository.emitirFactura({
+              id_cliente: Number(id_cliente),
+              importe_total: Number(importe),
+              concepto,
+              id_envio
             });
-            console.log('Pago registrado y acreditado en Cuenta Corriente:', pago);
+            console.log(`\nFactura N° ${factura.id_factura} (${factura.numero_comprobante}) emitida correctamente en estado ${factura.estado}.`);
+            console.log(`Cuenta corriente de cliente debitada por $${importe}.`);
+
+            const cobrar = (await ask('¿Desea registrar el cobro de esta factura ahora? (s/n): ')).toLowerCase();
+            if (cobrar === 's') {
+              const medio = await ask('Medio de pago (TRANSFERENCIA_BANCARIA / EFECTIVO / CHEQUE / TARJETA) [TRANSFERENCIA_BANCARIA]: ') || 'TRANSFERENCIA_BANCARIA';
+              const ref = (await ask('Referencia de cobro / comprobante (opcional): ')).trim() || null;
+              const resPago = await ComercialRepository.registrarPago({
+                id_factura: factura.id_factura,
+                monto: Number(importe),
+                medio_pago: medio.toUpperCase(),
+                referencia_comprobante: ref
+              });
+              console.log('\nCobro registrado y acreditado en Cuenta Corriente:', resPago);
+            }
+
+          } else if (subCom === '2') {
+            console.log('\n--- FACTURAS RECIBIDAS DE PROVEEDORES Y OPERADORES LOGÍSTICOS ---');
+            console.log('* Nota: El sistema no crea facturas para proveedores y operadores, sino que recibe facturas ya confeccionadas por ellos.');
+            console.log('1. Registrar Factura Recibida');
+            console.log('2. Registrar Pago a Factura Recibida Pendiente');
+            console.log('3. Volver');
+            const optProv = (await ask('Seleccione acción (1-3) > ')).trim();
+
+            if (optProv === '1') {
+              const proveedoresOperadores = await ActorRepository.listarTodos();
+              const filtrados = proveedoresOperadores.filter(a => a.tipo_actor === 'PROVEEDOR' || a.tipo_actor === 'OPERADOR');
+              console.log('\nProveedores y Operadores registrados:');
+              console.table(filtrados.map(a => ({
+                ID: a.id_actor,
+                Tipo: a.tipo_actor,
+                Razon_Social: a.razon_social,
+                CUIT: a.cuit,
+                Saldo_CC: `$ ${a.saldo}`
+              })));
+
+              const id_actor = await ask('ID del Proveedor u Operador: ');
+              const numero_comprobante = await ask('N° de Factura / Comprobante Externo (ej: FC-A-0001-0004521): ');
+              const concepto = await ask('Concepto [Servicio de transporte / insumos]: ') || 'Servicio de transporte / insumos';
+              const importe = await ask('Importe total facturado ($): ');
+              const id_envio = (await ask('ID Envío asociado (opcional, ej: ENV-1001): ')).trim() || null;
+
+              const facRec = await ComercialRepository.registrarFacturaRecibida({
+                id_actor: Number(id_actor),
+                importe_total: Number(importe),
+                numero_comprobante,
+                concepto,
+                id_envio
+              });
+              console.log(`\nFactura recibida N° ${facRec.id_factura} (${facRec.numero_comprobante}) registrada exitosamente.`);
+              console.log(`Saldo de cuenta corriente actualizado: se registró la obligación de pago con el tercero.`);
+
+            } else if (optProv === '2') {
+              const rep = await ComercialRepository.reporteComercialParametrizado({
+                tipo_factura: 'RECIBIDA',
+                estado_factura: 'PENDIENTE'
+              });
+
+              if (rep.facturas.length === 0) {
+                console.log('\nNo hay facturas recibidas de proveedores u operadores pendientes de pago.');
+              } else {
+                console.log('\nFacturas recibidas pendientes de pago:');
+                console.table(rep.facturas.map(f => ({
+                  ID_Factura: f.id_factura,
+                  Tipo_Actor: f.tipo_actor,
+                  Actor: f.razon_social,
+                  Comprobante: f.numero_comprobante || '-',
+                  Concepto: f.concepto,
+                  Total: `$ ${f.importe_total}`,
+                  Pagado: `$ ${f.total_pagado}`,
+                  Saldo_Pendiente: `$ ${Number(f.importe_total) - Number(f.total_pagado)}`,
+                  Envio: f.id_envio || 'N/A'
+                })));
+
+                const id_factura = await ask('ID de Factura a pagar: ');
+                const monto = await ask('Monto a abonar ($): ');
+                const medio = await ask('Medio de pago (TRANSFERENCIA_BANCARIA / CHEQUE / EFECTIVO) [TRANSFERENCIA_BANCARIA]: ') || 'TRANSFERENCIA_BANCARIA';
+                const ref = (await ask('Referencia de pago / transferencia: ')).trim() || `TRF-${Date.now().toString().slice(-6)}`;
+
+                const resPago = await ComercialRepository.registrarPago({
+                  id_factura: Number(id_factura),
+                  monto: Number(monto),
+                  medio_pago: medio.toUpperCase(),
+                  referencia_comprobante: ref
+                });
+                console.log('\nPago registrado exitosamente y deuda cancelada en Cuenta Corriente:', resPago);
+              }
+            }
+
+          } else if (subCom === '3') {
+            console.log('\n--- CONSULTA DE ESTADO DE CUENTA POR ACTOR ---');
+            const actores = await ActorRepository.listarTodos();
+            console.table(actores.map(a => ({
+              ID: a.id_actor,
+              Tipo: a.tipo_actor,
+              Razon_Social: a.razon_social,
+              CUIT: a.cuit,
+              Saldo_CC: `$ ${a.saldo}`
+            })));
+
+            const id_actor = await ask('Ingrese ID del Actor a consultar: ');
+            const estado = await ComercialRepository.obtenerEstadoCuenta(Number(id_actor));
+            console.log(`\n=== ESTADO DE CUENTA CORRIENTE: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
+            console.log(`Saldo Actual: $ ${estado.cuenta_corriente.saldo}`);
+            console.log(`Última Actualización: ${estado.cuenta_corriente.fecha_actualizacion}`);
+
+            console.log('\nFacturas Registradas (Emitidas / Recibidas):');
+            if (estado.facturas.length === 0) {
+              console.log('No tiene facturas registradas.');
+            } else {
+              console.table(estado.facturas.map(f => ({
+                ID: f.id_factura,
+                Tipo: f.tipo_factura,
+                Comprobante: f.numero_comprobante || '-',
+                Concepto: f.concepto,
+                Total: `$ ${f.importe_total}`,
+                Pagado: `$ ${f.total_pagado}`,
+                Estado: f.estado,
+                Envio: f.id_envio || '-'
+              })));
+            }
+
+            console.log('\nHistorial de Pagos / Cobros:');
+            if (estado.pagos.length === 0) {
+              console.log('No tiene pagos registrados.');
+            } else {
+              console.table(estado.pagos.map(p => ({
+                ID_Pago: p.id_pago,
+                Factura: p.id_factura,
+                Tipo: p.tipo_pago,
+                Monto: `$ ${p.monto}`,
+                Medio: p.medio_pago,
+                Referencia: p.referencia_comprobante,
+                Fecha: p.fecha
+              })));
+            }
+
+          } else if (subCom === '4') {
+            console.log('\n--- LISTADO GENERAL DE CUENTAS CORRIENTES ---');
+            console.log('Filtro por tipo de actor:');
+            console.log('  1. Clientes');
+            console.log('  2. Proveedores');
+            console.log('  3. Operadores Logísticos');
+            console.log('  4. Todos');
+            const fOpt = (await ask('Opción (1-4) [4]: ')).trim() || '4';
+            const tipoMap = { '1': 'CLIENTE', '2': 'PROVEEDOR', '3': 'OPERADOR', '4': null };
+            const lista = await ActorRepository.listarTodos(tipoMap[fOpt]);
+
+            console.table(lista.map(a => ({
+              ID: a.id_actor,
+              Tipo: a.tipo_actor,
+              Razon_Social: a.razon_social,
+              CUIT: a.cuit,
+              Pais: a.pais,
+              Saldo_CC: `$ ${a.saldo}`,
+              Estado_Saldo: Number(a.saldo) < 0 ? 'DEUDOR' : (Number(a.saldo) > 0 ? 'A FAVOR' : 'EQUILIBRADO'),
+              Ultima_Actualizacion: a.cc_actualizacion
+            })));
+
+          } else if (subCom === '5') {
+            console.log('\n--- FACTURACIÓN AUTOMÁTICA POR CIERRE DE ENVÍO ---');
+            console.log('1. Facturar un envío específico (por entrega/cierre)');
+            console.log('2. Ejecutar proceso automático masivo para envíos pendientes');
+            const autoOpt = (await ask('Opción (1-2) > ')).trim();
+
+            if (autoOpt === '1') {
+              const id_envio = await ask('Código del Envío a facturar (ej: ENV-1001): ');
+              const resAuto = await ComercialRepository.facturacionAutomaticaPorEnvio(id_envio.trim());
+              if (resAuto.ya_facturado) {
+                console.log(`\n[AVISO]: ${resAuto.mensaje}`);
+              } else {
+                console.log('\n[ÉXITO] Facturación automática completada:');
+                console.log(`Factura N° ${resAuto.factura.id_factura} emitida por un total de $${resAuto.factura.importe_total}.`);
+                console.log('Desglose de cálculo comercial:');
+                console.log(`- Tarifa Base: $${resAuto.calculo.base}`);
+                console.log(`- Tramos de recorrido: ${resAuto.calculo.tramos} tramo(s) ($${resAuto.calculo.costo_tramos})`);
+                console.log(`- Factor por prioridad: x${resAuto.calculo.factor_prioridad}`);
+                console.log(`- Importe total calculado: $${resAuto.calculo.total}`);
+                console.log('El envío fue actualizado a estado ENTREGADO y se registró auditoría en MongoDB.');
+              }
+            } else if (autoOpt === '2') {
+              console.log('\nEjecutando proceso de facturación automática por lote...');
+              const resultados = await ComercialRepository.ejecutarFacturacionAutomaticaMasiva();
+              if (resultados.length === 0) {
+                console.log('No se encontraron envíos pendientes de facturación automática.');
+              } else {
+                console.table(resultados.map(r => ({
+                  Envio: r.id_envio,
+                  Estado: r.exito ? 'FACTURADO' : 'ERROR',
+                  Factura_ID: r.factura?.id_factura || '-',
+                  Importe: r.factura ? `$ ${r.factura.importe_total}` : '-',
+                  Detalle: r.exito ? 'Factura emitida y registrada en CC' : r.error
+                })));
+              }
+            }
+
+          } else if (subCom === '6') {
+            console.log('\n--- CIERRE MENSUAL DE CUENTAS CORRIENTES ---');
+            console.log('1. Ejecutar Cierre Mensual del período');
+            console.log('2. Consultar historial de cierres mensuales');
+            const cOpt = (await ask('Opción (1-2) > ')).trim();
+
+            if (cOpt === '1') {
+              const defPeriodo = new Date().toISOString().slice(0, 7);
+              const periodo = (await ask(`Período a cerrar (YYYY-MM) [${defPeriodo}]: `)).trim() || defPeriodo;
+              const id_actor = (await ask('Filtrar por ID Actor específico (opcional, ENTER para todos): ')).trim() || null;
+
+              console.log(`\nEjecutando cierre contable mensual para el período ${periodo}...`);
+              const resCierre = await ComercialRepository.ejecutarCierreMensual({
+                periodo,
+                id_actor: id_actor ? Number(id_actor) : null
+              });
+
+              console.log(`\nCierre mensual ${resCierre.periodo} finalizado. Actores procesados: ${resCierre.total_procesados}.`);
+              console.table(resCierre.cierres.map(c => ({
+                ID: c.id_actor,
+                Tipo: c.tipo_actor,
+                Actor: c.razon_social,
+                Saldo_Inicial: `$ ${c.saldo_inicial}`,
+                Facturado_Mes: `$ ${c.total_facturado}`,
+                Pagado_Mes: `$ ${c.total_pagado}`,
+                Saldo_Cierre: `$ ${c.saldo_final}`
+              })));
+              console.log('Auditoría contable registrada en colección documental MongoDB (db.reportes).');
+
+            } else if (cOpt === '2') {
+              const per = (await ask('Período a consultar (YYYY-MM o ENTER para todos): ')).trim() || null;
+              const historico = await ComercialRepository.consultarCierresMensuales(per);
+              if (historico.length === 0) {
+                console.log('No se registran cierres mensuales para el criterio especificado.');
+              } else {
+                console.table(historico.map(h => ({
+                  Periodo: h.periodo,
+                  Actor: h.razon_social,
+                  Tipo: h.tipo_actor,
+                  Saldo_Inicial: `$ ${h.saldo_inicial}`,
+                  Total_Debe: `$ ${h.total_debe}`,
+                  Total_Haber: `$ ${h.total_haber}`,
+                  Saldo_Final: `$ ${h.saldo_final}`,
+                  Fecha_Cierre: h.fecha_cierre,
+                  Estado: h.estado
+                })));
+              }
+            }
+
+          } else if (subCom === '7') {
+            console.log('\n--- SOLICITUD DE REPORTE COMERCIAL PARAMETRIZADO ---');
+            console.log('Ingrese parámetros de filtro (ENTER para omitir filtro):');
+            const fecha_desde = (await ask('Fecha Desde (YYYY-MM-DD): ')).trim() || null;
+            const fecha_hasta = (await ask('Fecha Hasta (YYYY-MM-DD): ')).trim() || null;
+            const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR / TODOS) [TODOS]: ')).trim() || 'TODOS';
+            const tipo_factura = (await ask('Tipo de Factura (EMITIDA / RECIBIDA / TODAS) [TODAS]: ')).trim() || 'TODAS';
+            const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
+            const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
+
+            console.log('\nGenerando reporte comercial...');
+            const rep = await ComercialRepository.reporteComercialParametrizado({
+              fecha_desde,
+              fecha_hasta,
+              tipo_actor,
+              tipo_factura,
+              estado_factura,
+              id_actor: id_actor ? Number(id_actor) : null
+            });
+
+            console.log('\n=== COMPROBANTES ENCONTRADOS ===');
+            if (rep.facturas.length === 0) {
+              console.log('No se encontraron comprobantes con los filtros indicados.');
+            } else {
+              console.table(rep.facturas.map(f => ({
+                ID: f.id_factura,
+                Tipo_Factura: f.tipo_factura,
+                Nro_Comprobante: f.numero_comprobante || '-',
+                Actor: f.razon_social,
+                Tipo_Actor: f.tipo_actor,
+                Concepto: f.concepto,
+                Total: `$ ${f.importe_total}`,
+                Pagado: `$ ${f.total_pagado}`,
+                Estado: f.estado,
+                Fecha: f.fecha_emision
+              })));
+            }
+
+            console.log('\n=== MÉTRICAS CONSOLIDADAS DEL REPORTE ===');
+            console.table([rep.metricas]);
+            if (rep.id_reporte_mongo) {
+              console.log(`Documento de reporte persistido en MongoDB (Colección: reportes, ID: ${rep.id_reporte_mongo})`);
+            }
           }
           break;
         }
@@ -364,6 +685,112 @@ Seleccione una opción:
           console.log('\n--- RANKING DE CLIENTES POR VOLUMEN FACTURADO (PostgreSQL) ---');
           const ranking = await ComercialRepository.rankingClientesPorVolumen();
           console.table(ranking);
+          break;
+        }
+
+        case '14': {
+          console.log('\n--- REPORTE COMERCIAL PARAMETRIZADO (PostgreSQL + MongoDB) ---');
+          console.log('Ingrese filtros (ENTER para omitir):');
+          const fecha_desde = (await ask('Fecha Desde (YYYY-MM-DD): ')).trim() || null;
+          const fecha_hasta = (await ask('Fecha Hasta (YYYY-MM-DD): ')).trim() || null;
+          const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR / TODOS) [TODOS]: ')).trim() || 'TODOS';
+          const tipo_factura = (await ask('Tipo de Factura (EMITIDA / RECIBIDA / TODAS) [TODAS]: ')).trim() || 'TODAS';
+          const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
+          const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
+
+          const rep = await ComercialRepository.reporteComercialParametrizado({
+            fecha_desde,
+            fecha_hasta,
+            tipo_actor,
+            tipo_factura,
+            estado_factura,
+            id_actor: id_actor ? Number(id_actor) : null
+          });
+
+          console.log('\n=== COMPROBANTES ENCONTRADOS ===');
+          if (rep.facturas.length === 0) {
+            console.log('No se encontraron comprobantes con los filtros especificados.');
+          } else {
+            console.table(rep.facturas.map(f => ({
+              ID: f.id_factura,
+              Tipo: f.tipo_factura,
+              Nro_Comp: f.numero_comprobante || '-',
+              Actor: f.razon_social,
+              Tipo_Actor: f.tipo_actor,
+              Concepto: f.concepto,
+              Total: `$ ${f.importe_total}`,
+              Pagado: `$ ${f.total_pagado}`,
+              Estado: f.estado,
+              Fecha: f.fecha_emision
+            })));
+          }
+
+          console.log('\n=== RESUMEN MÉTRICO ===');
+          console.table([rep.metricas]);
+          if (rep.id_reporte_mongo) {
+            console.log(`Reporte comercial guardado en MongoDB con ID: ${rep.id_reporte_mongo}`);
+          }
+          break;
+        }
+
+        case '15': {
+          console.log('\n--- RANKING DE RUTAS CON MAYOR CANTIDAD DE INCIDENTES (MongoDB + PostgreSQL + Redis) ---');
+          const forzar = (await ask('¿Desea forzar recálculo omitiendo la caché de Redis? (s/n) [n]: ')).toLowerCase() === 's';
+          console.log('\nCalculando correlación políglota de rutas e incidentes...');
+          const res = await AnalyticsService.rankingRutasConMasIncidentes({ forzarRecalculo: forzar });
+          console.log(`[Origen de datos: ${res.origen_datos}] | Rutas evaluadas: ${res.total_rutas_evaluadas}`);
+
+          console.table(res.ranking.map(r => ({
+            Ruta: r.ruta,
+            Viajes: r.total_viajes,
+            Incidentes: r.total_incidentes,
+            'Tasa (Inc/Viaje)': r.tasa_incidentes_por_viaje,
+            Críticos: r.incidentes_criticos,
+            Leves: r.incidentes_leves,
+            Abiertos: r.incidentes_abiertos,
+            Riesgo: r.nivel_riesgo,
+            'Tipos Frecuentes': r.tipos_recurrentes
+          })));
+
+          console.log('\nRecomendaciones Operativas por Ruta:');
+          res.ranking.forEach(r => {
+            console.log(`* [${r.nivel_riesgo}] ${r.ruta}: ${r.recomendacion}`);
+          });
+          break;
+        }
+
+        case '16': {
+          console.log('\n--- ANÁLISIS HISTÓRICO DE DESEMPEÑO LOGÍSTICO (PostgreSQL + MongoDB + Redis) ---');
+          const id_cliente = (await ask('Filtrar por ID Cliente específico (opcional, ENTER para global): ')).trim() || null;
+          console.log('\nProcesando análisis de tiempos, puntualidad y costos...');
+          const res = await AnalyticsService.analisisHistoricoDesempeno({ id_cliente });
+
+          console.log(`\n[Origen de datos: ${res.origen_datos}]`);
+          console.log('\n=== RESUMEN GENERAL DE ENVÍOS ===');
+          console.table([res.resumen_general]);
+
+          console.log('\n=== MÉTRICAS DE TIEMPOS DE ENTREGA Y PUNTUALIDAD ===');
+          console.table([res.metricas_tiempos_entrega]);
+
+          console.log('\n=== DESEMPEÑO Y TIEMPOS DE ENTREGA POR CLIENTE ===');
+          console.table(res.desempeno_por_cliente.map(c => ({
+            ID_Cliente: c.id_cliente,
+            Cliente: c.cliente,
+            Pais: c.pais,
+            Envíos_Totales: c.total_envios,
+            Entregados: c.envios_entregados,
+            'Tiempo Prom (días)': c.tiempo_promedio_dias,
+            'Tiempo Mín (días)': c.tiempo_minimo_dias,
+            'Tiempo Máx (días)': c.tiempo_maximo_dias
+          })));
+
+          console.log('\n=== COSTOS Y VOLÚMENES POR MEDIO DE TRANSPORTE ===');
+          console.table(res.costos_por_tipo_transporte);
+
+          console.log('\n=== CONFIABILIDAD OPERATIVA POR OPERADOR LOGÍSTICO ===');
+          console.table(res.confiabilidad_operadores);
+
+          console.log('\nInforme analítico histórico persistido en MongoDB (Colección: reportes, Categoría: INTELIGENCIA_ANALITICA)');
           break;
         }
 

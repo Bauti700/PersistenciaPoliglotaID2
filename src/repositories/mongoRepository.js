@@ -107,6 +107,43 @@ export class MongoTelemetryRepository {
     return await getDb().collection('incidentes').find({ estado: 'ABIERTO' }).toArray();
   }
 
+  // --- ANALÍTICA DE INCIDENTES POR ENVÍO (AGGREGATION PIPELINE) ---
+  static async obtenerIncidentesPorEnvio() {
+    return await getDb().collection('incidentes').aggregate([
+      {
+        $group: {
+          _id: '$id_envio',
+          total_incidentes: { $sum: 1 },
+          criticos: {
+            $sum: {
+              $cond: [{ $in: ['$severidad', ['ALTA', 'CRITICA']] }, 1, 0]
+            }
+          },
+          leves: {
+            $sum: {
+              $cond: [{ $in: ['$severidad', ['MEDIA', 'BAJA']] }, 1, 0]
+            }
+          },
+          abiertos: {
+            $sum: {
+              $cond: [{ $eq: ['$estado', 'ABIERTO'] }, 1, 0]
+            }
+          },
+          tipos: { $addToSet: '$tipo' },
+          ultimos_incidentes: {
+            $push: {
+              id: '$id_incidente',
+              tipo: '$tipo',
+              severidad: '$severidad',
+              estado: '$estado',
+              descripcion: '$descripcion'
+            }
+          }
+        }
+      }
+    ]).toArray();
+  }
+
   // --- MENSAJERÍA ---
   static async enviarMensaje({ remitente, destinatario, id_grupo = null, contenido, tipo = 'PRIVADO' }) {
     const col = getDb().collection('mensajes');
@@ -132,4 +169,29 @@ export class MongoTelemetryRepository {
       ]
     }).sort({ fecha: 1 }).toArray();
   }
+
+  // --- REPORTES (DOCUMENTAL) ---
+  static async registrarReporte({ id_reporte, usuario = 'admin@logistica.com', tipo, categoria = 'COMERCIAL', parametros = {}, resumen = {} }) {
+    const col = getDb().collection('reportes');
+    const doc = {
+      id_reporte: id_reporte || `REP-${Date.now()}`,
+      usuario,
+      tipo,
+      categoria,
+      parametros,
+      resumen,
+      fecha_generacion: new Date()
+    };
+    await col.insertOne(doc);
+    return doc;
+  }
+
+  static async listarReportes(limite = 20) {
+    return await getDb().collection('reportes')
+      .find({})
+      .sort({ fecha_generacion: -1 })
+      .limit(limite)
+      .toArray();
+  }
 }
+

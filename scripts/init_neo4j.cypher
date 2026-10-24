@@ -54,3 +54,23 @@ CREATE (t2)-[:HASTA]->(u3)
 CREATE (c2)-[:SOLICITA]->(e2)
 CREATE (e2)-[:TIENE_ORIGEN]->(u4)
 CREATE (e2)-[:TIENE_DESTINO]->(u5)
+
+// Relaciones para ENV-1003
+CREATE (e3:Envio {id_envio: "ENV-1003", estado: "ENTREGADO", prioridad: "ALTA"})
+CREATE (c1)-[:SOLICITA]->(e3)
+CREATE (e3)-[:TIENE_ORIGEN]->(u1)
+CREATE (e3)-[:TIENE_DESTINO]->(u5)
+
+// Relaciones para ENV-1004
+CREATE (e4:Envio {id_envio: "ENV-1004", estado: "ENTREGADO", prioridad: "MEDIA"})
+CREATE (c2)-[:SOLICITA]->(e4)
+CREATE (e4)-[:TIENE_ORIGEN]->(u3)
+CREATE (e4)-[:TIENE_DESTINO]->(u4)
+
+// Relaciones para ENV-1005
+CREATE (e5:Envio {id_envio: "ENV-1005", estado: "EN_TRANSITO", prioridad: "ALTA"})
+CREATE (c1)-[:SOLICITA]->(e5)
+CREATE (e5)-[:TIENE_ORIGEN]->(u1)
+CREATE (e5)-[:TIENE_DESTINO]->(u3)
+CREATE (e5)-[:ASIGNADO_A]->(op1)
+

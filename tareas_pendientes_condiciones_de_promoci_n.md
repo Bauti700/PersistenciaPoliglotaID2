@@ -16,12 +16,13 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 
 ## 💰 Gestión Comercial y Financiera
 - [x] Cuenta Corriente - Facturación y Cobros (clientes) (PostgreSQL - Emisión, imputación en CC y saldos).
-- [ ] Cuenta Corriente - Facturación y Pagos (proveedores y operadores logísticos).
-- [x] Gestión de cuentas corrientes (Clientes - Consulta en CLI).
-- [ ] Facturación automática (Proceso/job automático por cierre de envío).
-- [x] Registro de pagos (PostgreSQL - Acreditación en CC y actualización de factura).
-- [ ] Cierre mensual de cuentas corrientes.
-- [ ] Solicitud de reportes comerciales parametrizados.
+- [x] Cuenta Corriente - Facturación y Pagos (proveedores y operadores logísticos) (PostgreSQL - Recepción de facturas externas ya hechas, imputación en CC y pagos con cancelación de pasivos).
+- [x] Gestión de cuentas corrientes (Clientes, Proveedores y Operadores Logísticos - Consulta individual y listado general filtrado en CLI).
+- [x] Facturación automática (PostgreSQL + MongoDB - Cálculo automático de tarifas por tramos/prioridad ante entrega/cierre de envío y proceso masivo por lote).
+- [x] Registro de pagos (PostgreSQL - Cobros a clientes y pagos a proveedores/operadores con acreditación/débito en CC y actualización de estado de factura).
+- [x] Cierre mensual de cuentas corrientes (PostgreSQL + MongoDB - Tabla `cierres_cuentas_corrientes` con saldo inicial, débitos, créditos, saldo final y auditoría documental en MongoDB).
+- [x] Solicitud de reportes comerciales parametrizados (PostgreSQL + MongoDB - Reportes parametrizados por rango de fechas, tipo de actor, tipo de comprobante y estado con métricas y persistencia en colección `reportes`).
+
 
 ## 📡 Monitoreo, Trazabilidad e IoT
 - [x] Monitorear envíos - sensores - contenedores - Eventos (MongoDB + Redis + Menú CLI).
@@ -36,11 +37,11 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 - [x] Generación de alertas (Disparo ante temperatura >8°C e incidentes).
 
 ## 🧠 Inteligencia Analítica
-- [ ] Ranking de rutas con mayor cantidad de incidentes.
+- [x] Ranking de rutas con mayor cantidad de incidentes (MongoDB + PostgreSQL + Redis - Correlación de incidentes por envío con rutas, nivel de riesgo y caché Redis 1h - Menú CLI opción 15).
 - [x] Ranking de clientes por volumen transportado (PostgreSQL - Menú CLI).
 - [x] Predicción de atrasos / riesgos (LogisticsService con caché en Redis de 24h).
 - [x] Red de relaciones entre clientes, operadores y envíos (Neo4j - Menú CLI).
-- [ ] Análisis histórico de desempeño.
+- [x] Análisis histórico de desempeño (PostgreSQL + MongoDB + Redis - Tiempos promedio/mín/máx de entrega por cliente, puntualidad OTD, costos por transporte, confiabilidad de operadores y auditoría en MongoDB - Menú CLI opción 16).
 - [x] Detección de anomalías de temperatura (MongoDB Aggregation Pipeline en CLI).
 
 ## 📊 Reportes Operativos y Analíticos

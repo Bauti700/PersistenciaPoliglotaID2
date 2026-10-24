@@ -67,4 +67,18 @@ export class RedisCacheRepository {
     const raw = await redisClient.get(`prediccion:envio:${id_envio}`);
     return raw ? JSON.parse(raw) : null;
   }
+
+  // --- CACHÉ DE INTELIGENCIA ANALÍTICA Y REPORTES ---
+  static async cachearAnalitica(clave, datos, ttlSegundos = 3600) {
+    if (!redisClient.isOpen) return false;
+    const key = `analytics:${clave}`;
+    await redisClient.set(key, JSON.stringify(datos), { EX: ttlSegundos });
+    return true;
+  }
+
+  static async obtenerAnaliticaCacheada(clave) {
+    if (!redisClient.isOpen) return null;
+    const raw = await redisClient.get(`analytics:${clave}`);
+    return raw ? JSON.parse(raw) : null;
+  }
 }

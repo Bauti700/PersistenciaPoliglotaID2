@@ -104,6 +104,41 @@ CREATE TABLE cuentas_corrientes (
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE facturas (
+    id_factura SERIAL PRIMARY KEY,
+    id_cliente INT NOT NULL REFERENCES actores(id_actor),
+    tipo_factura VARCHAR(20) DEFAULT 'EMITIDA' CHECK (tipo_factura IN ('EMITIDA', 'RECIBIDA')),
+    numero_comprobante VARCHAR(50),
+    concepto VARCHAR(255),
+    id_envio VARCHAR(50),
+    fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    importe_total NUMERIC(12, 2) NOT NULL,
+    estado VARCHAR(50) DEFAULT 'PENDIENTE'
+);
+
+CREATE TABLE pagos (
+    id_pago SERIAL PRIMARY KEY,
+    id_factura INT NOT NULL REFERENCES facturas(id_factura) ON DELETE CASCADE,
+    tipo_pago VARCHAR(20) DEFAULT 'COBRO_CLIENTE' CHECK (tipo_pago IN ('COBRO_CLIENTE', 'PAGO_PROVEEDOR', 'PAGO_OPERADOR')),
+    referencia_comprobante VARCHAR(100),
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    monto NUMERIC(12, 2) NOT NULL,
+    medio_pago VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE cierres_cuentas_corrientes (
+    id_cierre SERIAL PRIMARY KEY,
+    periodo VARCHAR(7) NOT NULL,
+    id_actor INT NOT NULL REFERENCES actores(id_actor) ON DELETE CASCADE,
+    saldo_inicial NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_debe NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_haber NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    saldo_final NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    estado VARCHAR(20) DEFAULT 'CERRADO',
+    CONSTRAINT uq_cierre_actor_periodo UNIQUE (periodo, id_actor)
+);
+
 CREATE TABLE envios (
     id_envio VARCHAR(50) PRIMARY KEY,
     id_cliente INT NOT NULL REFERENCES actores(id_actor),
@@ -157,6 +192,28 @@ CREATE TABLE tramos (
   "fecha_calculo": "2024-03-29T10:30:00Z",
   "riesgo_climatico": "Alto",
   "factores": ["Tormenta en tránsito", "Demora en aduana"]
+}
+```
+
+**Colección: reportes (Auditoría contable y reportes parametrizados)**
+```json
+{
+  "id_reporte": "REP-COM-1730000000",
+  "usuario": "admin@logistica.com",
+  "tipo": "REPORTE_COMERCIAL_PARAMETRIZADO",
+  "categoria": "FACTURACION_Y_COBROS",
+  "parametros": {
+    "fecha_desde": "2026-10-01",
+    "fecha_hasta": "2026-10-31",
+    "tipo_actor": "CLIENTE",
+    "estado": "PENDIENTE"
+  },
+  "resumen": {
+    "total_facturas": 12,
+    "importe_total_facturado": 540000.00,
+    "saldo_pendiente_total": 120000.00
+  },
+  "fecha_generacion": "2026-10-24T18:00:00Z"
 }
 ```
 
