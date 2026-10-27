@@ -3,9 +3,9 @@
 
 Plataforma integral de gestión logística internacional y monitoreo de cargas inteligentes con dispositivos IoT utilizando cuatro paradigmas de bases de datos:
 1. **Relacional:** PostgreSQL (Clientes, Contenedores, Facturación, Pagos, Cuentas Corrientes).
-2. **Documental:** MongoDB (Telemetría de Sensores IoT, Eventos, Incidentes, Alertas, Chat).
+2. **Documental:** MongoDB (Telemetría de Sensores IoT, Eventos, Incidentes, Alertas, Chat, Reportes).
 3. **Grafos:** Neo4j (Rutas, Envíos, Tramos, Redes entre Clientes y Operadores).
-4. **Clave-Valor:** Redis (Caché de última ubicación GPS, Sesiones con TTL, Predicción de Riesgo).
+4. **Clave-Valor:** Redis (Caché de última ubicación GPS, Sesiones con TTL, Predicción de Riesgo, Analítica Cacheada).
 
 ---
 
@@ -61,11 +61,18 @@ npm start
     ├── config/
     │   └── database.js          # Conexiones centralizadas a los 4 motores
     ├── repositories/
-    │   ├── postgresRepository.js# CRUD Clientes, Contenedores, Facturación, CC
-    │   ├── mongoRepository.js   # Ingesta IoT, anomalías, incidentes y chat
-    │   ├── neo4jRepository.js   # Trazabilidad de rutas y red de transporte
-    │   └── redisRepository.js   # Sesiones TTL, última posición GPS y caché
+    │   ├── actorRepository.js   # Gestión de Actores (Clientes, Proveedores, Operadores)
+    │   ├── clienteRepository   # Fachada para Clientes (delegado a ActorRepository)
+    │   ├── contenedorRepository.js # Gestión de Contenedores con validaciones
+    │   ├── facturaRepository.js # Emisión/Recepción de Facturas y Facturación Automática
+    │   ├── pagoRepository.js    # Registro de Pagos y Cobros
+    │   ├── cuentaCorrienteRepository.js # Estado de Cuenta y Cierres Mensuales
+    │   ├── reporteComercialRepository.js # Reportes Comerciales Parametrizados y Rankings
+    │   ├── telemetriaRepository.js # MongoDB: Sensores, Lecturas IoT, Incidentes, Eventos, Mensajes, Reportes
+    │   ├── rutaRepository.js    # Neo4j: Creación de Rutas, Tramos y Consultas de Grafos
+    │   └── cacheRepository.js   # Redis: Sesiones, GPS, Predicción de Riesgo, Caché Analítica
     ├── services/
-    │   └── logisticsService.js  # Lógica de sincronización políglota
+    │   ├── logisticsService.js  # Sincronización Políglota (Envíos, Telemetría, Predicción de Riesgo)
+    │   └── analyticsService.js  # Inteligencia Analítica (Rankings, Desempeño, Incidentes por Ruta)
     └── index.js                 # Aplicación interactiva por consola (Menú Principal)
 ```
