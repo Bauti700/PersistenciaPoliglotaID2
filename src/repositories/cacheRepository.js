@@ -82,3 +82,5 @@ export class RedisCacheRepository {
     return raw ? JSON.parse(raw) : null;
   }
 }
+
+export { RedisCacheRepository as RedisRepository };

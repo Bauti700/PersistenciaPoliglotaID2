@@ -1,9 +1,14 @@
 import readline from 'readline';
 import { initDatabaseConnections, closeDatabaseConnections, pgPool } from './config/database.js';
-import { ActorRepository, ClienteRepository, ComercialRepository, ContenedorRepository } from './repositories/postgresRepository.js';
-import { MongoTelemetryRepository } from './repositories/mongoRepository.js';
-import { Neo4jRouteRepository } from './repositories/neo4jRepository.js';
-import { RedisCacheRepository } from './repositories/redisRepository.js';
+import { ActorRepository, ClienteRepository } from './repositories/actorRepository.js';
+import { FacturaRepository } from './repositories/facturaRepository.js';
+import { PagoRepository } from './repositories/pagoRepository.js';
+import { CuentaCorrienteRepository } from './repositories/cuentaCorrienteRepository.js';
+import { ReporteComercialRepository } from './repositories/reporteComercialRepository.js';
+import { ContenedorRepository } from './repositories/contenedorRepository.js';
+import { MongoTelemetryRepository } from './repositories/telemetriaRepository.js';
+import { Neo4jRouteRepository } from './repositories/rutaRepository.js';
+import { RedisCacheRepository } from './repositories/cacheRepository.js';
 import { LogisticsService } from './services/logisticsService.js';
 import { AnalyticsService } from './services/analyticsService.js';
 
@@ -12,7 +17,13 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-const ask = (query) => new Promise((resolve) => rl.question(query, resolve));
+const ask = (query) => new Promise((resolve) => {
+  if (rl.closed) return resolve('');
+  rl.question(query, (answer) => {
+    if (rl.closed) return resolve('');
+    resolve(answer);
+  });
+});
 
 function banner() {
   console.log(`
@@ -88,7 +99,7 @@ Seleccione una opción:
             console.log('\nActor creado exitosamente con cuenta corriente inicializada:', nuevo);
           } else if (subOpt === '2') {
             const id_actor = await ask('ID del Actor: ');
-            const estado = await ComercialRepository.obtenerEstadoCuenta(Number(id_actor));
+            const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(Number(id_actor));
             console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
             console.log('\nCuenta Corriente:');
             console.table([estado.cuenta_corriente]);
@@ -194,7 +205,7 @@ Seleccione una opción:
             const concepto = await ask('Concepto de facturación [Servicio de flete y logística internacional]: ') || 'Servicio de flete y logística internacional';
             const id_envio = (await ask('ID Envío asociado (opcional, ej: ENV-1001): ')).trim() || null;
 
-            const factura = await ComercialRepository.emitirFactura({
+            const factura = await FacturaRepository.emitirFactura({
               id_cliente: Number(id_cliente),
               importe_total: Number(importe),
               concepto,
@@ -207,7 +218,7 @@ Seleccione una opción:
             if (cobrar === 's') {
               const medio = await ask('Medio de pago (TRANSFERENCIA_BANCARIA / EFECTIVO / CHEQUE / TARJETA) [TRANSFERENCIA_BANCARIA]: ') || 'TRANSFERENCIA_BANCARIA';
               const ref = (await ask('Referencia de cobro / comprobante (opcional): ')).trim() || null;
-              const resPago = await ComercialRepository.registrarPago({
+              const resPago = await PagoRepository.registrarPago({
                 id_factura: factura.id_factura,
                 monto: Number(importe),
                 medio_pago: medio.toUpperCase(),
@@ -242,7 +253,7 @@ Seleccione una opción:
               const importe = await ask('Importe total facturado ($): ');
               const id_envio = (await ask('ID Envío asociado (opcional, ej: ENV-1001): ')).trim() || null;
 
-              const facRec = await ComercialRepository.registrarFacturaRecibida({
+              const facRec = await FacturaRepository.registrarFacturaRecibida({
                 id_actor: Number(id_actor),
                 importe_total: Number(importe),
                 numero_comprobante,
@@ -253,7 +264,7 @@ Seleccione una opción:
               console.log(`Saldo de cuenta corriente actualizado: se registró la obligación de pago con el tercero.`);
 
             } else if (optProv === '2') {
-              const rep = await ComercialRepository.reporteComercialParametrizado({
+              const rep = await ReporteComercialRepository.reporteComercialParametrizado({
                 tipo_factura: 'RECIBIDA',
                 estado_factura: 'PENDIENTE'
               });
@@ -279,7 +290,7 @@ Seleccione una opción:
                 const medio = await ask('Medio de pago (TRANSFERENCIA_BANCARIA / CHEQUE / EFECTIVO) [TRANSFERENCIA_BANCARIA]: ') || 'TRANSFERENCIA_BANCARIA';
                 const ref = (await ask('Referencia de pago / transferencia: ')).trim() || `TRF-${Date.now().toString().slice(-6)}`;
 
-                const resPago = await ComercialRepository.registrarPago({
+              const resPago = await PagoRepository.registrarPago({
                   id_factura: Number(id_factura),
                   monto: Number(monto),
                   medio_pago: medio.toUpperCase(),
@@ -301,7 +312,7 @@ Seleccione una opción:
             })));
 
             const id_actor = await ask('Ingrese ID del Actor a consultar: ');
-            const estado = await ComercialRepository.obtenerEstadoCuenta(Number(id_actor));
+            const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(Number(id_actor));
             console.log(`\n=== ESTADO DE CUENTA CORRIENTE: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
             console.log(`Saldo Actual: $ ${estado.cuenta_corriente.saldo}`);
             console.log(`Última Actualización: ${estado.cuenta_corriente.fecha_actualizacion}`);
@@ -367,7 +378,7 @@ Seleccione una opción:
 
             if (autoOpt === '1') {
               const id_envio = await ask('Código del Envío a facturar (ej: ENV-1001): ');
-              const resAuto = await ComercialRepository.facturacionAutomaticaPorEnvio(id_envio.trim());
+              const resAuto = await FacturaRepository.facturacionAutomaticaPorEnvio(id_envio.trim());
               if (resAuto.ya_facturado) {
                 console.log(`\n[AVISO]: ${resAuto.mensaje}`);
               } else {
@@ -382,7 +393,7 @@ Seleccione una opción:
               }
             } else if (autoOpt === '2') {
               console.log('\nEjecutando proceso de facturación automática por lote...');
-              const resultados = await ComercialRepository.ejecutarFacturacionAutomaticaMasiva();
+              const resultados = await FacturaRepository.ejecutarFacturacionAutomaticaMasiva();
               if (resultados.length === 0) {
                 console.log('No se encontraron envíos pendientes de facturación automática.');
               } else {
@@ -408,7 +419,7 @@ Seleccione una opción:
               const id_actor = (await ask('Filtrar por ID Actor específico (opcional, ENTER para todos): ')).trim() || null;
 
               console.log(`\nEjecutando cierre contable mensual para el período ${periodo}...`);
-              const resCierre = await ComercialRepository.ejecutarCierreMensual({
+               const resCierre = await CuentaCorrienteRepository.ejecutarCierreMensual({
                 periodo,
                 id_actor: id_actor ? Number(id_actor) : null
               });
@@ -427,7 +438,7 @@ Seleccione una opción:
 
             } else if (cOpt === '2') {
               const per = (await ask('Período a consultar (YYYY-MM o ENTER para todos): ')).trim() || null;
-              const historico = await ComercialRepository.consultarCierresMensuales(per);
+               const historico = await CuentaCorrienteRepository.consultarCierresMensuales(per);
               if (historico.length === 0) {
                 console.log('No se registran cierres mensuales para el criterio especificado.');
               } else {
@@ -456,7 +467,7 @@ Seleccione una opción:
             const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
 
             console.log('\nGenerando reporte comercial...');
-            const rep = await ComercialRepository.reporteComercialParametrizado({
+              const rep = await ReporteComercialRepository.reporteComercialParametrizado({
               fecha_desde,
               fecha_hasta,
               tipo_actor,
@@ -683,7 +694,7 @@ Seleccione una opción:
 
         case '13': {
           console.log('\n--- RANKING DE CLIENTES POR VOLUMEN FACTURADO (PostgreSQL) ---');
-          const ranking = await ComercialRepository.rankingClientesPorVolumen();
+          const ranking = await ReporteComercialRepository.rankingClientesPorVolumen();
           console.table(ranking);
           break;
         }
@@ -698,7 +709,7 @@ Seleccione una opción:
           const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
           const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
 
-          const rep = await ComercialRepository.reporteComercialParametrizado({
+            const rep = await ReporteComercialRepository.reporteComercialParametrizado({
             fecha_desde,
             fecha_hasta,
             tipo_actor,

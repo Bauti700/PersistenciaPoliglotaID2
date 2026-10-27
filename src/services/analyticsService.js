@@ -1,8 +1,8 @@
 import { pgPool } from '../config/database.js';
-import { MongoTelemetryRepository } from '../repositories/mongoRepository.js';
-import { RedisCacheRepository } from '../repositories/redisRepository.js';
-import { Neo4jRouteRepository } from '../repositories/neo4jRepository.js';
-import { ComercialRepository } from '../repositories/postgresRepository.js';
+import { MongoTelemetryRepository } from '../repositories/telemetriaRepository.js';
+import { RedisCacheRepository } from '../repositories/cacheRepository.js';
+import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
+import { ReporteComercialRepository } from '../repositories/reporteComercialRepository.js';
 import { LogisticsService } from './logisticsService.js';
 
 export class AnalyticsService {
@@ -345,7 +345,7 @@ export class AnalyticsService {
    * 3. Ranking de clientes por volumen transportado
    */
   static async rankingClientesPorVolumen() {
-    return ComercialRepository.rankingClientesPorVolumen();
+    return ReporteComercialRepository.rankingClientesPorVolumen();
   }
 
   /**

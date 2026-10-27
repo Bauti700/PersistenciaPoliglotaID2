@@ -115,3 +115,5 @@ export class Neo4jRouteRepository {
     }
   }
 }
+
+export { Neo4jRouteRepository as Neo4jRepository };

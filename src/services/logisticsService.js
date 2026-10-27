@@ -1,7 +1,9 @@
-import { ClienteRepository, ComercialRepository, ContenedorRepository } from '../repositories/postgresRepository.js';
-import { MongoTelemetryRepository } from '../repositories/mongoRepository.js';
-import { Neo4jRouteRepository } from '../repositories/neo4jRepository.js';
-import { RedisCacheRepository } from '../repositories/redisRepository.js';
+import { ClienteRepository } from '../repositories/actorRepository.js';
+import { ContenedorRepository } from '../repositories/contenedorRepository.js';
+import { ActorRepository } from '../repositories/actorRepository.js';
+import { MongoTelemetryRepository } from '../repositories/telemetriaRepository.js';
+import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
+import { RedisCacheRepository } from '../repositories/cacheRepository.js';
 import { pgPool } from '../config/database.js';
 
 export class LogisticsService {

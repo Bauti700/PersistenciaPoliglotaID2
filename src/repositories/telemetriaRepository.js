@@ -195,3 +195,4 @@ export class MongoTelemetryRepository {
   }
 }
 
+export { MongoTelemetryRepository as MongoRepository };
