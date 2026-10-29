@@ -76,45 +76,122 @@ Seleccione una opción:
     try {
       switch (opt) {
         case '1': {
-          console.log('\n--- GESTIÓN DE ACTORES Y CUENTAS CORRIENTES (PostgreSQL) ---');
-          const actores = await ActorRepository.listarTodos();
-          console.table(actores.map(a => ({
-            ID: a.id_actor,
-            Tipo: a.tipo_actor,
-            Razon_Social: a.razon_social,
-            CUIT: a.cuit,
-            Pais: a.pais,
-            Saldo_CC: `$ ${a.saldo || 0}`
-          })));
+        console.log('\n--- GESTIÓN DE ACTORES Y CUENTAS CORRIENTES (PostgreSQL) ---');
 
-          console.log('\nAcciones:');
-          console.log('  1. Dar de alta nuevo actor (Cliente, Proveedor u Operador)');
-          console.log('  2. Ver estado detallado de cuenta corriente de un actor');
-          console.log('  3. Volver al menú principal');
-          const subOpt = (await ask('Seleccione acción (1-3) > ')).trim();
+        const actores = await ActorRepository.listarTodos();
+        console.table(actores.map(a => ({
+          ID: a.id_actor,
+          Tipo: a.tipo_actor,
+          Razon_Social: a.razon_social,
+          CUIT: a.cuit,
+          Pais: a.pais,
+          Estado: a.estado,
+          Saldo_CC: `$ ${a.saldo || 0}`
+        })));
 
-          if (subOpt === '1') {
-            const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR) [CLIENTE]: ')).trim() || 'CLIENTE';
-            const razon_social = await ask('Razón Social: ');
-            const cuit = await ask('CUIT: ');
-            const email = await ask('Email: ');
-            const pais = await ask('País: ');
-            const direccion = await ask('Dirección (opcional): ') || null;
-            const nuevo = await ActorRepository.crear({ tipo_actor, razon_social, cuit, email, pais, direccion });
-            console.log('\nActor creado exitosamente con cuenta corriente inicializada:', nuevo);
-          } else if (subOpt === '2') {
-            const id_actor = await ask('ID del Actor: ');
-            const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(Number(id_actor));
-            console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
-            console.log('\nCuenta Corriente:');
-            console.table([estado.cuenta_corriente]);
-            console.log('\nFacturas asociadas:');
-            console.table(estado.facturas);
-            console.log('\nPagos / Cobros asociados:');
-            console.table(estado.pagos);
+        console.log('\nAcciones:');
+        console.log('  1. Dar de alta nuevo actor');
+        console.log('  2. Modificar actor');
+        console.log('  3. Dar de baja actor');
+        console.log('  4. Consultar actor');
+        console.log('  5. Ver estado detallado de cuenta corriente');
+        console.log('  6. Volver al menú principal');
+
+        const subOpt = (await ask('Seleccione acción (1-6) > ')).trim();
+
+        if (subOpt === '1') {
+          const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR) [CLIENTE]: ')).trim() || 'CLIENTE';
+          const razon_social = await ask('Razón Social: ');
+          const cuit = await ask('CUIT: ');
+          const email = await ask('Email: ');
+          const telefono = await ask('Teléfono (opcional): ') || null;
+          const direccion = await ask('Dirección (opcional): ') || null;
+          const pais = await ask('País: ');
+
+          const nuevo = await ActorRepository.crear({
+            tipo_actor,
+            razon_social,
+            cuit,
+            email,
+            telefono,
+            direccion,
+            pais
+          });
+
+          console.log('\nActor creado exitosamente:', nuevo);
+
+        } else if (subOpt === '2') {
+          const id_actor = Number(await ask('ID del Actor a modificar: '));
+          const existente = await ActorRepository.obtenerPorId(id_actor);
+
+          if (!existente) {
+            console.log('Actor no encontrado.');
+            break;
           }
-          break;
+
+          console.log('Presione ENTER para mantener el valor actual.');
+
+          const razon_social = (await ask(`Razón Social [${existente.razon_social}]: `)).trim() || existente.razon_social;
+          const email = (await ask(`Email [${existente.email}]: `)).trim() || existente.email;
+          const telefono = (await ask(`Teléfono [${existente.telefono || ''}]: `)).trim() || existente.telefono;
+          const direccion = (await ask(`Dirección [${existente.direccion || ''}]: `)).trim() || existente.direccion;
+          const pais = (await ask(`País [${existente.pais}]: `)).trim() || existente.pais;
+
+          const modificado = await ActorRepository.actualizar(id_actor, {
+            razon_social,
+            email,
+            telefono,
+            direccion,
+            pais
+          });
+
+          console.log('\nActor actualizado:', modificado);
+
+        } else if (subOpt === '3') {
+          const id_actor = Number(await ask('ID del Actor a dar de baja: '));
+          const existente = await ActorRepository.obtenerPorId(id_actor);
+
+          if (!existente) {
+            console.log('Actor no encontrado.');
+            break;
+          }
+
+          const confirmar = (await ask(`¿Confirma la baja de ${existente.razon_social}? (s/n): `)).trim().toLowerCase();
+
+          if (confirmar === 's') {
+            const actorBaja = await ActorRepository.darDeBaja(id_actor);
+            console.log('\nActor dado de baja:', actorBaja);
+          } else {
+            console.log('Operación cancelada.');
+          }
+
+        } else if (subOpt === '4') {
+          const id_actor = Number(await ask('ID del Actor: '));
+          const actor = await ActorRepository.obtenerPorId(id_actor);
+
+          if (!actor) {
+            console.log('Actor no encontrado.');
+            break;
+          }
+
+          console.table([actor]);
+
+        } else if (subOpt === '5') {
+          const id_actor = Number(await ask('ID del Actor: '));
+          const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(id_actor);
+
+          console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
+          console.log('\nCuenta Corriente:');
+          console.table([estado.cuenta_corriente]);
+          console.log('\nFacturas asociadas:');
+          console.table(estado.facturas);
+          console.log('\nPagos / Cobros asociados:');
+          console.table(estado.pagos);
         }
+
+        break;
+      }
+      
 
         case '2': {
           console.log('\n--- GESTIÓN DE CONTENEDORES (PostgreSQL) ---');
