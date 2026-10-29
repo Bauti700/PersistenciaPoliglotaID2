@@ -78,16 +78,48 @@ Seleccione una opción:
         case '1': {
         console.log('\n--- GESTIÓN DE ACTORES Y CUENTAS CORRIENTES (PostgreSQL) ---');
 
-        const actores = await ActorRepository.listarTodos();
-        console.table(actores.map(a => ({
-          ID: a.id_actor,
-          Tipo: a.tipo_actor,
-          Razon_Social: a.razon_social,
-          CUIT: a.cuit,
-          Pais: a.pais,
-          Estado: a.estado,
-          Saldo_CC: `$ ${a.saldo || 0}`
-        })));
+       const clientes = await ActorRepository.listarTodos('CLIENTE');
+      const proveedores = await ActorRepository.listarTodos('PROVEEDOR');
+      const operadores = await ActorRepository.listarTodos('OPERADOR');
+
+      console.log('\n--- CLIENTES ---');
+      console.table(clientes.map(actor => ({
+        ID: actor.id_actor,
+        Razon_Social: actor.razon_social,
+        CUIT: actor.cuit,
+        Email: actor.email,
+        Telefono: actor.telefono,
+        Direccion: actor.direccion,
+        Pais: actor.pais,
+        Estado: actor.estado,
+        Saldo_CC: `$ ${actor.saldo || 0}`
+      })));
+
+      console.log('\n--- PROVEEDORES ---');
+      console.table(proveedores.map(actor => ({
+        ID: actor.id_actor,
+        Razon_Social: actor.razon_social,
+        CUIT: actor.cuit,
+        Email: actor.email,
+        Telefono: actor.telefono,
+        Direccion: actor.direccion,
+        Pais: actor.pais,
+        Estado: actor.estado,
+        Saldo_CC: `$ ${actor.saldo || 0}`
+      })));
+
+      console.log('\n--- OPERADORES ---');
+      console.table(operadores.map(actor => ({
+        ID: actor.id_actor,
+        Razon_Social: actor.razon_social,
+        CUIT: actor.cuit,
+        Email: actor.email,
+        Telefono: actor.telefono,
+        Direccion: actor.direccion,
+        Pais: actor.pais,
+        Estado: actor.estado,
+        Saldo_CC: `$ ${actor.saldo || 0}`
+      })));
 
         console.log('\nAcciones:');
         console.log('  1. Dar de alta nuevo actor');
