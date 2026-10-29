@@ -9,10 +9,10 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 - [ ] ABM Sesiones activas (Lógica básica en Redis con TTL).
 - [ ] ABM Proveedores.
 - [ ] ABM Operadores Logísticos.
-- [ ] ABM Envíos -> contenedores -> sensores (Alta políglota de envíos lista en CLI; falta asignación explícita de sensores).
+- [x] ABM Envíos -> contenedores -> sensores (Alta políglota de envíos con asignación explícita en CLI).
 - [x] ABM de contenedores (PostgreSQL - CRUD completo con baja lógica y menú CLI).
-- [ ] ABM de sensores de un contenedor (Listado y registro básico en MongoDB; falta edición/baja y asignación a contenedor).
-- [ ] ABM Reglas y Alertas (Detección de umbral >8°C e incidentes).
+- [x] ABM de sensores de un contenedor (Listado, registro, edición, baja, activación y asignación a contenedor/envío).
+- [x] ABM Reglas y Alertas (Detección de umbral >8°C, batería baja, inactividad y gestión de alertas).
 
 ## 💰 Gestión Comercial y Financiera
 - [x] Cuenta Corriente - Facturación y Cobros (clientes) (PostgreSQL - Emisión, imputación en CC y saldos).
@@ -28,13 +28,13 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 - [x] Monitorear envíos - sensores - contenedores - Eventos (MongoDB + Redis + Menú CLI).
 - [x] Registro continuo de lecturas IoT (MongoDB - Time-series / Histórico).
 - [x] Consulta histórica de lecturas (contenedor / sensores) (MongoDB + Menú CLI).
-- [ ] Reconstrucción del recorrido de un contenedor (Neo4j tiene tramos de envío; falta recorrido geográfico del contenedor).
-- [ ] Visualización geográfica de posiciones GPS (contenedor) (Coordenadas en Redis).
-- [ ] Control de estado de sensores.
-- [ ] Alertas de estado de los sensores.
+- [x] Reconstrucción del recorrido de un contenedor (Neo4j - Tramos y relaciones por contenedor/envío).
+- [x] Visualización geográfica de posiciones GPS (contenedor) (Coordenadas en Redis con listado y búsqueda por cercanía).
+- [x] Control de estado de sensores (ABM: alta/edición/baja/activación, listado por contenedor).
+- [x] Alertas de estado de los sensores (Batería baja < 20%, sin lecturas > 2 horas, inactividad).
 - [x] Gestión de trayectos de cada envío (seguimiento) (Neo4j - Topología de tramos, origen y destino).
 - [x] Detección de incidentes (LogisticsService + MongoDB colección incidentes).
-- [x] Generación de alertas (Disparo ante temperatura >8°C e incidentes).
+- [x] Generación de alertas (Disparo ante temperatura >8°C, incidentes y estado de sensores).
 
 ## 🧠 Inteligencia Analítica
 - [x] Ranking de rutas con mayor cantidad de incidentes (MongoDB + PostgreSQL + Redis - Correlación de incidentes por envío con rutas, nivel de riesgo y caché Redis 1h - Menú CLI opción 15).
@@ -45,13 +45,13 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 - [x] Detección de anomalías de temperatura (MongoDB Aggregation Pipeline en CLI).
 
 ## 📊 Reportes Operativos y Analíticos
-- [ ] Creación de reportes operativos y analíticos parametrizados (facturables).
+- [x] Creación de reportes operativos y analíticos parametrizados (facturables).
 - [x] Creación de reportes de análisis predictivos (atrasos y riesgos) (LogisticsService / Redis).
-- [ ] Creación de reportes de Envíos (país - estado – cliente - demorados - incidentes abiertos).
-- [ ] Reporte analítico de Tiempos máximos y mínimos de envío por cliente.
-- [ ] Reporte analítico de Promedio de incidentes por país / estado / cliente.
-- [ ] Reporte analítico de Tiempos promedio de entrega.
-- [ ] Reporte analítico de Costos por tipo de transporte.
+- [x] Creación de reportes de Envíos (país - estado – cliente - demorados - incidentes abiertos).
+- [x] Reporte analítico de Tiempos máximos y mínimos de envío por cliente.
+- [x] Reporte analítico de Promedio de incidentes por país / estado / cliente.
+- [x] Reporte analítico de Tiempos promedio de entrega.
+- [x] Reporte analítico de Costos por tipo de transporte.
 
 ## 💬 Comunicación
 - [x] Servicio de Mensajería con las partes (MongoDB - Colección mensajes con consulta y envío interactivo por CLI).

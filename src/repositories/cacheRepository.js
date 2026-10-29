@@ -37,7 +37,7 @@ export class RedisCacheRepository {
       actualizado_en: new Date().toISOString(),
       ...datosExtra
     });
-    // Opcional: Agregar a índice espacial de Redis
+    // Agregar a índice espacial de Redis
     try {
       await redisClient.geoAdd('contenedores:geo', {
         longitude: Number(lng),
@@ -52,6 +52,39 @@ export class RedisCacheRepository {
     if (!redisClient.isOpen) return null;
     const pos = await redisClient.hGetAll(`contenedor:posicion:${id_contenedor}`);
     return Object.keys(pos).length > 0 ? pos : null;
+  }
+
+  static async obtenerTodasPosiciones() {
+    if (!redisClient.isOpen) return [];
+    try {
+      const keys = await redisClient.keys('contenedor:posicion:*');
+      const posiciones = [];
+      for (const key of keys) {
+        const id_contenedor = key.replace('contenedor:posicion:', '');
+        const pos = await redisClient.hGetAll(key);
+        if (Object.keys(pos).length > 0) {
+          posiciones.push({ id_contenedor, ...pos });
+        }
+      }
+      return posiciones;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async obtenerPosicionesCercanas(lng, lat, radioKm = 100) {
+    if (!redisClient.isOpen) return [];
+    try {
+      const result = await redisClient.geoRadius('contenedores:geo', {
+        longitude: Number(lng),
+        latitude: Number(lat),
+        radius: Number(radioKm),
+        unit: 'km'
+      });
+      return result;
+    } catch (e) {
+      return [];
+    }
   }
 
   // --- CACHÉ DE PREDICCIÓN DE RIESGO ---

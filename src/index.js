@@ -7,6 +7,11 @@ import { CuentaCorrienteRepository } from './repositories/cuentaCorrienteReposit
 import { ReporteComercialRepository } from './repositories/reporteComercialRepository.js';
 import { ContenedorRepository } from './repositories/contenedorRepository.js';
 import { MongoTelemetryRepository } from './repositories/telemetriaRepository.js';
+import { SensorRepository } from './repositories/sensorRepository.js';
+import { LecturaRepository } from './repositories/lecturaRepository.js';
+import { IncidenteRepository } from './repositories/incidenteRepository.js';
+import { AlertaRepository } from './repositories/alertaRepository.js';
+import { MensajeRepository } from './repositories/mensajeRepository.js';
 import { Neo4jRouteRepository } from './repositories/rutaRepository.js';
 import { RedisCacheRepository } from './repositories/cacheRepository.js';
 import { LogisticsService } from './services/logisticsService.js';
@@ -505,33 +510,138 @@ Seleccione una opción:
 
         case '4': {
           console.log('\n--- INGESTA DE TELEMETRÍA IOT (MongoDB + Redis) ---');
-          const id_sensor = await ask('ID Sensor (ej: SENS-101): ') || 'SENS-101';
-          const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
-          const id_envio = await ask('ID Envío asociado (ej: ENV-1001): ') || 'ENV-1001';
-          const temperatura = await ask('Temperatura (°C): ') || '4.5';
-          const humedad = await ask('Humedad (%): ') || '60';
-          const latitud = await ask('Latitud GPS: ') || '-34.6037';
-          const longitud = await ask('Longitud GPS: ') || '-58.3816';
+          console.log('1. Registrar lectura de sensor');
+          console.log('2. ABM Sensores (Alta/Listado/Editar/Baja/Activar)');
+          console.log('3. Asignar sensor a contenedor');
+          console.log('4. Listar sensores por contenedor');
+          console.log('5. Reglas y Alertas de estado');
+          console.log('6. Ejecutar monitoreo de sensores (Alertas por batería/inactividad)');
+          console.log('7. Volver');
+          const subIoT = (await ask('Opción (1-7): ')).trim();
+          
+          if (subIoT === '1') {
+            const id_sensor = await ask('ID Sensor (ej: SENS-101): ') || 'SENS-101';
+            const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
+            const id_envio = await ask('ID Envío asociado (ej: ENV-1001): ') || 'ENV-1001';
+            const temperatura = await ask('Temperatura (°C): ') || '4.5';
+            const humedad = await ask('Humedad (%): ') || '60';
+            const latitud = await ask('Latitud GPS: ') || '-34.6037';
+            const longitud = await ask('Longitud GPS: ') || '-58.3816';
+            const nivel_bateria = await ask('Nivel batería (%): ') || '90';
 
-          const res = await LogisticsService.procesarLecturaSensor({
-            id_sensor,
-            id_contenedor,
-            id_envio,
-            temperatura,
-            humedad,
-            vibracion: 0.05,
-            latitud,
-            longitud,
-            nivel_bateria: 90
-          });
-          console.log('Telemetría guardada en MongoDB y última coordenada actualizada en Redis:', res);
+            const res = await LogisticsService.procesarLecturaSensor({
+              id_sensor,
+              id_contenedor,
+              id_envio,
+              temperatura,
+              humedad,
+              vibracion: 0.05,
+              latitud,
+              longitud,
+              nivel_bateria
+            });
+            console.log('\nTelemetría guardada en MongoDB y última coordenada actualizada en Redis');
+            console.log(res);
+          } else if (subIoT === '2') {
+            console.log('\n--- ABM DE SENSORES IOT ---');
+            console.log('1. Alta de sensor');
+            console.log('2. Listar sensores');
+            console.log('3. Editar sensor');
+            console.log('4. Dar de baja sensor');
+            console.log('5. Activar sensor');
+            console.log('6. Volver');
+            const abmOpt = (await ask('Opción (1-6): ')).trim();
+            
+            if (abmOpt === '1') {
+              const id_sensor = await ask('ID Sensor: ');
+              const tipo = await ask('Tipo (TEMPERATURA/HUMEDAD/GPS/VIBRACION): ');
+              const fabricante = await ask('Fabricante: ');
+              const id_contenedor = await ask('ID Contenedor asociado: ');
+              const sensor = await SensorRepository.registrarSensor({
+                id_sensor,
+                tipo,
+                fabricante,
+                id_contenedor,
+                estado: 'ACTIVO'
+              });
+              console.log('\nSensor registrado:', sensor);
+            } else if (abmOpt === '2') {
+              const sensores = await SensorRepository.listarSensores();
+              console.table(sensores);
+            } else if (abmOpt === '3') {
+              const id_sensor = await ask('ID Sensor a editar: ');
+              const tipo = await ask('Nuevo tipo (ENTER para mantener): ') || undefined;
+              const fabricante = await ask('Nuevo fabricante (ENTER para mantener): ') || undefined;
+              const datos = {};
+              if (tipo) datos.tipo = tipo;
+              if (fabricante) datos.fabricante = fabricante;
+              const actualizado = await SensorRepository.actualizarSensor(id_sensor, datos);
+              console.log(actualizado ? '\nSensor actualizado:' : '\nSensor no encontrado', actualizado || '');
+            } else if (abmOpt === '4') {
+              const id_sensor = await ask('ID Sensor a dar de baja: ');
+              const resultado = await SensorRepository.darDeBajaSensor(id_sensor);
+              console.log(resultado ? '\nSensor dado de baja:' : '\nSensor no encontrado', resultado || '');
+            } else if (abmOpt === '5') {
+              const id_sensor = await ask('ID Sensor a activar: ');
+              const resultado = await SensorRepository.activarSensor(id_sensor);
+              console.log(resultado ? '\nSensor activado:' : '\nSensor no encontrado', resultado || '');
+            }
+          } else if (subIoT === '3') {
+            const id_envio = await ask('ID Envío: ');
+            const id_contenedor = await ask('ID Contenedor: ');
+            const id_sensor = await ask('ID Sensor: ');
+            await Neo4jRouteRepository.asignarSensorAContenedorEnvio(id_envio, id_contenedor, id_sensor);
+            await SensorRepository.asignarSensorAContenedor(id_sensor, id_contenedor);
+            console.log('\nSensor asignado a contenedor/envío correctamente.');
+          } else if (subIoT === '4') {
+            const id_contenedor = await ask('ID Contenedor: ');
+            const sensores = await SensorRepository.listarSensoresPorContenedor(id_contenedor);
+            console.table(sensores);
+          } else if (subIoT === '5') {
+            console.log('\n--- REGLAS Y ALERTAS ---');
+            console.log('1. Crear regla de alerta');
+            console.log('2. Listar reglas');
+            console.log('3. Desactivar regla');
+            console.log('4. Listar alertas abiertas');
+            console.log('5. Cerrar alerta');
+            console.log('6. Volver');
+            const rOpt = (await ask('Opción (1-6): ')).trim();
+            if (rOpt === '1') {
+              const id_regla = await ask('ID Regla (ej: REG-TEMP-01): ');
+              const tipo = await ask('Tipo (TEMPERATURA/BATERIA/INACTIVIDAD): ');
+              const umbral = await ask('Umbral: ');
+              const severidad = await ask('Severidad (BAJA/MEDIA/ALTA/CRITICA): ');
+              const descripcion = await ask('Descripción: ');
+              const regla = await AlertaRepository.crearRegla({ id_regla, tipo, umbral, severidad, descripcion });
+              console.log('\nRegla creada:', regla);
+            } else if (rOpt === '2') {
+              const reglas = await AlertaRepository.listarReglas();
+              console.table(reglas);
+            } else if (rOpt === '3') {
+              const id_regla = await ask('ID Regla a desactivar: ');
+              const res = await AlertaRepository.desactivarRegla(id_regla);
+              console.log(res ? '\nRegla desactivada' : '\nRegla no encontrada');
+            } else if (rOpt === '4') {
+              const alertas = await AlertaRepository.listarAlertasAbiertas();
+              console.table(alertas);
+            } else if (rOpt === '5') {
+              const id_alerta = await ask('ID Alerta a cerrar: ');
+              const res = await AlertaRepository.cerrarAlerta(id_alerta);
+              console.log(res ? '\nAlerta cerrada' : '\nAlerta no encontrada');
+            }
+          } else if (subIoT === '6') {
+            console.log('\nEjecutando monitoreo de sensores...');
+            const monitoreo = await LogisticsService.ejecutarMonitoreoSensores();
+            console.log(`Alertas generadas: ${monitoreo.alertas_generadas}`);
+            if (monitoreo.alertas.length > 0) console.table(monitoreo.alertas);
+          }
           break;
         }
 
         case '5': {
           console.log('\n--- HISTÓRICO Y DETECCIÓN DE ANOMALÍAS (MongoDB) ---');
           const id_sensor = await ask('ID Sensor para ver histórico (ej: SENS-101): ') || 'SENS-101';
-          const lecturas = await MongoTelemetryRepository.consultarHistoricoLecturas(id_sensor, 5);
+          const lecturas = await LecturaRepository.consultarHistoricoLecturas(id_sensor, 5);
           console.log('\nÚltimas 5 lecturas registradas:');
           console.table(lecturas.map(l => ({
             Sensor: l.id_sensor,
@@ -542,7 +652,7 @@ Seleccione una opción:
           })));
 
           console.log('\nBuscando anomalías de temperatura (> 8°C)...');
-          const anomalias = await MongoTelemetryRepository.detectarAnomaliasTemperatura(8.0);
+          const anomalias = await LecturaRepository.detectarAnomaliasTemperatura(8.0);
           console.log(`Se detectaron ${anomalias.length} lecturas anómalas:`);
           console.table(anomalias.map(a => ({
             Sensor: a.id_sensor,
@@ -555,7 +665,7 @@ Seleccione una opción:
 
         case '6': {
           console.log('\n--- GESTIÓN DE INCIDENTES Y ALERTAS (MongoDB) ---');
-          const incidentes = await MongoTelemetryRepository.listarIncidentesAbiertos();
+          const incidentes = await IncidenteRepository.listarIncidentesAbiertos();
           console.log('\nIncidentes actualmente abiertos:');
           console.table(incidentes.map(i => ({
             ID: i.id_incidente,
@@ -623,16 +733,33 @@ Seleccione una opción:
 
         case '8': {
           console.log('\n--- CONSULTA DE RUTA EN GRAFO (Neo4j) ---');
-          const id_envio = await ask('ID del Envío a rastrear (ej: ENV-1001): ') || 'ENV-1001';
-          const ruta = await Neo4jRouteRepository.obtenerRutaCompletaEnvio(id_envio);
-          if (ruta) {
-            console.log(`\nEnvío: ${ruta.envio} | Cliente: ${ruta.cliente}`);
-            console.log(`Origen: ${ruta.origen} ===> Destino: ${ruta.destino}`);
-            console.log(`Operador Asignado: ${ruta.operador || 'Sin asignar'} | Vehículo: ${ruta.vehiculo || 'Sin asignar'}`);
-            console.log('\nTramos del recorrido:');
-            console.table(ruta.tramos);
-          } else {
-            console.log(`No se encontró el envío ${id_envio} en la base de datos de grafos.`);
+          console.log('1. Ruta completa de un envío');
+          console.log('2. Reconstrucción del recorrido de un contenedor');
+          console.log('3. Historial completo de movimientos de un contenedor');
+          console.log('4. Volver');
+          const subRuta = (await ask('Opción (1-4): ')).trim();
+          
+          if (subRuta === '1') {
+            const id_envio = await ask('ID del Envío a rastrear (ej: ENV-1001): ') || 'ENV-1001';
+            const ruta = await Neo4jRouteRepository.obtenerRutaCompletaEnvio(id_envio);
+            if (ruta) {
+              console.log(`\nEnvío: ${ruta.envio} | Cliente: ${ruta.cliente}`);
+              console.log(`Origen: ${ruta.origen} ===> Destino: ${ruta.destino}`);
+              console.log(`Operador Asignado: ${ruta.operador || 'Sin asignar'} | Vehículo: ${ruta.vehiculo || 'Sin asignar'}`);
+              console.log('\nTramos del recorrido:');
+              console.table(ruta.tramos);
+            } else {
+              console.log(`No se encontró el envío ${id_envio} en la base de datos de grafos.`);
+            }
+          } else if (subRuta === '2') {
+            const id_contenedor = await ask('ID Contenedor: ');
+            const recorrido = await Neo4jRouteRepository.reconstruirRecorridoContenedor(id_contenedor);
+            console.log('\nRecorrido reconstruido:');
+            console.table(recorrido);
+          } else if (subRuta === '3') {
+            const id_contenedor = await ask('ID Contenedor: ');
+            const movimientos = await Neo4jRouteRepository.historialMovimientosContenedor(id_contenedor);
+            console.table(movimientos);
           }
           break;
         }
@@ -659,27 +786,45 @@ Seleccione una opción:
 
         case '11': {
           console.log('\n--- ALTA DE ENVÍO POLÍGLOTA ---');
-          const id_envio = await ask('Código Envío (ej: ENV-2005): ') || `ENV-${Date.now().toString().slice(-4)}`;
-          const id_cliente = await ask('ID Cliente (ej: 1): ') || '1';
-          const origen = await ask('Ciudad Origen: ') || 'Buenos Aires';
-          const destino = await ask('Ciudad Destino: ') || 'Montevideo';
-          const operador = await ask('Empresa Operadora: ') || 'Logística Express del Plata';
-          const vehiculo = await ask('Vehículo Patente: ') || 'AF-204-ZX';
+          console.log('1. Crear envío completo');
+          console.log('2. Asignar contenedor a envío');
+          console.log('3. Asignar sensor a contenedor/envío');
+          const opEnv = (await ask('Opción (1-3): ')).trim();
+          if (opEnv === '1') {
+            const id_envio = await ask('Código Envío (ej: ENV-2005): ') || `ENV-${Date.now().toString().slice(-4)}`;
+            const id_cliente = await ask('ID Cliente (ej: 1): ') || '1';
+            const origen = await ask('Ciudad Origen: ') || 'Buenos Aires';
+            const destino = await ask('Ciudad Destino: ') || 'Montevideo';
+            const operador = await ask('Empresa Operadora: ') || 'Logística Express del Plata';
+            const vehiculo = await ask('Vehículo Patente: ') || 'AF-204-ZX';
 
-          const res = await LogisticsService.crearEnvioPoliglota({
-            id_envio,
-            id_cliente: Number(id_cliente),
-            origen,
-            destino,
-            prioridad: 'ALTA',
-            operador,
-            vehiculo,
-            tramos: [
-              { desde: origen, hasta: destino, medio: 'Ferry / Fluvial' }
-            ]
-          });
-          console.log('\nEnvío creado y propagado en PostgreSQL, Neo4j y MongoDB exitosamente:');
-          console.log(res);
+            const res = await LogisticsService.crearEnvioPoliglota({
+              id_envio,
+              id_cliente: Number(id_cliente),
+              origen,
+              destino,
+              prioridad: 'ALTA',
+              operador,
+              vehiculo,
+              tramos: [
+                { desde: origen, hasta: destino, medio: 'Ferry / Fluvial' }
+              ]
+            });
+            console.log('\nEnvío creado y propagado en PostgreSQL, Neo4j y MongoDB exitosamente:');
+            console.log(res);
+          } else if (opEnv === '2') {
+            const id_envio = await ask('ID Envío: ');
+            const id_contenedor = await ask('ID Contenedor: ');
+            await Neo4jRouteRepository.asignarContenedorAEnvio(id_envio, id_contenedor);
+            console.log('\nContenedor asignado a envío correctamente.');
+          } else if (opEnv === '3') {
+            const id_envio = await ask('ID Envío: ');
+            const id_contenedor = await ask('ID Contenedor: ');
+            const id_sensor = await ask('ID Sensor: ');
+            await Neo4jRouteRepository.asignarSensorAContenedorEnvio(id_envio, id_contenedor, id_sensor);
+            await SensorRepository.asignarSensorAContenedor(id_sensor, id_contenedor);
+            console.log('\nSensor asignado a contenedor/envío correctamente.');
+          }
           break;
         }
 
@@ -700,46 +845,93 @@ Seleccione una opción:
         }
 
         case '14': {
-          console.log('\n--- REPORTE COMERCIAL PARAMETRIZADO (PostgreSQL + MongoDB) ---');
-          console.log('Ingrese filtros (ENTER para omitir):');
-          const fecha_desde = (await ask('Fecha Desde (YYYY-MM-DD): ')).trim() || null;
-          const fecha_hasta = (await ask('Fecha Hasta (YYYY-MM-DD): ')).trim() || null;
-          const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR / TODOS) [TODOS]: ')).trim() || 'TODOS';
-          const tipo_factura = (await ask('Tipo de Factura (EMITIDA / RECIBIDA / TODAS) [TODAS]: ')).trim() || 'TODAS';
-          const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
-          const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
+          console.log('\n--- REPORTES OPERATIVOS Y ANALÍTICOS PARAMETRIZADOS ---');
+          console.log('1. Reporte Comercial Parametrizado (Facturable)');
+          console.log('2. Reporte Operativo de Envíos (país/estado/cliente/demorados/incidentes)');
+          console.log('3. Tiempos Máximos y Mínimos de Envío por Cliente');
+          console.log('4. Promedio de Incidentes por País/Estado/Cliente');
+          console.log('5. Tiempos Promedio de Entrega');
+          console.log('6. Costos por Tipo de Transporte');
+          console.log('7. Volver');
+          const opRep = (await ask('Opción (1-7): ')).trim();
+          
+          if (opRep === '1') {
+            console.log('\n--- REPORTE COMERCIAL PARAMETRIZADO (Facturable) ---');
+            console.log('Ingrese filtros (ENTER para omitir):');
+            const fecha_desde = (await ask('Fecha Desde (YYYY-MM-DD): ')).trim() || null;
+            const fecha_hasta = (await ask('Fecha Hasta (YYYY-MM-DD): ')).trim() || null;
+            const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR / TODOS) [TODOS]: ')).trim() || 'TODOS';
+            const tipo_factura = (await ask('Tipo de Factura (EMITIDA / RECIBIDA / TODAS) [TODAS]: ')).trim() || 'TODAS';
+            const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
+            const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
 
-            const rep = await ReporteComercialRepository.reporteComercialParametrizado({
-            fecha_desde,
-            fecha_hasta,
-            tipo_actor,
-            tipo_factura,
-            estado_factura,
-            id_actor: id_actor ? Number(id_actor) : null
-          });
+            const rep = await ReporteComercialRepository.reporteFacturableParametrizado({
+              fecha_desde,
+              fecha_hasta,
+              tipo_actor,
+              tipo_factura,
+              estado_factura,
+              id_actor: id_actor ? Number(id_actor) : null
+            });
 
-          console.log('\n=== COMPROBANTES ENCONTRADOS ===');
-          if (rep.facturas.length === 0) {
-            console.log('No se encontraron comprobantes con los filtros especificados.');
-          } else {
-            console.table(rep.facturas.map(f => ({
-              ID: f.id_factura,
-              Tipo: f.tipo_factura,
-              Nro_Comp: f.numero_comprobante || '-',
-              Actor: f.razon_social,
-              Tipo_Actor: f.tipo_actor,
-              Concepto: f.concepto,
-              Total: `$ ${f.importe_total}`,
-              Pagado: `$ ${f.total_pagado}`,
-              Estado: f.estado,
-              Fecha: f.fecha_emision
-            })));
-          }
+            console.log('\n=== COMPROBANTES ENCONTRADOS ===');
+            if (rep.facturas.length === 0) {
+              console.log('No se encontraron comprobantes con los filtros especificados.');
+            } else {
+              console.table(rep.facturas.map(f => ({
+                ID: f.id_factura,
+                Tipo: f.tipo_factura,
+                Nro_Comp: f.numero_comprobante || '-',
+                Actor: f.razon_social,
+                Tipo_Actor: f.tipo_actor,
+                Concepto: f.concepto,
+                Total: `$ ${f.importe_total}`,
+                Pagado: `$ ${f.total_pagado}`,
+                Estado: f.estado,
+                Fecha: f.fecha_emision
+              })));
+            }
 
-          console.log('\n=== RESUMEN MÉTRICO ===');
-          console.table([rep.metricas]);
-          if (rep.id_reporte_mongo) {
-            console.log(`Reporte comercial guardado en MongoDB con ID: ${rep.id_reporte_mongo}`);
+            console.log('\n=== RESUMEN MÉTRICO ===');
+            console.table([rep.metricas]);
+            if (rep.id_reporte_facturable) {
+              console.log(`Reporte facturable guardado en MongoDB: ${rep.id_reporte_facturable}`);
+            }
+          } else if (opRep === '2') {
+            console.log('\n--- REPORTE OPERATIVO DE ENVÍOS ---');
+            const pais = (await ask('País (opcional): ')).trim() || null;
+            const estado = (await ask('Estado (CREADO/EN_TRANSITO/ENTREGADO/RETRASADO): ')).trim() || null;
+            const id_cliente = (await ask('ID Cliente (opcional): ')).trim() || null;
+            const solo_demorados = (await ask('Solo demorados (s/n): ')).toLowerCase() === 's';
+            const solo_incidentes_abiertos = (await ask('Solo con incidentes abiertos (s/n): ')).toLowerCase() === 's';
+            
+            const rep = await ReporteComercialRepository.reporteOperativoEnvios({
+              pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null, solo_demorados, solo_incidentes_abiertos
+            });
+            console.log(`\nRegistros encontrados: ${rep.datos.length}`);
+            console.table(rep.datos);
+            if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
+          } else if (opRep === '3') {
+            console.log('\n--- TIEMPOS MÁXIMOS Y MÍNIMOS DE ENVÍO POR CLIENTE ---');
+            const datos = await ReporteComercialRepository.tiemposEnvioPorCliente();
+            console.table(datos);
+          } else if (opRep === '4') {
+            console.log('\n--- PROMEDIO DE INCIDENTES POR PAÍS/ESTADO/CLIENTE ---');
+            const pais = (await ask('País (opcional): ')).trim() || null;
+            const estado = (await ask('Estado (opcional): ')).trim() || null;
+            const id_cliente = (await ask('ID Cliente (opcional): ')).trim() || null;
+            const datos = await ReporteComercialRepository.promedioIncidentesPorPaisEstadoCliente({
+              pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null
+            });
+            console.table(datos);
+          } else if (opRep === '5') {
+            console.log('\n--- TIEMPOS PROMEDIO DE ENTREGA ---');
+            const datos = await ReporteComercialRepository.tiemposPromedioEntrega();
+            console.table(datos);
+          } else if (opRep === '6') {
+            console.log('\n--- COSTOS POR TIPO DE TRANSPORTE ---');
+            const datos = await ReporteComercialRepository.costosPorTipoTransporte();
+            console.table(datos);
           }
           break;
         }

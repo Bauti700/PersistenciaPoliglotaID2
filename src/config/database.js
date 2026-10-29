@@ -86,9 +86,17 @@ export async function initDatabaseConnections() {
 }
 
 // Cierre ordenado
-export async function closeDatabaseConnections() {
-  try { await pgPool.end(); } catch (e) {}
-  try { await mongoClient.close(); } catch (e) {}
-  try { await neoDriver.close(); } catch (e) {}
-  try { if (redisClient.isOpen) await redisClient.disconnect(); } catch (e) {}
+export function getDb() {
+  if (!mongoDb) {
+    throw new Error('MongoDB no inicializado. Llamar a initDatabaseConnections() primero.');
+  }
+  return mongoDb;
 }
+
+export async function closeDatabaseConnections() {
+  try { await pgPool.end(); } catch {}
+  try { await mongoClient.close(); } catch {}
+  try { await neoDriver.close(); } catch {}
+  try { if (redisClient.isOpen) await redisClient.quit(); } catch {}
+}
+

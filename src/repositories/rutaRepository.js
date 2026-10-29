@@ -114,6 +114,59 @@ export class Neo4jRouteRepository {
       await session.close();
     }
   }
+
+  // Reconstrucción del recorrido de un contenedor
+  static async reconstruirRecorridoContenedor(id_contenedor) {
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MATCH (c:Contenedor {id_contenedor: $id_contenedor})-[:PERTENECE_A]->(e:Envio)
+        OPTIONAL MATCH (e)-[:COMPUESTO_POR]->(tr:Tramo)
+        OPTIONAL MATCH (tr)-[:DESDE]->(u1:Ubicacion)
+        OPTIONAL MATCH (tr)-[:HASTA]->(u2:Ubicacion)
+        OPTIONAL MATCH (e)-[:TIENE_ORIGEN]->(orig:Ubicacion)
+        OPTIONAL MATCH (e)-[:TIENE_DESTINO]->(dest:Ubicacion)
+        RETURN e.id_envio AS envio_id,
+               e.estado AS estado_envio,
+               orig.nombre AS origen,
+               dest.nombre AS destino,
+               collect({
+                 tramo_id: tr.id_tramo,
+                 orden: tr.orden,
+                 medio: tr.medio,
+                 desde: u1.nombre,
+                 hasta: u2.nombre
+               }) AS tramos
+        ORDER BY envio_id
+      `;
+      const result = await session.run(cypher, { id_contenedor });
+      return result.records.map(r => r.toObject());
+    } finally {
+      await session.close();
+    }
+  }
+
+  // Historial completo de movimientos de un contenedor
+  static async historialMovimientosContenedor(id_contenedor) {
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MATCH (cont:Contenedor {id_contenedor: $id_contenedor})-[:MONITOREADO_POR]->(s:Sensor)
+        OPTIONAL MATCH (s)-[:REGISTRA]->(l:Lectura)
+        RETURN s.id_sensor AS sensor,
+               collect({
+                 timestamp: l.timestamp,
+                 ubicacion: l.ubicacion,
+                 evento: l.evento
+               }) AS movimientos
+        ORDER BY sensor
+      `;
+      const result = await session.run(cypher, { id_contenedor });
+      return result.records.map(r => r.toObject());
+    } finally {
+      await session.close();
+    }
+  }
 }
 
 export { Neo4jRouteRepository as Neo4jRepository };
