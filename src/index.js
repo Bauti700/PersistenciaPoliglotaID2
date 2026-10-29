@@ -174,7 +174,18 @@ Seleccione una opción:
             break;
           }
 
-          console.table([actor]);
+          console.table([{
+              ID: actor.id_actor,
+              Tipo: actor.tipo_actor,
+              Razon_Social: actor.razon_social,
+              CUIT: actor.cuit,
+              Email: actor.email,
+              Telefono: actor.telefono,
+              Direccion: actor.direccion,
+              Pais: actor.pais,
+              Estado: actor.estado,
+              Saldo_CC: `$ ${actor.saldo || 0}`
+            }]);
 
         } else if (subOpt === '5') {
           const id_actor = Number(await ask('ID del Actor: '));
