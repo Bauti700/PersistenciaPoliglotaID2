@@ -64,6 +64,19 @@ export class ActorRepository {
     return res.rows[0];
   }
 
+
+  static async darDeBaja(id) {
+  const res = await pgPool.query(`
+    UPDATE actores
+    SET estado = 'INACTIVO'
+    WHERE id_actor = $1
+    RETURNING *;
+  `, [id]);
+
+  return res.rows[0] || null;
+}
+
+
   static async eliminar(id) {
     const res = await pgPool.query(`DELETE FROM actores WHERE id_actor = $1 RETURNING *;`, [id]);
     return res.rows[0];
