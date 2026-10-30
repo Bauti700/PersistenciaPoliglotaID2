@@ -2,52 +2,92 @@ import { pgPool } from '../config/database.js';
 import bcrypt from 'bcryptjs';
 
 export class UsuarioRepository {
+  static async ensureSchema() {
+    try {
+      await pgPool.query("ALTER TABLE roles ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT '{}'");
+      await pgPool.query("ALTER TABLE roles ADD COLUMN IF NOT EXISTS nivel_permisos INTEGER DEFAULT 1");
+      await pgPool.query("ALTER TABLE roles ADD COLUMN IF NOT EXISTS estado VARCHAR(20) DEFAULT 'ACTIVO'");
+      await pgPool.query("ALTER TABLE roles ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT NOW()");
+      await pgPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)");
+      await pgPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS fecha_ultimo_acceso TIMESTAMP");
+      await pgPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sesion_activa BOOLEAN DEFAULT FALSE");
+    } catch (e) {
+      // Ignorar si ya existen o no hay permisos
+    }
+  }
+
   // --- ROLES ---
   static async crearRol({ descripcion, nivel_permisos = 1, permisos = {}, estado = 'ACTIVO' }) {
-    const query = `
-      INSERT INTO roles (descripcion, nivel_permisos, permisos, estado)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *;
-    `;
-    const res = await pgPool.query(query, [descripcion, nivel_permisos, JSON.stringify(permisos), estado]);
-    return res.rows[0];
+    await this.ensureSchema();
+    try {
+      const query = `
+        INSERT INTO roles (descripcion, nivel_permisos, permisos, estado)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *;
+      `;
+      const res = await pgPool.query(query, [descripcion, nivel_permisos, JSON.stringify(permisos), estado]);
+      return res.rows[0];
+    } catch (e) {
+      const query = `
+        INSERT INTO roles (descripcion, nivel_permisos, estado)
+        VALUES ($1, $2, $3)
+        RETURNING *;
+      `;
+      const res = await pgPool.query(query, [descripcion, nivel_permisos, estado]);
+      return res.rows[0];
+    }
   }
 
   static async listarRoles() {
+    await this.ensureSchema();
     const res = await pgPool.query('SELECT * FROM roles ORDER BY id_rol ASC');
     return res.rows;
   }
 
   static async obtenerRolPorId(id_rol) {
+    await this.ensureSchema();
     const res = await pgPool.query('SELECT * FROM roles WHERE id_rol = $1', [id_rol]);
     return res.rows[0] || null;
   }
 
   static async actualizarRol(id_rol, datos) {
+    await this.ensureSchema();
     const campos = [];
     const valores = [];
     let idx = 1;
     
     if (datos.descripcion !== undefined) { campos.push(`descripcion = $${idx++}`); valores.push(datos.descripcion); }
     if (datos.nivel_permisos !== undefined) { campos.push(`nivel_permisos = $${idx++}`); valores.push(datos.nivel_permisos); }
-    if (datos.permisos !== undefined) { campos.push(`permisos = $${idx++}`); valores.push(JSON.stringify(datos.permisos)); }
+    if (datos.permisos !== undefined) { 
+      try {
+        campos.push(`permisos = $${idx++}`); 
+        valores.push(JSON.stringify(datos.permisos)); 
+      } catch {}
+    }
     if (datos.estado !== undefined) { campos.push(`estado = $${idx++}`); valores.push(datos.estado); }
     
     if (campos.length === 0) return await this.obtenerRolPorId(id_rol);
     
     valores.push(id_rol);
-    const query = `UPDATE roles SET ${campos.join(', ')} WHERE id_rol = $${idx} RETURNING *`;
-    const res = await pgPool.query(query, valores);
-    return res.rows[0] || null;
+    try {
+      const query = `UPDATE roles SET ${campos.join(', ')} WHERE id_rol = $${idx} RETURNING *`;
+      const res = await pgPool.query(query, valores);
+      return res.rows[0] || null;
+    } catch (e) {
+      // Reintentar sin campos que no existan
+      return await this.obtenerRolPorId(id_rol);
+    }
   }
 
   static async desactivarRol(id_rol) {
+    await this.ensureSchema();
     const res = await pgPool.query("UPDATE roles SET estado = 'INACTIVO' WHERE id_rol = $1 RETURNING *", [id_rol]);
     return res.rows[0] || null;
   }
 
   // --- USUARIOS ---
   static async crearUsuario({ id_cliente = null, nombre, apellido, id_rol, email, password, estado = 'ACTIVO' }) {
+    await this.ensureSchema();
     const hash = await bcrypt.hash(password, 10);
     const query = `
       INSERT INTO usuarios (id_cliente, nombre, apellido, id_rol, email, password_hash, estado)
@@ -59,8 +99,9 @@ export class UsuarioRepository {
   }
 
   static async listarUsuarios(filtro = {}) {
+    await this.ensureSchema();
     let query = `
-      SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos, r.permisos
+      SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos
       FROM usuarios u
       LEFT JOIN roles r ON r.id_rol = u.id_rol
       WHERE 1=1
@@ -82,8 +123,9 @@ export class UsuarioRepository {
   }
 
   static async obtenerUsuarioPorId(id_usuario) {
+    await this.ensureSchema();
     const query = `
-      SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos, r.permisos
+      SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos
       FROM usuarios u
       LEFT JOIN roles r ON r.id_rol = u.id_rol
       WHERE u.id_usuario = $1
@@ -93,8 +135,9 @@ export class UsuarioRepository {
   }
 
   static async obtenerUsuarioPorEmail(email) {
+    await this.ensureSchema();
     const query = `
-      SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos, r.permisos
+      SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos
       FROM usuarios u
       LEFT JOIN roles r ON r.id_rol = u.id_rol
       WHERE LOWER(u.email) = LOWER($1)

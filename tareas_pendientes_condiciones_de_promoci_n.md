@@ -6,7 +6,7 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 ## 🛠️ ABMs y Gestión Base
 - [x] ABM Clientes (PostgreSQL - CRUD completo y menú CLI).
 - [x] ABM Usuarios y Roles (PostgreSQL - CRUD de usuarios/roles con bcrypt, menú CLI).
-- [ ] ABM Sesiones activas (Lógica básica en Redis con TTL).
+- [x] ABM Sesiones activas (Redis con TTL, listado/cierre por sesión/usuario y cierre masivo).
 - [ ] ABM Proveedores.
 - [ ] ABM Operadores Logísticos.
 - [x] ABM Envíos -> contenedores -> sensores (Alta políglota de envíos con asignación explícita en CLI).

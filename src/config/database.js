@@ -23,7 +23,8 @@ export let mongoDb = null;
 // 3. Neo4j Driver
 export const neoDriver = neo4j.driver(
   process.env.NEO4J_URI || 'bolt://localhost:7687',
-  neo4j.auth.basic(process.env.NEO4J_USER || 'neo4j', process.env.NEO4J_PASSWORD || 'password123')
+  neo4j.auth.basic(process.env.NEO4J_USER || 'neo4j', process.env.NEO4J_PASSWORD || 'password123'),
+  { encrypted: false }  // El contenedor Docker no usa TLS; sin esto el driver 4.0+ falla al conectar
 );
 
 // 4. Redis Client
@@ -63,12 +64,26 @@ export async function initDatabaseConnections() {
     console.warn(`[Aviso DB] MongoDB no disponible: ${err.message}`);
   }
 
-  // Check Neo4j
-  try {
-    const serverInfo = await neoDriver.getServerInfo();
-    if (serverInfo) status.neo4j = true;
-  } catch (err) {
-    console.warn(`[Aviso DB] Neo4j no disponible: ${err.message}`);
+  // Check Neo4j (con reintentos, ya que puede tardar en inicializarse)
+  {
+    const NEO4J_RETRIES = 5;
+    const NEO4J_RETRY_DELAY_MS = 3000;
+    for (let attempt = 1; attempt <= NEO4J_RETRIES; attempt++) {
+      try {
+        const serverInfo = await neoDriver.getServerInfo();
+        if (serverInfo) {
+          status.neo4j = true;
+          break;
+        }
+      } catch (err) {
+        if (attempt < NEO4J_RETRIES) {
+          console.warn(`[Aviso DB] Neo4j no disponible (intento ${attempt}/${NEO4J_RETRIES}): ${err.message}. Reintentando en ${NEO4J_RETRY_DELAY_MS / 1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, NEO4J_RETRY_DELAY_MS));
+        } else {
+          console.warn(`[Aviso DB] Neo4j no disponible tras ${NEO4J_RETRIES} intentos: ${err.message}`);
+        }
+      }
+    }
   }
 
   // Check Redis
@@ -99,4 +114,3 @@ export async function closeDatabaseConnections() {
   try { await neoDriver.close(); } catch {}
   try { if (redisClient.isOpen) await redisClient.quit(); } catch {}
 }
-
