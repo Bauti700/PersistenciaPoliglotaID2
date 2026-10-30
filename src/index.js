@@ -14,6 +14,64 @@ import { AlertaRepository } from './repositories/alertaRepository.js';
 import { MensajeRepository } from './repositories/mensajeRepository.js';
 import { UsuarioRepository } from './repositories/usuarioRepository.js';
 import { SesionRepository } from './repositories/sesionRepository.js';
+import { SecurityBootstrapService } from './services/securityBootstrapService.js';
+
+let currentUser = null;
+
+async function login() {
+  console.log('\n==================== AUTENTICACIÓN ====================');
+  console.log('Ingrese sus credenciales para acceder al sistema');
+  console.log('====================================================\n');
+  let intentos = 0;
+  while (!currentUser && intentos < 3) {
+    const email = (await ask('Email: ')).trim();
+    if (!email) {
+      console.log('Email requerido\n');
+      intentos++;
+      continue;
+    }
+    const password = (await ask('Contraseña: ')).trim();
+    if (!password) {
+      console.log('Contraseña requerida\n');
+      intentos++;
+      continue;
+    }
+    
+    try {
+      const user = await UsuarioRepository.autenticar(email, password);
+      if (!user) {
+        console.log('Credenciales inválidas o usuario bloqueado.\n');
+        intentos++;
+        continue;
+      }
+      
+      currentUser = user;
+      
+      try {
+        await SesionRepository.crearSesion({
+          id_usuario: user.id_usuario,
+          email: user.email,
+          id_rol: user.id_rol,
+          ip: '127.0.0.1',
+          ttl: 3600
+        });
+      } catch (e) {
+        console.warn('[Aviso] No se pudo registrar sesión en Redis');
+      }
+      
+      console.log(`\nBienvenido/a: ${user.nombre} ${user.apellido} | Rol: ${user.rol_descripcion || 'N/A'} | Estado: ${user.estado}`);
+      console.log('====================================================\n');
+    } catch (e) {
+      console.log(`Error de autenticación: ${e.message}\n`);
+      intentos++;
+    }
+  }
+  
+  if (!currentUser) {
+    console.log('Demasiados intentos fallidos. Cerrando aplicación...');
+    process.exit(0);
+  }
+}
 import { Neo4jRouteRepository } from './repositories/rutaRepository.js';
 import { RedisCacheRepository } from './repositories/cacheRepository.js';
 import { LogisticsService } from './services/logisticsService.js';
@@ -70,8 +128,7 @@ Seleccione una opción:
   14. [Reporte]    Reportes Comerciales Parametrizados (Filtros y Auditoría en MongoDB)
   15. [Analítica]  Ranking de Rutas con Mayor Cantidad de Incidentes (Mongo + PG + Redis)
   16. [Analítica]  Análisis Histórico de Desempeño (Tiempos Entrega, Puntualidad y Costos)
-  17. [Seguridad]   ABM Usuarios, Roles y Sesiones
-  0.  Salir
+${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMIN' || Number(currentUser.nivel_permisos)>=9)) ? '  17. [Seguridad]   ABM Usuarios, Roles y Sesiones\n' : ''}  0.  Salir
 `);
 
     const opt = (await ask('Opción > ')).trim();
@@ -908,6 +965,11 @@ Seleccione una opción:
         }
 
         case '17': {
+          const esAdmin = currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMIN' || Number(currentUser.nivel_permisos)>=9);
+          if (!esAdmin) {
+            console.log('\n[ACCESO DENEGADO] Solo usuarios con rol ADMIN pueden acceder a Gestión de Usuarios, Roles y Sesiones.');
+            break;
+          }
           console.log('\n--- SEGURIDAD: ABM USUARIOS, ROLES Y SESIONES ---');
           console.log('1. Gestionar Roles');
           console.log('2. Gestionar Usuarios');
@@ -1315,6 +1377,15 @@ y luego vuelva a iniciar la aplicación con 'npm start'.
 `);
   }
 
+  // Bootstrap automatico: crea roles y usuarios por defecto si la tabla esta vacia
+  if (status.postgres) {
+    const bootstrap = await SecurityBootstrapService.bootstrap();
+    if (bootstrap.created) {
+      console.log('[SecurityBootstrap] Datos iniciales creados. Admin: admin@logistica.com / admin123');
+    }
+  }
+
+  await login();
   await menu();
 }
 
