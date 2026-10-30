@@ -12,6 +12,7 @@ import { LecturaRepository } from './repositories/lecturaRepository.js';
 import { IncidenteRepository } from './repositories/incidenteRepository.js';
 import { AlertaRepository } from './repositories/alertaRepository.js';
 import { MensajeRepository } from './repositories/mensajeRepository.js';
+import { UsuarioRepository } from './repositories/usuarioRepository.js';
 import { Neo4jRouteRepository } from './repositories/rutaRepository.js';
 import { RedisCacheRepository } from './repositories/cacheRepository.js';
 import { LogisticsService } from './services/logisticsService.js';
@@ -68,6 +69,7 @@ Seleccione una opción:
   14. [Reporte]    Reportes Comerciales Parametrizados (Filtros y Auditoría en MongoDB)
   15. [Analítica]  Ranking de Rutas con Mayor Cantidad de Incidentes (Mongo + PG + Redis)
   16. [Analítica]  Análisis Histórico de Desempeño (Tiempos Entrega, Puntualidad y Costos)
+  17. [Seguridad]   ABM Usuarios, Roles y Sesiones
   0.  Salir
 `);
 

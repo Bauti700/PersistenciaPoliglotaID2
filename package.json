@@ -10,6 +10,7 @@
     "seed": "node scripts/seed_all.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.1",
     "mongodb": "^6.3.0",
     "neo4j-driver": "^5.15.0",
