@@ -14,7 +14,6 @@ import { AlertaRepository } from './repositories/alertaRepository.js';
 import { MensajeRepository } from './repositories/mensajeRepository.js';
 import { UsuarioRepository } from './repositories/usuarioRepository.js';
 import { SesionRepository } from './repositories/sesionRepository.js';
-import { SecurityBootstrapService } from './services/securityBootstrapService.js';
 
 let currentUser = null;
 
@@ -1375,14 +1374,6 @@ async function main() {
   docker compose up -d
 y luego vuelva a iniciar la aplicación con 'npm start'.
 `);
-  }
-
-  // Bootstrap automatico: crea roles y usuarios por defecto si la tabla esta vacia
-  if (status.postgres) {
-    const bootstrap = await SecurityBootstrapService.bootstrap();
-    if (bootstrap.created) {
-      console.log('[SecurityBootstrap] Datos iniciales creados. Admin: admin@logistica.com / admin123');
-    }
   }
 
   await login();

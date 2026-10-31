@@ -127,23 +127,33 @@ CREATE TABLE IF NOT EXISTS tramos (
 -- =============================================================================
 
 INSERT INTO roles (descripcion, nivel_permisos, estado) VALUES
-('ADMIN', 10, 'ACTIVO'),
-('OPERADOR', 5, 'ACTIVO'),
-('CLIENTE', 1, 'ACTIVO')
+('ADMIN',    10, 'ACTIVO'),
+('OPERADOR',  5, 'ACTIVO'),
+('CLIENTE',   1, 'ACTIVO'),
+('USUARIO',   1, 'ACTIVO')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO actores (tipo_actor, razon_social, cuit, email, telefono, direccion, pais) VALUES
-('CLIENTE', 'Importadora Andina S.A.', '30-71123456-8', 'contacto@andina.com', '+54 11 4321-8765', 'Av. Córdoba 1234', 'Argentina'),
-('CLIENTE', 'Global Traders Ltd', '30-99887766-4', 'ops@globaltraders.com', '+55 11 9876-5432', 'Rua das Flores 45', 'Brasil'),
-('OPERADOR', 'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E', 'Argentina'),
-('PROVEEDOR', 'Sensores del Sur Corp', '30-44332211-9', 'ventas@sensoresdelsur.com', '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina')
+('CLIENTE',   'Importadora Andina S.A.',     '30-71123456-8', 'contacto@andina.com',        '+54 11 4321-8765', 'Av. Córdoba 1234',        'Argentina'),
+('CLIENTE',   'Global Traders Ltd',          '30-99887766-4', 'ops@globaltraders.com',       '+55 11 9876-5432', 'Rua das Flores 45',       'Brasil'),
+('OPERADOR',  'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E',  'Argentina'),
+('PROVEEDOR', 'Sensores del Sur Corp',       '30-44332211-9', 'ventas@sensoresdelsur.com',   '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO usuarios (id_cliente, nombre, apellido, id_rol, email, password_hash) VALUES
-(1, 'Martín', 'Gómez', 1, 'admin@logistica.com', 'admin123'),
-(1, 'Lucía', 'Fernández', 3, 'lucia@andina.com', 'lucia123'),
-(3, 'Carlos', 'Navarro', 2, 'carlos@expressplata.com', 'carlos123')
-ON CONFLICT DO NOTHING;
+-- Contraseñas hasheadas con bcrypt (cost=10) y distintas para cada usuario:
+--   admin@logistica.com          -> admin123  (Rol: ADMIN)
+--   juan.perez@logistica.com     -> juan123   (Rol: USUARIO)
+--   maria.gonzalez@logistica.com -> maria123  (Rol: USUARIO)
+--   carlos.lopez@logistica.com   -> carlos123 (Rol: USUARIO)
+INSERT INTO usuarios (id_cliente, nombre, apellido, id_rol, email, password_hash, estado)
+SELECT 1,    'Martín',  'Gómez',     (SELECT id_rol FROM roles WHERE descripcion = 'ADMIN' LIMIT 1),    'admin@logistica.com',          '$2a$10$0kEZBXs0SW9ae95Vt8eP/.lJpa4P1NCmN.7G4WweO6uPvMG8CvSzq', 'ACTIVO'
+UNION ALL
+SELECT NULL, 'Juan',    'Pérez',     (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'juan.perez@logistica.com',     '$2a$10$XhFtHGkNyxXCJIEpKrdQv.jrkgsMx5YHXcyH6CR4Lac0ExmmeXl4q', 'ACTIVO'
+UNION ALL
+SELECT NULL, 'María',   'González',  (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'maria.gonzalez@logistica.com', '$2a$10$GO0cJCxVTIYoHsflS5eUfOQVojQA/TxzsA5vLLUX3Ok1X6MlvyoOm', 'ACTIVO'
+UNION ALL
+SELECT NULL, 'Carlos',  'López',     (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'carlos.lopez@logistica.com',   '$2a$10$Emh9.PoIl59Din8sywPp1.CEclhzFXUMw45htSxHcU.t4ZRqKdepa', 'ACTIVO'
+ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO cuentas_corrientes (id_actor, saldo) VALUES
 (1, 150000.00),

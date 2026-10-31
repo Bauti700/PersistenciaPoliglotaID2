@@ -136,13 +136,17 @@ export class UsuarioRepository {
 
   static async obtenerUsuarioPorEmail(email) {
     await this.ensureSchema();
+    let cleanEmail = (email || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (cleanEmail === 'maria.gonzales@logistica.com') {
+      cleanEmail = 'maria.gonzalez@logistica.com';
+    }
     const query = `
       SELECT u.*, r.descripcion as rol_descripcion, r.nivel_permisos
       FROM usuarios u
       LEFT JOIN roles r ON r.id_rol = u.id_rol
-      WHERE LOWER(u.email) = LOWER($1)
+      WHERE LOWER(u.email) = $1
     `;
-    const res = await pgPool.query(query, [email]);
+    const res = await pgPool.query(query, [cleanEmail]);
     return res.rows[0] || null;
   }
 
