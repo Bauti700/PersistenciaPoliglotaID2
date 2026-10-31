@@ -34,7 +34,7 @@ export class AnalyticsService {
       SELECT e.id_envio, e.id_cliente, a.razon_social AS cliente_nombre,
              e.origen, e.destino, e.estado, e.prioridad
       FROM envios e
-      JOIN actores a ON e.id_cliente = a.id_actor;
+      JOIN clientes a ON e.id_cliente = a.id_cliente;
     `);
 
     // 4. Agrupar incidentes por ruta (Origen ➔ Destino)
@@ -165,7 +165,7 @@ export class AnalyticsService {
                WHERE t.id_envio = e.id_envio
              ) AS fecha_estimada_fin
       FROM envios e
-      JOIN actores a ON e.id_cliente = a.id_actor
+      JOIN clientes a ON e.id_cliente = a.id_cliente
       ${filterCliente}
       ORDER BY e.fecha_creacion DESC;
     `;
@@ -264,9 +264,8 @@ export class AnalyticsService {
     const mapIncidentes = new Map(incidentesMongo.map(i => [i._id, i.total_incidentes]));
 
     const resOperadores = await pgPool.query(`
-      SELECT a.id_actor, a.razon_social AS operador, a.pais
-      FROM actores a
-      WHERE a.tipo_actor = 'OPERADOR';
+      SELECT o.id_operador AS id_actor, o.razon_social AS operador, o.pais
+      FROM operadores o;
     `);
 
     const confiabilidadOperadores = [];

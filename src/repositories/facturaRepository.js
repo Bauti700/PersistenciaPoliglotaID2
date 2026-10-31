@@ -7,11 +7,8 @@ export class FacturaRepository {
    * Emite factura a un CLIENTE (Facturación de venta emitida por el sistema)
    */
   static async emitirFactura({ id_cliente, importe_total, concepto = 'Servicio de logística internacional', id_envio = null, numero_comprobante = null }) {
-    const actor = await ActorRepository.obtenerPorId(id_cliente);
-    if (!actor) throw new Error(`El actor con ID ${id_cliente} no existe.`);
-    if (actor.tipo_actor !== 'CLIENTE') {
-      throw new Error(`El actor ${actor.razon_social} es de tipo ${actor.tipo_actor}. La emisión de facturas corresponde a CLIENTES. Para proveedores y operadores use registrarFacturaRecibida.`);
-    }
+    const actor = await ActorRepository.obtenerPorId(id_cliente, 'CLIENTE');
+    if (!actor) throw new Error(`El cliente con ID ${id_cliente} no existe.`);
 
     const nroComp = numero_comprobante || `FC-CLI-${Date.now().toString().slice(-8)}`;
 
@@ -19,8 +16,8 @@ export class FacturaRepository {
     try {
       await client.query('BEGIN');
       const insertFactura = `
-        INSERT INTO facturas (id_cliente, tipo_factura, numero_comprobante, concepto, id_envio, importe_total, estado)
-        VALUES ($1, 'EMITIDA', $2, $3, $4, $5, 'PENDIENTE')
+        INSERT INTO facturas (id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+        VALUES ($1, 'EMITIDA', 'CLIENTE', $2, $3, $4, $5, 'PENDIENTE')
         RETURNING *;
       `;
       const resFactura = await client.query(insertFactura, [id_cliente, nroComp, concepto, id_envio, importe_total]);
@@ -30,7 +27,7 @@ export class FacturaRepository {
       await client.query(`
         UPDATE cuentas_corrientes
         SET saldo = saldo - $1, fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_actor = $2;
+        WHERE id_actor = $2 AND tipo_actor = 'CLIENTE';
       `, [importe_total, id_cliente]);
 
       await client.query('COMMIT');
@@ -47,13 +44,12 @@ export class FacturaRepository {
    * Registra una FACTURA RECIBIDA ya confeccionada por un PROVEEDOR u OPERADOR LOGÍSTICO
    * (El sistema NO las genera, sino que recibe las facturas externas ya hechas por ellos)
    */
-  static async registrarFacturaRecibida({ id_actor, importe_total, numero_comprobante, concepto = 'Factura de servicios/insumos recibida', id_envio = null }) {
+  static async registrarFacturaRecibida({ id_actor, tipo_actor, importe_total, numero_comprobante, concepto = 'Factura de servicios/insumos recibida', id_envio = null }) {
     if (!numero_comprobante || !numero_comprobante.trim()) {
       throw new Error('Debe especificar el número de comprobante externo provisto por el proveedor u operador.');
     }
 
-    const actor = await ActorRepository.obtenerPorId(id_actor);
-    if (!actor) throw new Error(`El actor con ID ${id_actor} no existe.`);
+    const actor = await ActorRepository.resolverActor(id_actor, tipo_actor);
     if (actor.tipo_actor !== 'PROVEEDOR' && actor.tipo_actor !== 'OPERADOR') {
       throw new Error(`El actor ${actor.razon_social} es de tipo ${actor.tipo_actor}. Solo se registran facturas recibidas de PROVEEDORES y OPERADORES.`);
     }
@@ -62,19 +58,19 @@ export class FacturaRepository {
     try {
       await client.query('BEGIN');
       const insertFactura = `
-        INSERT INTO facturas (id_cliente, tipo_factura, numero_comprobante, concepto, id_envio, importe_total, estado)
-        VALUES ($1, 'RECIBIDA', $2, $3, $4, $5, 'PENDIENTE')
+        INSERT INTO facturas (id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+        VALUES ($1, 'RECIBIDA', $2, $3, $4, $5, $6, 'PENDIENTE')
         RETURNING *;
       `;
-      const resFactura = await client.query(insertFactura, [id_actor, numero_comprobante.trim(), concepto, id_envio, importe_total]);
+      const resFactura = await client.query(insertFactura, [actor.id_actor, actor.tipo_actor, numero_comprobante.trim(), concepto, id_envio, importe_total]);
       const factura = resFactura.rows[0];
 
       // Impactar Cuenta Corriente de proveedor/operador: se reconoce la deuda contraída con el tercero (saldo acreedor a su favor)
       await client.query(`
         UPDATE cuentas_corrientes
         SET saldo = saldo + $1, fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_actor = $2;
-      `, [importe_total, id_actor]);
+        WHERE id_actor = $2 AND tipo_actor = $3;
+      `, [importe_total, actor.id_actor, actor.tipo_actor]);
 
       await client.query('COMMIT');
       return factura;
@@ -91,9 +87,9 @@ export class FacturaRepository {
    */
   static async facturacionAutomaticaPorEnvio(id_envio) {
     const resEnvio = await pgPool.query(`
-      SELECT e.*, a.razon_social, a.tipo_actor 
-      FROM envios e 
-      JOIN actores a ON e.id_cliente = a.id_actor 
+      SELECT e.*, a.razon_social
+      FROM envios e
+      JOIN clientes a ON e.id_cliente = a.id_cliente
       WHERE e.id_envio = $1;
     `, [id_envio]);
 

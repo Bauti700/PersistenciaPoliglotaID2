@@ -5,26 +5,28 @@ export class CuentaCorrienteRepository {
   /**
    * Obtiene el estado de cuenta corriente completo de un actor (Cliente, Proveedor u Operador)
    */
-  static async obtenerEstadoCuenta(id_actor) {
-    const actor = await ActorRepository.obtenerPorId(id_actor);
-    if (!actor) throw new Error(`Actor con ID ${id_actor} no encontrado.`);
+  static async obtenerEstadoCuenta(id_actor, tipo_actor = null) {
+    const actor = await ActorRepository.resolverActor(id_actor, tipo_actor);
 
-    const cc = await pgPool.query(`SELECT * FROM cuentas_corrientes WHERE id_actor = $1;`, [id_actor]);
+    const cc = await pgPool.query(
+      `SELECT * FROM cuentas_corrientes WHERE id_actor = $1 AND tipo_actor = $2;`,
+      [actor.id_actor, actor.tipo_actor]
+    );
     const facturas = await pgPool.query(`
       SELECT f.*, 
              COALESCE((SELECT SUM(monto) FROM pagos p WHERE p.id_factura = f.id_factura), 0) AS total_pagado
       FROM facturas f 
-      WHERE f.id_cliente = $1 
+      WHERE f.id_cliente = $1 AND f.tipo_actor = $2
       ORDER BY f.id_factura DESC;
-    `, [id_actor]);
+    `, [actor.id_actor, actor.tipo_actor]);
 
     const pagos = await pgPool.query(`
       SELECT p.*, f.numero_comprobante, f.tipo_factura 
       FROM pagos p 
       JOIN facturas f ON p.id_factura = f.id_factura 
-      WHERE f.id_cliente = $1 
+      WHERE f.id_cliente = $1 AND f.tipo_actor = $2
       ORDER BY p.fecha DESC;
-    `, [id_actor]);
+    `, [actor.id_actor, actor.tipo_actor]);
 
     return {
       actor,
@@ -37,10 +39,13 @@ export class CuentaCorrienteRepository {
   /**
    * Cierre mensual de Cuentas Corrientes
    */
-  static async ejecutarCierreMensual({ periodo, id_actor = null }) {
+  static async ejecutarCierreMensual({ periodo, id_actor = null, tipo_actor = null }) {
     if (!periodo || !/^\d{4}-\d{2}$/.test(periodo)) {
       throw new Error("El período debe tener formato 'YYYY-MM' (ej: '2026-10').");
     }
+
+    // Se resuelve antes de abrir la transacción: si el ID es ambiguo, se corta acá.
+    const actorFiltro = id_actor ? await ActorRepository.resolverActor(id_actor, tipo_actor) : null;
 
     const client = await pgPool.connect();
     try {
@@ -48,17 +53,23 @@ export class CuentaCorrienteRepository {
 
       const params = [];
       let whereActor = '';
-      if (id_actor) {
-        params.push(id_actor);
-        whereActor = 'WHERE a.id_actor = $1';
+      if (actorFiltro) {
+        params.push(actorFiltro.id_actor, actorFiltro.tipo_actor);
+        whereActor = 'WHERE a.id_actor = $1 AND a.tipo_actor = $2';
       }
 
       const resActores = await client.query(`
         SELECT a.id_actor, a.razon_social, a.tipo_actor, COALESCE(cc.saldo, 0.00) as saldo_actual
-        FROM actores a
-        LEFT JOIN cuentas_corrientes cc ON a.id_actor = cc.id_actor
+        FROM (
+          SELECT id_cliente AS id_actor, razon_social, 'CLIENTE' AS tipo_actor FROM clientes
+          UNION ALL
+          SELECT id_proveedor AS id_actor, razon_social, 'PROVEEDOR' AS tipo_actor FROM proveedores
+          UNION ALL
+          SELECT id_operador AS id_actor, razon_social, 'OPERADOR' AS tipo_actor FROM operadores
+        ) a
+        LEFT JOIN cuentas_corrientes cc ON a.id_actor = cc.id_actor AND a.tipo_actor = cc.tipo_actor
         ${whereActor}
-        ORDER BY a.id_actor ASC;
+        ORDER BY a.tipo_actor, a.id_actor ASC;
       `, params);
 
       const resumenCierres = [];
@@ -70,8 +81,8 @@ export class CuentaCorrienteRepository {
             COALESCE(SUM(CASE WHEN tipo_factura = 'EMITIDA' THEN importe_total ELSE 0 END), 0) AS total_emitidas,
             COALESCE(SUM(CASE WHEN tipo_factura = 'RECIBIDA' THEN importe_total ELSE 0 END), 0) AS total_recibidas
           FROM facturas
-          WHERE id_cliente = $1 AND TO_CHAR(fecha_emision, 'YYYY-MM') = $2;
-        `, [act.id_actor, periodo]);
+          WHERE id_cliente = $1 AND tipo_actor = $2 AND TO_CHAR(fecha_emision, 'YYYY-MM') = $3;
+        `, [act.id_actor, act.tipo_actor, periodo]);
 
         const resPagos = await client.query(`
           SELECT 
@@ -79,8 +90,8 @@ export class CuentaCorrienteRepository {
             COALESCE(SUM(CASE WHEN p.tipo_pago IN ('PAGO_PROVEEDOR', 'PAGO_OPERADOR') THEN p.monto ELSE 0 END), 0) AS total_pagos_realizados
           FROM pagos p
           JOIN facturas f ON p.id_factura = f.id_factura
-          WHERE f.id_cliente = $1 AND TO_CHAR(p.fecha, 'YYYY-MM') = $2;
-        `, [act.id_actor, periodo]);
+          WHERE f.id_cliente = $1 AND f.tipo_actor = $2 AND TO_CHAR(p.fecha, 'YYYY-MM') = $3;
+        `, [act.id_actor, act.tipo_actor, periodo]);
 
         const totalFacturadoMes = Number(resFacs.rows[0].total_emitidas) + Number(resFacs.rows[0].total_recibidas);
         const totalPagadoMes = Number(resPagos.rows[0].total_cobros) + Number(resPagos.rows[0].total_pagos_realizados);
@@ -88,16 +99,16 @@ export class CuentaCorrienteRepository {
         const saldoInicialAprox = saldoCierre + (act.tipo_actor === 'CLIENTE' ? (totalFacturadoMes - totalPagadoMes) : (totalPagadoMes - totalFacturadoMes));
 
         await client.query(`
-          INSERT INTO cierres_cuentas_corrientes (periodo, id_actor, saldo_inicial, total_debe, total_haber, saldo_final, fecha_cierre, estado)
-          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, 'CERRADO')
-          ON CONFLICT (periodo, id_actor) DO UPDATE
+          INSERT INTO cierres_cuentas_corrientes (periodo, id_actor, tipo_actor, saldo_inicial, total_debe, total_haber, saldo_final, fecha_cierre, estado)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, 'CERRADO')
+          ON CONFLICT (periodo, tipo_actor, id_actor) DO UPDATE
           SET saldo_inicial = EXCLUDED.saldo_inicial,
               total_debe = EXCLUDED.total_debe,
               total_haber = EXCLUDED.total_haber,
               saldo_final = EXCLUDED.saldo_final,
               fecha_cierre = CURRENT_TIMESTAMP,
               estado = 'CERRADO';
-        `, [periodo, act.id_actor, saldoInicialAprox, totalFacturadoMes, totalPagadoMes, saldoCierre]);
+        `, [periodo, act.id_actor, act.tipo_actor, saldoInicialAprox, totalFacturadoMes, totalPagadoMes, saldoCierre]);
 
         resumenCierres.push({
           id_actor: act.id_actor,
@@ -119,7 +130,7 @@ export class CuentaCorrienteRepository {
           id_reporte: `CIERRE-CC-${periodo}`,
           tipo: 'CIERRE_MENSUAL_CUENTAS_CORRIENTES',
           categoria: 'CONTABLE',
-          parametros: { periodo, id_actor },
+          parametros: { periodo, id_actor: actorFiltro ? actorFiltro.id_actor : null, tipo_actor: actorFiltro ? actorFiltro.tipo_actor : null },
           resumen: {
             total_actores_procesados: resumenCierres.length,
             fecha_cierre: new Date().toISOString(),
@@ -156,7 +167,13 @@ export class CuentaCorrienteRepository {
     const query = `
       SELECT c.*, a.razon_social, a.tipo_actor, a.cuit, a.pais
       FROM cierres_cuentas_corrientes c
-      JOIN actores a ON c.id_actor = a.id_actor
+      JOIN (
+        SELECT id_cliente AS id_actor, razon_social, 'CLIENTE' AS tipo_actor, cuit, pais FROM clientes
+        UNION ALL
+        SELECT id_proveedor AS id_actor, razon_social, 'PROVEEDOR' AS tipo_actor, cuit, pais FROM proveedores
+        UNION ALL
+        SELECT id_operador AS id_actor, razon_social, 'OPERADOR' AS tipo_actor, cuit, pais FROM operadores
+      ) a ON c.id_actor = a.id_actor AND c.tipo_actor = a.tipo_actor
       ${whereClause}
       ORDER BY c.periodo DESC, a.tipo_actor, a.razon_social;
     `;

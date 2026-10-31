@@ -11,7 +11,13 @@ export class PagoRepository {
       const resFac = await client.query(`
         SELECT f.*, a.tipo_actor, a.razon_social 
         FROM facturas f 
-        JOIN actores a ON f.id_cliente = a.id_actor 
+        JOIN (
+          SELECT id_cliente AS id_actor, 'CLIENTE' AS tipo_actor, razon_social FROM clientes
+          UNION ALL
+          SELECT id_proveedor AS id_actor, 'PROVEEDOR' AS tipo_actor, razon_social FROM proveedores
+          UNION ALL
+          SELECT id_operador AS id_actor, 'OPERADOR' AS tipo_actor, razon_social FROM operadores
+        ) a ON f.id_cliente = a.id_actor AND f.tipo_actor = a.tipo_actor
         WHERE f.id_factura = $1;
       `, [id_factura]);
 
@@ -49,14 +55,14 @@ export class PagoRepository {
         await client.query(`
           UPDATE cuentas_corrientes
           SET saldo = saldo + $1, fecha_actualizacion = CURRENT_TIMESTAMP
-          WHERE id_actor = $2;
-        `, [montoNum, factura.id_cliente]);
+          WHERE id_actor = $2 AND tipo_actor = $3;
+        `, [montoNum, factura.id_cliente, factura.tipo_actor]);
       } else {
         await client.query(`
           UPDATE cuentas_corrientes
           SET saldo = saldo - $1, fecha_actualizacion = CURRENT_TIMESTAMP
-          WHERE id_actor = $2;
-        `, [montoNum, factura.id_cliente]);
+          WHERE id_actor = $2 AND tipo_actor = $3;
+        `, [montoNum, factura.id_cliente, factura.tipo_actor]);
       }
 
       await client.query('COMMIT');

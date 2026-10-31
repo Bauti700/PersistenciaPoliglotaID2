@@ -34,6 +34,9 @@ export class ReporteComercialSqlRepository {
       conditions.push(`f.tipo_factura = $${params.length}`);
     }
     if (id_actor) {
+      if (!tipo_actor || tipo_actor === 'TODOS') {
+        throw new Error('Para filtrar por ID de actor debe indicar también el tipo (CLIENTE / PROVEEDOR / OPERADOR).');
+      }
       params.push(id_actor);
       conditions.push(`f.id_cliente = $${params.length}`);
     }
@@ -46,7 +49,13 @@ export class ReporteComercialSqlRepository {
              a.id_actor, a.razon_social, a.tipo_actor, a.cuit, a.pais,
              COALESCE((SELECT SUM(monto) FROM pagos p WHERE p.id_factura = f.id_factura), 0) AS total_pagado
       FROM facturas f
-      JOIN actores a ON f.id_cliente = a.id_actor
+      JOIN (
+        SELECT id_cliente AS id_actor, 'CLIENTE' AS tipo_actor, razon_social, cuit, pais FROM clientes
+        UNION ALL
+        SELECT id_proveedor AS id_actor, 'PROVEEDOR' AS tipo_actor, razon_social, cuit, pais FROM proveedores
+        UNION ALL
+        SELECT id_operador AS id_actor, 'OPERADOR' AS tipo_actor, razon_social, cuit, pais FROM operadores
+      ) a ON f.id_cliente = a.id_actor AND f.tipo_actor = a.tipo_actor
       ${whereSQL}
       ORDER BY f.fecha_emision DESC, f.id_factura DESC;
     `;
@@ -75,14 +84,13 @@ export class ReporteComercialSqlRepository {
 
   static async rankingClientesPorVolumen() {
     const query = `
-      SELECT a.id_actor, a.razon_social, a.pais,
+      SELECT c.id_cliente AS id_actor, c.razon_social, c.pais,
              COUNT(DISTINCT e.id_envio) AS total_envios,
              COALESCE(SUM(f.importe_total), 0.00) AS volumen_facturado
-      FROM actores a
-      LEFT JOIN envios e ON a.id_actor = e.id_cliente
-      LEFT JOIN facturas f ON a.id_actor = f.id_cliente AND f.tipo_factura = 'EMITIDA'
-      WHERE a.tipo_actor = 'CLIENTE'
-      GROUP BY a.id_actor, a.razon_social, a.pais
+      FROM clientes c
+      LEFT JOIN envios e ON c.id_cliente = e.id_cliente
+      LEFT JOIN facturas f ON c.id_cliente = f.id_cliente AND f.tipo_factura = 'EMITIDA'
+      GROUP BY c.id_cliente, c.razon_social, c.pais
       ORDER BY total_envios DESC, volumen_facturado DESC;
     `;
     const res = await pgPool.query(query);

@@ -1,6 +1,6 @@
 import readline from 'readline';
 import { initDatabaseConnections, closeDatabaseConnections, pgPool } from './config/database.js';
-import { ActorRepository, ClienteRepository } from './repositories/actorRepository.js';
+import { ActorRepository, ClienteRepository, ProveedorRepository, OperadorRepository } from './repositories/actorRepository.js';
 import { FacturaRepository } from './repositories/facturaRepository.js';
 import { PagoRepository } from './repositories/pagoRepository.js';
 import { CuentaCorrienteRepository } from './repositories/cuentaCorrienteRepository.js';
@@ -104,6 +104,120 @@ Motores soportados:
 `);
 }
 
+
+async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField) {
+  let salir = false;
+  while (!salir) {
+    console.log(`\n--- LISTADO DE ${nombrePlural.toUpperCase()} (PostgreSQL) ---`);
+    const items = await repo.listarTodos();
+    if (items.length === 0) {
+      console.log(`No hay ${nombrePlural.toLowerCase()} registrados.\n`);
+    } else {
+      console.table(items.map(it => ({
+        ID: it[idField],
+        Razon_Social: it.razon_social,
+        CUIT: it.cuit,
+        Email: it.email,
+        Telefono: it.telefono || '-',
+        Direccion: it.direccion || '-',
+        Pais: it.pais,
+        Estado: it.estado,
+        Saldo_CC: `$ ${it.saldo || 0}`
+      })));
+    }
+
+    console.log(`Acciones para ${nombrePlural}:`);
+    console.log(`  1. Dar de alta nuevo ${nombreSingular.toLowerCase()}`);
+    console.log(`  2. Modificar ${nombreSingular.toLowerCase()}`);
+    console.log(`  3. Dar de baja ${nombreSingular.toLowerCase()} (baja lógica: INACTIVO)`);
+    console.log(`  4. Activar ${nombreSingular.toLowerCase()}`);
+    console.log(`  5. Eliminar ${nombreSingular.toLowerCase()} definitivamente (baja física)`);
+    console.log(`  6. Consultar ${nombreSingular.toLowerCase()} por ID`);
+    console.log(`  0. Volver al menú de entidades`);
+
+    const accion = (await ask(`Seleccione acción (0-6) > `)).trim();
+
+    if (accion === '1') {
+      console.log(`\n--- ALTA DE ${nombreSingular.toUpperCase()} ---`);
+      const razon_social = (await ask('Razón Social: ')).trim();
+      const cuit = (await ask('CUIT: ')).trim();
+      const email = (await ask('Email: ')).trim();
+      const telefono = (await ask('Teléfono (opcional): ')).trim() || null;
+      const direccion = (await ask('Dirección (opcional): ')).trim() || null;
+      const pais = (await ask('País: ')).trim();
+
+      const nuevo = await repo.crear({ razon_social, cuit, email, telefono, direccion, pais });
+      console.log(`\n✓ ${nombreSingular} creado exitosamente:`, nuevo);
+    } else if (accion === '2') {
+      const id = Number(await ask(`ID del ${nombreSingular} a modificar: `));
+      const existente = await repo.obtenerPorId(id);
+      if (!existente) {
+        console.log(`⚠ ${nombreSingular} con ID ${id} no encontrado.`);
+        continue;
+      }
+      console.log('Presione ENTER para mantener el valor actual:');
+      const razon_social = (await ask(`Razón Social [${existente.razon_social}]: `)).trim() || existente.razon_social;
+      const email = (await ask(`Email [${existente.email}]: `)).trim() || existente.email;
+      const telefono = (await ask(`Teléfono [${existente.telefono || ''}]: `)).trim() || existente.telefono;
+      const direccion = (await ask(`Dirección [${existente.direccion || ''}]: `)).trim() || existente.direccion;
+      const pais = (await ask(`País [${existente.pais}]: `)).trim() || existente.pais;
+
+      const modificado = await repo.actualizar(id, { razon_social, email, telefono, direccion, pais });
+      console.log(`\n✓ ${nombreSingular} actualizado exitosamente:`, modificado);
+    } else if (accion === '3') {
+      const id = Number(await ask(`ID del ${nombreSingular} a dar de baja: `));
+      const existente = await repo.obtenerPorId(id);
+      if (!existente) {
+        console.log(`⚠ ${nombreSingular} con ID ${id} no encontrado.`);
+        continue;
+      }
+      const confirmar = (await ask(`¿Confirma la baja lógica de "${existente.razon_social}"? (s/n): `)).trim().toLowerCase();
+      if (confirmar === 's') {
+        const resBaja = await repo.darDeBaja(id);
+        console.log(`\n✓ ${nombreSingular} dado de baja (estado INACTIVO):`, resBaja);
+      } else {
+        console.log('Operación cancelada.');
+      }
+    } else if (accion === '4') {
+      const id = Number(await ask(`ID del ${nombreSingular} a activar: `));
+      const resAct = await repo.activar(id);
+      if (resAct) {
+        console.log(`\n✓ ${nombreSingular} reactivado (estado ACTIVO):`, resAct);
+      } else {
+        console.log(`⚠ ${nombreSingular} no encontrado.`);
+      }
+    } else if (accion === '5') {
+      const id = Number(await ask(`ID del ${nombreSingular} a eliminar DEFINITIVAMENTE: `));
+      const existente = await repo.obtenerPorId(id);
+      if (!existente) {
+        console.log(`⚠ ${nombreSingular} con ID ${id} no encontrado.`);
+        continue;
+      }
+      const confirmar = (await ask(`¿Está seguro de ELIMINAR FÍSICAMENTE a "${existente.razon_social}"? Esta acción no se puede deshacer. (s/n): `)).trim().toLowerCase();
+      if (confirmar === 's') {
+        try {
+          const resEliminado = await repo.eliminar(id);
+          console.log(`\n✓ ${nombreSingular} eliminado de la base de datos:`, resEliminado);
+        } catch (err) {
+          console.error(`\n⚠ No se pudo eliminar: ${err.message}`);
+        }
+      } else {
+        console.log('Operación cancelada.');
+      }
+    } else if (accion === '6') {
+      const id = Number(await ask(`ID del ${nombreSingular}: `));
+      const item = await repo.obtenerPorId(id);
+      if (!item) {
+        console.log(`⚠ ${nombreSingular} no encontrado.`);
+      } else {
+        console.table([item]);
+      }
+    } else if (accion === '0') {
+      salir = true;
+    }
+  }
+}
+
 async function menu() {
   banner();
   let salir = false;
@@ -111,13 +225,13 @@ async function menu() {
   while (!salir) {
     console.log(`
 Seleccione una opción:
-  1.  [PostgreSQL] Gestionar Clientes, Proveedores y Operadores (Actores y CC)
+  1.  [PostgreSQL] Gestionar Clientes, Proveedores y Operadores (ABMs Separados)
   2.  [PostgreSQL] Gestionar Contenedores (Listado, Alta, Modificación, Baja)
   3.  [Finanzas]   Gestión Comercial y Financiera (Facturación Clientes/Prov, Pagos, CC y Cierres)
   4.  [MongoDB]    Ingresar Lectura de Sensor IoT (Temperatura/GPS/Batería)
   5.  [MongoDB]    Ver Histórico de Lecturas y Detectar Anomalías
   6.  [MongoDB]    Gestionar Incidentes y Alertas
-  7.  [MongoDB]    Mensajería y Chat entre Actores
+  7.  [MongoDB]    Mensajería y Chat (MongoDB)
   8.  [Neo4j]      Consultar Ruta Completa de un Envío (Grafo de Tramos)
   9.  [Neo4j]      Ver Red de Relaciones (Clientes - Operadores - Envíos)
   10. [Redis]      Consultar Última Posición GPS en Caché
@@ -135,165 +249,50 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
     try {
       switch (opt) {
         case '1': {
-        console.log('\n--- GESTIÓN DE ACTORES Y CUENTAS CORRIENTES (PostgreSQL) ---');
+          let volverSub = false;
+          while (!volverSub) {
+            console.log(`
+========================================================================
+   GESTIÓN SEPARADA DE ENTIDADES LOGÍSTICAS (PostgreSQL)
+========================================================================
+  1. ABM Clientes (Listado, Alta, Modificación, Baja, Eliminación)
+  2. ABM Proveedores (Listado, Alta, Modificación, Baja, Eliminación)
+  3. ABM Operadores Logísticos (Listado, Alta, Modificación, Baja, Eliminación)
+  4. Consultar Estado de Cuenta Corriente por Entidad
+  0. Volver al menú principal
+`);
+            const subOpt = (await ask('Seleccione entidad a gestionar (0-4) > ')).trim();
 
-       const clientes = await ActorRepository.listarTodos('CLIENTE');
-      const proveedores = await ActorRepository.listarTodos('PROVEEDOR');
-      const operadores = await ActorRepository.listarTodos('OPERADOR');
-
-      console.log('\n--- CLIENTES ---');
-      console.table(clientes.map(actor => ({
-        ID: actor.id_actor,
-        Razon_Social: actor.razon_social,
-        CUIT: actor.cuit,
-        Email: actor.email,
-        Telefono: actor.telefono,
-        Direccion: actor.direccion,
-        Pais: actor.pais,
-        Estado: actor.estado,
-        Saldo_CC: `$ ${actor.saldo || 0}`
-      })));
-
-      console.log('\n--- PROVEEDORES ---');
-      console.table(proveedores.map(actor => ({
-        ID: actor.id_actor,
-        Razon_Social: actor.razon_social,
-        CUIT: actor.cuit,
-        Email: actor.email,
-        Telefono: actor.telefono,
-        Direccion: actor.direccion,
-        Pais: actor.pais,
-        Estado: actor.estado,
-        Saldo_CC: `$ ${actor.saldo || 0}`
-      })));
-
-      console.log('\n--- OPERADORES ---');
-      console.table(operadores.map(actor => ({
-        ID: actor.id_actor,
-        Razon_Social: actor.razon_social,
-        CUIT: actor.cuit,
-        Email: actor.email,
-        Telefono: actor.telefono,
-        Direccion: actor.direccion,
-        Pais: actor.pais,
-        Estado: actor.estado,
-        Saldo_CC: `$ ${actor.saldo || 0}`
-      })));
-
-        console.log('\nAcciones:');
-        console.log('  1. Dar de alta nuevo actor');
-        console.log('  2. Modificar actor');
-        console.log('  3. Dar de baja actor');
-        console.log('  4. Consultar actor');
-        console.log('  5. Ver estado detallado de cuenta corriente');
-        console.log('  6. Volver al menú principal');
-
-        const subOpt = (await ask('Seleccione acción (1-6) > ')).trim();
-
-        if (subOpt === '1') {
-          const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR) [CLIENTE]: ')).trim() || 'CLIENTE';
-          const razon_social = await ask('Razón Social: ');
-          const cuit = await ask('CUIT: ');
-          const email = await ask('Email: ');
-          const telefono = await ask('Teléfono (opcional): ') || null;
-          const direccion = await ask('Dirección (opcional): ') || null;
-          const pais = await ask('País: ');
-
-          const nuevo = await ActorRepository.crear({
-            tipo_actor,
-            razon_social,
-            cuit,
-            email,
-            telefono,
-            direccion,
-            pais
-          });
-
-          console.log('\nActor creado exitosamente:', nuevo);
-
-        } else if (subOpt === '2') {
-          const id_actor = Number(await ask('ID del Actor a modificar: '));
-          const existente = await ActorRepository.obtenerPorId(id_actor);
-
-          if (!existente) {
-            console.log('Actor no encontrado.');
-            break;
+            if (subOpt === '1') {
+              await menuABMEntidad('Clientes', 'Cliente', ClienteRepository, 'id_cliente');
+            } else if (subOpt === '2') {
+              await menuABMEntidad('Proveedores', 'Proveedor', ProveedorRepository, 'id_proveedor');
+            } else if (subOpt === '3') {
+              await menuABMEntidad('Operadores Logísticos', 'Operador', OperadorRepository, 'id_operador');
+            } else if (subOpt === '4') {
+              console.log('\n--- CONSULTA DE ESTADO DE CUENTA CORRIENTE ---');
+              const tipoEntidad = (await ask('Tipo de entidad (CLIENTE / PROVEEDOR / OPERADOR) [CLIENTE]: ')).trim() || 'CLIENTE';
+              const id_actor = Number(await ask('ID de la entidad: '));
+              try {
+                const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(id_actor, tipoEntidad.toUpperCase());
+                console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
+                console.log('\nCuenta Corriente:');
+                console.table([estado.cuenta_corriente]);
+                console.log('\nFacturas asociadas:');
+                console.table(estado.facturas);
+                console.log('\nPagos / Cobros asociados:');
+                console.table(estado.pagos);
+              } catch (e) {
+                console.log(`⚠ Error al consultar cuenta corriente: ${e.message}`);
+              }
+            } else if (subOpt === '0') {
+              volverSub = true;
+            } else {
+              console.log('Opción inválida.');
+            }
           }
-
-          console.log('Presione ENTER para mantener el valor actual.');
-
-          const razon_social = (await ask(`Razón Social [${existente.razon_social}]: `)).trim() || existente.razon_social;
-          const email = (await ask(`Email [${existente.email}]: `)).trim() || existente.email;
-          const telefono = (await ask(`Teléfono [${existente.telefono || ''}]: `)).trim() || existente.telefono;
-          const direccion = (await ask(`Dirección [${existente.direccion || ''}]: `)).trim() || existente.direccion;
-          const pais = (await ask(`País [${existente.pais}]: `)).trim() || existente.pais;
-
-          const modificado = await ActorRepository.actualizar(id_actor, {
-            razon_social,
-            email,
-            telefono,
-            direccion,
-            pais
-          });
-
-          console.log('\nActor actualizado:', modificado);
-
-        } else if (subOpt === '3') {
-          const id_actor = Number(await ask('ID del Actor a dar de baja: '));
-          const existente = await ActorRepository.obtenerPorId(id_actor);
-
-          if (!existente) {
-            console.log('Actor no encontrado.');
-            break;
-          }
-
-          const confirmar = (await ask(`¿Confirma la baja de ${existente.razon_social}? (s/n): `)).trim().toLowerCase();
-
-          if (confirmar === 's') {
-            const actorBaja = await ActorRepository.darDeBaja(id_actor);
-            console.log('\nActor dado de baja:', actorBaja);
-          } else {
-            console.log('Operación cancelada.');
-          }
-
-        } else if (subOpt === '4') {
-          const id_actor = Number(await ask('ID del Actor: '));
-          const actor = await ActorRepository.obtenerPorId(id_actor);
-
-          if (!actor) {
-            console.log('Actor no encontrado.');
-            break;
-          }
-
-          console.table([{
-              ID: actor.id_actor,
-              Tipo: actor.tipo_actor,
-              Razon_Social: actor.razon_social,
-              CUIT: actor.cuit,
-              Email: actor.email,
-              Telefono: actor.telefono,
-              Direccion: actor.direccion,
-              Pais: actor.pais,
-              Estado: actor.estado,
-              Saldo_CC: `$ ${actor.saldo || 0}`
-            }]);
-
-        } else if (subOpt === '5') {
-          const id_actor = Number(await ask('ID del Actor: '));
-          const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(id_actor);
-
-          console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
-          console.log('\nCuenta Corriente:');
-          console.table([estado.cuenta_corriente]);
-          console.log('\nFacturas asociadas:');
-          console.table(estado.facturas);
-          console.log('\nPagos / Cobros asociados:');
-          console.table(estado.pagos);
+          break;
         }
-
-        break;
-      }
-      
 
         case '2': {
           console.log('\n--- GESTIÓN DE CONTENEDORES (PostgreSQL) ---');
@@ -431,6 +430,7 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
                 Saldo_CC: `$ ${a.saldo}`
               })));
 
+              const tipo_actor = (await ask('Tipo de Actor (PROVEEDOR / OPERADOR): ')).trim().toUpperCase();
               const id_actor = await ask('ID del Proveedor u Operador: ');
               const numero_comprobante = await ask('N° de Factura / Comprobante Externo (ej: FC-A-0001-0004521): ');
               const concepto = await ask('Concepto [Servicio de transporte / insumos]: ') || 'Servicio de transporte / insumos';
@@ -439,6 +439,7 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
 
               const facRec = await FacturaRepository.registrarFacturaRecibida({
                 id_actor: Number(id_actor),
+                tipo_actor,
                 importe_total: Number(importe),
                 numero_comprobante,
                 concepto,
@@ -485,7 +486,7 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
             }
 
           } else if (subCom === '3') {
-            console.log('\n--- CONSULTA DE ESTADO DE CUENTA POR ACTOR ---');
+            console.log('\n--- CONSULTA DE ESTADO DE CUENTA POR ENTIDAD ---');
             const actores = await ActorRepository.listarTodos();
             console.table(actores.map(a => ({
               ID: a.id_actor,
@@ -495,8 +496,9 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
               Saldo_CC: `$ ${a.saldo}`
             })));
 
+            const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR, ENTER para autodetectar): ')).trim().toUpperCase() || null;
             const id_actor = await ask('Ingrese ID del Actor a consultar: ');
-            const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(Number(id_actor));
+            const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(Number(id_actor), tipo_actor);
             console.log(`\n=== ESTADO DE CUENTA CORRIENTE: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
             console.log(`Saldo Actual: $ ${estado.cuenta_corriente.saldo}`);
             console.log(`Última Actualización: ${estado.cuenta_corriente.fecha_actualizacion}`);
@@ -601,11 +603,15 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
               const defPeriodo = new Date().toISOString().slice(0, 7);
               const periodo = (await ask(`Período a cerrar (YYYY-MM) [${defPeriodo}]: `)).trim() || defPeriodo;
               const id_actor = (await ask('Filtrar por ID Actor específico (opcional, ENTER para todos): ')).trim() || null;
+              const tipo_actor = id_actor
+                ? (await ask('Tipo de Actor a cerrar (CLIENTE / PROVEEDOR / OPERADOR): ')).trim().toUpperCase()
+                : null;
 
               console.log(`\nEjecutando cierre contable mensual para el período ${periodo}...`);
                const resCierre = await CuentaCorrienteRepository.ejecutarCierreMensual({
                 periodo,
-                id_actor: id_actor ? Number(id_actor) : null
+                id_actor: id_actor ? Number(id_actor) : null,
+                tipo_actor
               });
 
               console.log(`\nCierre mensual ${resCierre.periodo} finalizado. Actores procesados: ${resCierre.total_procesados}.`);
@@ -649,12 +655,16 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
             const tipo_factura = (await ask('Tipo de Factura (EMITIDA / RECIBIDA / TODAS) [TODAS]: ')).trim() || 'TODAS';
             const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
             const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
+            let tipo_actor_filtro = tipo_actor;
+            if (id_actor && (!tipo_actor_filtro || tipo_actor_filtro === 'TODOS')) {
+              tipo_actor_filtro = (await ask('Para filtrar por ID, indique Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR): ')).trim().toUpperCase();
+            }
 
             console.log('\nGenerando reporte comercial...');
               const rep = await ReporteComercialRepository.reporteComercialParametrizado({
               fecha_desde,
               fecha_hasta,
-              tipo_actor,
+              tipo_actor: tipo_actor_filtro,
               tipo_factura,
               estado_factura,
               id_actor: id_actor ? Number(id_actor) : null
@@ -877,7 +887,7 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
         }
 
         case '7': {
-          console.log('\n--- MENSAJERÍA Y CHAT ENTRE ACTORES (MongoDB) ---');
+          console.log('\n--- MENSAJERÍA Y CHAT (MongoDB) ---');
           const u1 = await ask('Remitente / Usuario 1 (ej: admin@logistica.com): ') || 'admin@logistica.com';
           const u2 = await ask('Destinatario / Usuario 2 (ej: carlos@expressplata.com): ') || 'carlos@expressplata.com';
 
@@ -1205,11 +1215,15 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
             const tipo_factura = (await ask('Tipo de Factura (EMITIDA / RECIBIDA / TODAS) [TODAS]: ')).trim() || 'TODAS';
             const estado_factura = (await ask('Estado de Factura (PENDIENTE / PAGADA / TODAS) [TODAS]: ')).trim() || 'TODAS';
             const id_actor = (await ask('ID Actor específico (opcional): ')).trim() || null;
+            let tipo_actor_filtro = tipo_actor;
+            if (id_actor && (!tipo_actor_filtro || tipo_actor_filtro === 'TODOS')) {
+              tipo_actor_filtro = (await ask('Para filtrar por ID, indique Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR): ')).trim().toUpperCase();
+            }
 
             const rep = await ReporteComercialRepository.reporteFacturableParametrizado({
               fecha_desde,
               fecha_hasta,
-              tipo_actor,
+              tipo_actor: tipo_actor_filtro,
               tipo_factura,
               estado_factura,
               id_actor: id_actor ? Number(id_actor) : null

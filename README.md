@@ -29,6 +29,13 @@ Esto descargará y levantará:
 - Neo4j en los puertos `7474` (HTTP) y `7687` (Bolt)
 - Redis en el puerto `6379`
 
+> Si la base PostgreSQL fue creada con un esquema anterior, recreá el volumen para
+> reinicializarla desde cero (se pierden los datos):
+> ```bash
+> docker compose down -v
+> docker compose up -d
+> ```
+
 ### 2. Poblar datos iniciales (opcional si es primera vez)
 ```bash
 npm run seed

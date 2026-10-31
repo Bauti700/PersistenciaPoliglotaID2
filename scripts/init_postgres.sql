@@ -2,9 +2,8 @@
 -- ESQUEMA RELACIONAL (POSTGRESQL) - TPO PERSISTENCIA POLÍGLOTA GRUPO 12
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS actores (
-    id_actor SERIAL PRIMARY KEY,
-    tipo_actor VARCHAR(20) NOT NULL CHECK (tipo_actor IN ('CLIENTE', 'PROVEEDOR', 'OPERADOR')),
+CREATE TABLE IF NOT EXISTS clientes (
+    id_cliente SERIAL PRIMARY KEY,
     razon_social VARCHAR(150) NOT NULL,
     cuit VARCHAR(20) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL,
@@ -12,6 +11,33 @@ CREATE TABLE IF NOT EXISTS actores (
     direccion VARCHAR(255),
     pais VARCHAR(100) NOT NULL,
     estado VARCHAR(50) DEFAULT 'ACTIVO',
+    saldo NUMERIC(12, 2) DEFAULT 0.00,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS proveedores (
+    id_proveedor SERIAL PRIMARY KEY,
+    razon_social VARCHAR(150) NOT NULL,
+    cuit VARCHAR(20) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL,
+    telefono VARCHAR(50),
+    direccion VARCHAR(255),
+    pais VARCHAR(100) NOT NULL,
+    estado VARCHAR(50) DEFAULT 'ACTIVO',
+    saldo NUMERIC(12, 2) DEFAULT 0.00,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS operadores (
+    id_operador SERIAL PRIMARY KEY,
+    razon_social VARCHAR(150) NOT NULL,
+    cuit VARCHAR(20) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL,
+    telefono VARCHAR(50),
+    direccion VARCHAR(255),
+    pais VARCHAR(100) NOT NULL,
+    estado VARCHAR(50) DEFAULT 'ACTIVO',
+    saldo NUMERIC(12, 2) DEFAULT 0.00,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -24,7 +50,7 @@ CREATE TABLE IF NOT EXISTS roles (
 
 CREATE TABLE IF NOT EXISTS usuarios (
     id_usuario SERIAL PRIMARY KEY,
-    id_cliente INT REFERENCES actores(id_actor) ON DELETE SET NULL,
+    id_cliente INT REFERENCES clientes(id_cliente) ON DELETE SET NULL,
     nombre VARCHAR(100) NOT NULL,
     apellido VARCHAR(100) NOT NULL,
     id_rol INT REFERENCES roles(id_rol),
@@ -58,24 +84,36 @@ CREATE TABLE IF NOT EXISTS vehiculos (
     estado VARCHAR(50) DEFAULT 'OPERATIVO'
 );
 
+-- La identidad de un actor es (tipo_actor, id_actor): clientes, proveedores y
+-- operadores tienen secuencias independientes, por lo que el mismo ID puede
+-- repetirse entre tablas y siempre debe acompañarse del tipo.
 CREATE TABLE IF NOT EXISTS cuentas_corrientes (
     id_cuenta SERIAL PRIMARY KEY,
-    id_actor INT NOT NULL UNIQUE REFERENCES actores(id_actor) ON DELETE CASCADE,
+    id_actor INT NOT NULL,
+    tipo_actor VARCHAR(20) NOT NULL DEFAULT 'CLIENTE' CHECK (tipo_actor IN ('CLIENTE', 'PROVEEDOR', 'OPERADOR')),
     saldo NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_cuenta_corriente_actor UNIQUE (tipo_actor, id_actor)
 );
 
 CREATE TABLE IF NOT EXISTS facturas (
     id_factura SERIAL PRIMARY KEY,
-    id_cliente INT NOT NULL REFERENCES actores(id_actor),
+    -- ID del actor emisor/receptor (cliente, proveedor u operador).
+    -- Se combina siempre con tipo_actor para resolver la identidad.
+    id_cliente INT NOT NULL,
     tipo_factura VARCHAR(20) DEFAULT 'EMITIDA' CHECK (tipo_factura IN ('EMITIDA', 'RECIBIDA')),
+    tipo_actor VARCHAR(20) NOT NULL DEFAULT 'CLIENTE' CHECK (tipo_actor IN ('CLIENTE', 'PROVEEDOR', 'OPERADOR')),
     numero_comprobante VARCHAR(50),
     concepto VARCHAR(255),
     id_envio VARCHAR(50),
     fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     importe_total NUMERIC(12, 2) NOT NULL,
-    estado VARCHAR(50) DEFAULT 'PENDIENTE'
+    estado VARCHAR(50) DEFAULT 'PENDIENTE',
+    CONSTRAINT chk_factura_emitida_cliente CHECK (tipo_factura <> 'EMITIDA' OR tipo_actor = 'CLIENTE')
 );
+
+CREATE INDEX IF NOT EXISTS idx_facturas_actor ON facturas (tipo_actor, id_cliente);
+CREATE INDEX IF NOT EXISTS idx_facturas_envio ON facturas (id_envio);
 
 CREATE TABLE IF NOT EXISTS pagos (
     id_pago SERIAL PRIMARY KEY,
@@ -90,19 +128,20 @@ CREATE TABLE IF NOT EXISTS pagos (
 CREATE TABLE IF NOT EXISTS cierres_cuentas_corrientes (
     id_cierre SERIAL PRIMARY KEY,
     periodo VARCHAR(7) NOT NULL,
-    id_actor INT NOT NULL REFERENCES actores(id_actor) ON DELETE CASCADE,
+    id_actor INT NOT NULL,
+    tipo_actor VARCHAR(20) NOT NULL DEFAULT 'CLIENTE' CHECK (tipo_actor IN ('CLIENTE', 'PROVEEDOR', 'OPERADOR')),
     saldo_inicial NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     total_debe NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     total_haber NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     saldo_final NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     estado VARCHAR(20) DEFAULT 'CERRADO',
-    CONSTRAINT uq_cierre_actor_periodo UNIQUE (periodo, id_actor)
+    CONSTRAINT uq_cierre_actor_periodo UNIQUE (periodo, tipo_actor, id_actor)
 );
 
 CREATE TABLE IF NOT EXISTS envios (
     id_envio VARCHAR(50) PRIMARY KEY,
-    id_cliente INT NOT NULL REFERENCES actores(id_actor),
+    id_cliente INT NOT NULL REFERENCES clientes(id_cliente),
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_entrega TIMESTAMP,
     origen VARCHAR(100) NOT NULL,
@@ -133,12 +172,18 @@ INSERT INTO roles (descripcion, nivel_permisos, estado) VALUES
 ('USUARIO',   1, 'ACTIVO')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO actores (tipo_actor, razon_social, cuit, email, telefono, direccion, pais) VALUES
-('CLIENTE',   'Importadora Andina S.A.',     '30-71123456-8', 'contacto@andina.com',        '+54 11 4321-8765', 'Av. Córdoba 1234',        'Argentina'),
-('CLIENTE',   'Global Traders Ltd',          '30-99887766-4', 'ops@globaltraders.com',       '+55 11 9876-5432', 'Rua das Flores 45',       'Brasil'),
-('OPERADOR',  'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E',  'Argentina'),
-('PROVEEDOR', 'Sensores del Sur Corp',       '30-44332211-9', 'ventas@sensoresdelsur.com',   '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina')
-ON CONFLICT DO NOTHING;
+INSERT INTO clientes (id_cliente, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
+(1, 'Importadora Andina S.A.', '30-71123456-8', 'contacto@andina.com', '+54 11 4321-8765', 'Av. Córdoba 1234', 'Argentina', 150000.00),
+(2, 'Global Traders Ltd', '30-99887766-4', 'ops@globaltraders.com', '+55 11 9876-5432', 'Rua das Flores 45', 'Brasil', -25000.00)
+ON CONFLICT (cuit) DO NOTHING;
+
+INSERT INTO operadores (id_operador, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
+(1, 'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E', 'Argentina', 0.00)
+ON CONFLICT (cuit) DO NOTHING;
+
+INSERT INTO proveedores (id_proveedor, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
+(1, 'Sensores del Sur Corp', '30-44332211-9', 'ventas@sensoresdelsur.com', '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina', 80000.00)
+ON CONFLICT (cuit) DO NOTHING;
 
 -- Contraseñas hasheadas con bcrypt (cost=10) y distintas para cada usuario:
 --   admin@logistica.com          -> admin123  (Rol: ADMIN)
@@ -155,12 +200,12 @@ UNION ALL
 SELECT NULL, 'Carlos',  'López',     (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'carlos.lopez@logistica.com',   '$2a$10$Emh9.PoIl59Din8sywPp1.CEclhzFXUMw45htSxHcU.t4ZRqKdepa', 'ACTIVO'
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO cuentas_corrientes (id_actor, saldo) VALUES
-(1, 150000.00),
-(2, -25000.00),
-(3, 0.00),
-(4, 80000.00)
-ON CONFLICT DO NOTHING;
+INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo) VALUES
+(1, 'CLIENTE', 150000.00),
+(2, 'CLIENTE', -25000.00),
+(1, 'OPERADOR', 0.00),
+(1, 'PROVEEDOR', 80000.00)
+ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
 
 INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, estado) VALUES
 ('CONT-001', 'MSCU-908123-1', 'Reefer (Refrigerado)', 28000.00, 'EN_TRANSITO'),
@@ -182,11 +227,13 @@ INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, fecha
 ('TR-1001-2', 'ENV-1001', 'Terrestre', 'Puerto de Santos', 'San Pablo', CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO facturas (id_factura, id_cliente, tipo_factura, numero_comprobante, concepto, id_envio, importe_total, estado) VALUES
-(1, 1, 'EMITIDA', 'FC-0001-00000001', 'Flete internacional Buenos Aires - San Pablo', 'ENV-1001', 45000.00, 'PAGADA'),
-(2, 1, 'EMITIDA', 'FC-0001-00000002', 'Flete complementario aduanero', 'ENV-1001', 62000.00, 'PENDIENTE'),
-(3, 3, 'RECIBIDA', 'OP-0001-000451', 'Flete tramo terrestre ENV-1001', 'ENV-1001', 35000.00, 'PENDIENTE'),
-(4, 4, 'RECIBIDA', 'PR-0002-000129', 'Lote 10 Sensores IoT modelo SENS-88', NULL, 80000.00, 'PAGADA')
+-- Observar que los IDs 1 de CLIENTE, PROVEEDOR y OPERADOR son válidos porque
+-- la identidad completa incluye tipo_actor.
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado) VALUES
+(1, 1, 'EMITIDA', 'CLIENTE',   'FC-0001-00000001', 'Flete internacional Buenos Aires - San Pablo', 'ENV-1001', 45000.00, 'PAGADA'),
+(2, 1, 'EMITIDA', 'CLIENTE',   'FC-0001-00000002', 'Flete complementario aduanero', 'ENV-1001', 62000.00, 'PENDIENTE'),
+(3, 1, 'RECIBIDA', 'OPERADOR', 'OP-0001-000451', 'Flete tramo terrestre ENV-1001', 'ENV-1001', 35000.00, 'PENDIENTE'),
+(4, 1, 'RECIBIDA', 'PROVEEDOR', 'PR-0002-000129', 'Lote 10 Sensores IoT modelo SENS-88', NULL, 80000.00, 'PAGADA')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO pagos (id_pago, id_factura, tipo_pago, monto, medio_pago, referencia_comprobante) VALUES
@@ -194,3 +241,20 @@ INSERT INTO pagos (id_pago, id_factura, tipo_pago, monto, medio_pago, referencia
 (2, 4, 'PAGO_PROVEEDOR', 80000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BBVA-99412')
 ON CONFLICT DO NOTHING;
 
+-- Los datos semilla usan IDs explícitos: adelantar las secuencias para que las
+-- altas nuevas no choquen con la clave primaria.
+SELECT setval(pg_get_serial_sequence('clientes', 'id_cliente'),
+              COALESCE((SELECT MAX(id_cliente) FROM clientes), 1),
+              (SELECT MAX(id_cliente) IS NOT NULL FROM clientes));
+SELECT setval(pg_get_serial_sequence('proveedores', 'id_proveedor'),
+              COALESCE((SELECT MAX(id_proveedor) FROM proveedores), 1),
+              (SELECT MAX(id_proveedor) IS NOT NULL FROM proveedores));
+SELECT setval(pg_get_serial_sequence('operadores', 'id_operador'),
+              COALESCE((SELECT MAX(id_operador) FROM operadores), 1),
+              (SELECT MAX(id_operador) IS NOT NULL FROM operadores));
+SELECT setval(pg_get_serial_sequence('facturas', 'id_factura'),
+              COALESCE((SELECT MAX(id_factura) FROM facturas), 1),
+              (SELECT MAX(id_factura) IS NOT NULL FROM facturas));
+SELECT setval(pg_get_serial_sequence('pagos', 'id_pago'),
+              COALESCE((SELECT MAX(id_pago) FROM pagos), 1),
+              (SELECT MAX(id_pago) IS NOT NULL FROM pagos));
