@@ -10,6 +10,8 @@ CREATE CONSTRAINT IF NOT EXISTS FOR (e:Envio) REQUIRE e.id_envio IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (u:Ubicacion) REQUIRE u.nombre IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (op:Operador) REQUIRE op.nombre IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (v:Vehiculo) REQUIRE v.identificacion IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (cont:Contenedor) REQUIRE cont.id_contenedor IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (s:Sensor) REQUIRE s.id_sensor IS UNIQUE;
 
 // Limpiar datos previos si existieran
 MATCH (n) DETACH DELETE n;
@@ -73,4 +75,17 @@ CREATE (c1)-[:SOLICITA]->(e5)
 CREATE (e5)-[:TIENE_ORIGEN]->(u1)
 CREATE (e5)-[:TIENE_DESTINO]->(u3)
 CREATE (e5)-[:ASIGNADO_A]->(op1)
+
+// Contenedores y sensores IoT (alineados con PostgreSQL y MongoDB)
+CREATE (cont1:Contenedor {id_contenedor: "CONT-001", codigo_internacional: "MSCU-908123-1", estado: "EN_TRANSITO"})
+CREATE (cont2:Contenedor {id_contenedor: "CONT-002", codigo_internacional: "CMAU-554129-4", estado: "DISPONIBLE"})
+
+CREATE (s1:Sensor {id_sensor: "SENS-101", tipo: "Temperatura/Humedad/GPS"})
+CREATE (s2:Sensor {id_sensor: "SENS-102", tipo: "Vibración/Impacto/GPS"})
+CREATE (s3:Sensor {id_sensor: "SENS-103", tipo: "Temperatura/GPS"})
+
+CREATE (cont1)-[:PERTENECE_A]->(e1)
+CREATE (cont1)-[:MONITOREADO_POR]->(s1)
+CREATE (cont1)-[:MONITOREADO_POR]->(s2)
+CREATE (cont2)-[:MONITOREADO_POR]->(s3)
 

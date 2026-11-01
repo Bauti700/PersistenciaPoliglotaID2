@@ -36,15 +36,29 @@ Esto descargará y levantará:
 > docker compose up -d
 > ```
 
-### 2. Poblar datos iniciales (opcional si es primera vez)
-```bash
-npm run seed
-```
-
-### 3. Instalar dependencias del proyecto
+### 2. Instalar dependencias del proyecto
 ```bash
 npm install
 ```
+
+### 3. Poblar datos iniciales
+Con los contenedores levantados, ejecutá:
+```bash
+npm run seed
+```
+El script `scripts/seed_all.js` inicializa de forma unificada:
+- **PostgreSQL:** aplica `scripts/init_postgres.sql` (esquema y datos semilla; es idempotente y no borra datos existentes).
+- **MongoDB:** ejecuta `scripts/init_mongo.js` (recrea las colecciones semilla).
+- **Neo4j:** ejecuta `scripts/init_neo4j.cypher` (borra el grafo actual y lo recrea).
+- **Redis:** no requiere datos semilla, ya que funciona como caché.
+
+> El seed de MongoDB usa `mongosh` si está instalado; si no, lo ejecuta dentro
+> del contenedor `tpo_mongo` mediante Docker. El seed de Neo4j usa el driver de
+> Node, por lo que no necesita `cypher-shell`.
+>
+> Si los contenedores recién arrancaron, el seed espera y reintenta la conexión
+> con PostgreSQL y Neo4j (hasta ~30 segundos). Es normal que Neo4j tarde más que
+> el resto en quedar listo.
 
 ### 4. Iniciar la Aplicación por Consola (Menú Interactivo CLI)
 ```bash

@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "cli": "node src/index.js"
+    "cli": "node src/index.js",
+    "seed": "node scripts/seed_all.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -27,6 +27,37 @@ export class RedisCacheRepository {
     return true;
   }
 
+  // --- CACHÉ GENÉRICA (JSON CON TTL OPCIONAL) ---
+  // Se usa con claves ya prefijadas por el consumidor, por ejemplo
+  // "envio:estado:ENV-1001" o "prediccion:riesgo:ENV-1001".
+  static async setCache(key, value, ttlSegundos = null) {
+    if (!redisClient.isOpen) return false;
+    const payload = typeof value === 'string' ? value : JSON.stringify(value);
+    const ttl = Number(ttlSegundos);
+    if (Number.isFinite(ttl) && ttl > 0) {
+      await redisClient.set(key, payload, { EX: Math.floor(ttl) });
+    } else {
+      await redisClient.set(key, payload);
+    }
+    return true;
+  }
+
+  static async getCache(key) {
+    if (!redisClient.isOpen) return null;
+    const raw = await redisClient.get(key);
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+
+  static async delCache(key) {
+    if (!redisClient.isOpen) return false;
+    return (await redisClient.del(key)) > 0;
+  }
+
   // --- CACHÉ DE ÚLTIMA POSICIÓN GPS (GEO / HASH) ---
   static async actualizarUltimaPosicion(id_contenedor, lat, lng, datosExtra = {}) {
     if (!redisClient.isOpen) return false;

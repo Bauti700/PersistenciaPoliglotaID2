@@ -1,7 +1,19 @@
 import { pgPool } from '../config/database.js';
-import { ReporteMongoRepository } from './reporteMongoRepository.js';
+import { IncidenteRepository } from './incidenteRepository.js';
 
 export class ReporteComercialSqlRepository {
+  // Los incidentes viven en MongoDB, no en PostgreSQL. Este helper devuelve un
+  // mapa id_envio -> agregados para combinarlos con las filas relacionales.
+  static async _mapaIncidentesPorEnvio() {
+    try {
+      const agrupados = await IncidenteRepository.obtenerIncidentesPorEnvio();
+      return new Map(agrupados.map(a => [a._id, a]));
+    } catch (err) {
+      console.warn(`[Reporte SQL] No se pudieron leer incidentes desde MongoDB: ${err.message}`);
+      return new Map();
+    }
+  }
+
   static async reporteComercialParametrizado({
     fecha_desde = null,
     fecha_hasta = null,
@@ -89,7 +101,10 @@ export class ReporteComercialSqlRepository {
              COALESCE(SUM(f.importe_total), 0.00) AS volumen_facturado
       FROM clientes c
       LEFT JOIN envios e ON c.id_cliente = e.id_cliente
-      LEFT JOIN facturas f ON c.id_cliente = f.id_cliente AND f.tipo_factura = 'EMITIDA'
+      LEFT JOIN facturas f
+        ON c.id_cliente = f.id_cliente
+       AND f.tipo_factura = 'EMITIDA'
+       AND f.tipo_actor = 'CLIENTE'
       GROUP BY c.id_cliente, c.razon_social, c.pais
       ORDER BY total_envios DESC, volumen_facturado DESC;
     `;
@@ -106,53 +121,69 @@ export class ReporteComercialSqlRepository {
       solo_incidentes_abiertos = false
     } = filtros;
 
-    let query = `
-      SELECT e.id_envio, e.id_cliente, c.razon_social, c.pais, e.origen, e.destino, 
-             e.estado, e.prioridad, e.fecha_creacion, e.fecha_entrega_estimada, e.fecha_entrega_real,
-             CASE 
-               WHEN e.fecha_entrega_real IS NULL AND e.fecha_entrega_estimada < CURRENT_DATE AND e.estado <> 'ENTREGADO' 
-               THEN 'SI' ELSE 'NO' 
-             END AS demorado,
-             COUNT(DISTINCT i.id_incidente) AS incidentes_totales,
-             COUNT(DISTINCT CASE WHEN i.estado = 'ABIERTO' THEN i.id_incidente END) AS incidentes_abiertos
-      FROM envios e
-      LEFT JOIN clientes c ON c.id_cliente = e.id_cliente
-      LEFT JOIN incidentes i ON i.id_envio = e.id_envio
-      WHERE 1=1
-    `;
+    // La fecha estimada de entrega surge del último tramo planificado y la real
+    // es envios.fecha_entrega. Los incidentes se agregan luego desde MongoDB.
     const params = [];
+    const filtrosSQL = [];
 
     if (pais) {
       params.push(pais);
-      query += ` AND LOWER(c.pais) = LOWER($${params.length})`;
+      filtrosSQL.push(`LOWER(c.pais) = LOWER($${params.length})`);
     }
     if (estado) {
       params.push(estado);
-      query += ` AND UPPER(e.estado) = UPPER($${params.length})`;
+      filtrosSQL.push(`UPPER(e.estado) = UPPER($${params.length})`);
     }
     if (id_cliente) {
       params.push(Number(id_cliente));
-      query += ` AND e.id_cliente = $${params.length}`;
+      filtrosSQL.push(`e.id_cliente = $${params.length}`);
     }
 
-    query += ` GROUP BY e.id_envio, e.id_cliente, c.razon_social, c.pais, e.origen, e.destino, 
-               e.estado, e.prioridad, e.fecha_creacion, e.fecha_entrega_estimada, e.fecha_entrega_real`;
+    const whereFiltros = filtrosSQL.length > 0 ? `WHERE ${filtrosSQL.join(' AND ')}` : '';
+    const whereDemorados = solo_demorados
+      ? `WHERE b.fecha_entrega IS NULL
+           AND b.fecha_entrega_estimada < CURRENT_DATE
+           AND b.estado <> 'ENTREGADO'`
+      : '';
 
-    if (solo_demorados) {
-      query += ` HAVING (e.fecha_entrega_real IS NULL AND e.fecha_entrega_estimada < CURRENT_DATE AND e.estado <> 'ENTREGADO')`;
-    }
-    if (solo_incidentes_abiertos) {
-      if (solo_demorados) {
-        query += ` AND COUNT(DISTINCT CASE WHEN i.estado = 'ABIERTO' THEN i.id_incidente END) > 0`;
-      } else {
-        query += ` HAVING COUNT(DISTINCT CASE WHEN i.estado = 'ABIERTO' THEN i.id_incidente END) > 0`;
-      }
-    }
-
-    query += ` ORDER BY e.fecha_creacion DESC`;
+    const query = `
+      WITH base AS (
+        SELECT e.id_envio, e.id_cliente, c.razon_social, c.pais,
+               e.origen, e.destino, e.estado, e.prioridad, e.fecha_creacion, e.fecha_entrega,
+               (SELECT MAX(t.fecha_llegada_estimada)
+                  FROM tramos t
+                 WHERE t.id_envio = e.id_envio) AS fecha_entrega_estimada
+        FROM envios e
+        LEFT JOIN clientes c ON c.id_cliente = e.id_cliente
+        ${whereFiltros}
+      )
+      SELECT b.*,
+             b.fecha_entrega AS fecha_entrega_real,
+             CASE
+               WHEN b.fecha_entrega IS NULL
+                AND b.fecha_entrega_estimada < CURRENT_DATE
+                AND b.estado <> 'ENTREGADO'
+               THEN 'SI' ELSE 'NO'
+             END AS demorado
+      FROM base b
+      ${whereDemorados}
+      ORDER BY b.fecha_creacion DESC;
+    `;
 
     const result = await pgPool.query(query, params);
-    return result.rows;
+    const incidentesPorEnvio = await this._mapaIncidentesPorEnvio();
+
+    const filas = result.rows.map(row => {
+      const incidentes = incidentesPorEnvio.get(row.id_envio);
+      return {
+        ...row,
+        incidentes_totales: incidentes?.total_incidentes || 0,
+        incidentes_abiertos: incidentes?.abiertos || 0
+      };
+    });
+
+    if (!solo_incidentes_abiertos) return filas;
+    return filas.filter(fila => Number(fila.incidentes_abiertos) > 0);
   }
 
   static async tiemposEnvioPorCliente() {
@@ -160,9 +191,9 @@ export class ReporteComercialSqlRepository {
       SELECT c.id_cliente, c.razon_social, c.pais,
              COUNT(e.id_envio) AS total_envios,
              COUNT(CASE WHEN e.estado = 'ENTREGADO' THEN 1 END) AS entregados,
-             MIN(EXTRACT(DAY FROM (COALESCE(e.fecha_entrega_real, CURRENT_DATE) - e.fecha_creacion))) AS min_dias,
-             MAX(EXTRACT(DAY FROM (COALESCE(e.fecha_entrega_real, CURRENT_DATE) - e.fecha_creacion))) AS max_dias,
-             ROUND(AVG(EXTRACT(DAY FROM (COALESCE(e.fecha_entrega_real, CURRENT_DATE) - e.fecha_creacion)))::numeric, 2) AS promedio_dias
+             ROUND(MIN(EXTRACT(EPOCH FROM (COALESCE(e.fecha_entrega, CURRENT_TIMESTAMP) - e.fecha_creacion)) / 86400)::numeric, 2) AS min_dias,
+             ROUND(MAX(EXTRACT(EPOCH FROM (COALESCE(e.fecha_entrega, CURRENT_TIMESTAMP) - e.fecha_creacion)) / 86400)::numeric, 2) AS max_dias,
+             ROUND(AVG(EXTRACT(EPOCH FROM (COALESCE(e.fecha_entrega, CURRENT_TIMESTAMP) - e.fecha_creacion)) / 86400)::numeric, 2) AS promedio_dias
       FROM clientes c
       LEFT JOIN envios e ON e.id_cliente = c.id_cliente
       GROUP BY c.id_cliente, c.razon_social, c.pais
@@ -175,45 +206,83 @@ export class ReporteComercialSqlRepository {
 
   static async promedioIncidentesPorPaisEstadoCliente(filtros = {}) {
     const { pais = null, estado = null, id_cliente = null } = filtros;
-    let query = `
-      SELECT c.pais, e.estado, c.id_cliente, c.razon_social,
-             COUNT(DISTINCT e.id_envio) AS total_envios,
-             COUNT(i.id_incidente) AS total_incidentes,
-             ROUND((COUNT(i.id_incidente)::numeric / NULLIF(COUNT(DISTINCT e.id_envio), 0)), 2) AS promedio_incidentes_por_envio
-      FROM envios e
-      LEFT JOIN clientes c ON c.id_cliente = e.id_cliente
-      LEFT JOIN incidentes i ON i.id_envio = e.id_envio
-      WHERE 1=1
-    `;
     const params = [];
+    const conditions = [];
+
     if (pais) {
       params.push(pais);
-      query += ` AND LOWER(c.pais) = LOWER($${params.length})`;
+      conditions.push(`LOWER(c.pais) = LOWER($${params.length})`);
     }
     if (estado) {
       params.push(estado);
-      query += ` AND UPPER(e.estado) = UPPER($${params.length})`;
+      conditions.push(`UPPER(e.estado) = UPPER($${params.length})`);
     }
     if (id_cliente) {
       params.push(Number(id_cliente));
-      query += ` AND c.id_cliente = $${params.length}`;
+      conditions.push(`c.id_cliente = $${params.length}`);
     }
-    query += ` GROUP BY c.pais, e.estado, c.id_cliente, c.razon_social
-               ORDER BY total_incidentes DESC, promedio_incidentes_por_envio DESC`;
-    const result = await pgPool.query(query, params);
-    return result.rows;
+
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const gruposQuery = `
+      SELECT c.pais, e.estado, c.id_cliente, c.razon_social,
+             COUNT(DISTINCT e.id_envio) AS total_envios
+      FROM envios e
+      LEFT JOIN clientes c ON c.id_cliente = e.id_cliente
+      ${whereSQL}
+      GROUP BY c.pais, e.estado, c.id_cliente, c.razon_social
+    `;
+
+    // Se necesita el detalle por envío para sumar los incidentes de MongoDB.
+    const enviosQuery = `
+      SELECT e.id_envio, e.estado, e.id_cliente, c.pais
+      FROM envios e
+      LEFT JOIN clientes c ON c.id_cliente = e.id_cliente
+      ${whereSQL}
+    `;
+
+    const [gruposRes, enviosRes, incidentesPorEnvio] = await Promise.all([
+      pgPool.query(gruposQuery, params),
+      pgPool.query(enviosQuery, params),
+      this._mapaIncidentesPorEnvio()
+    ]);
+
+    const incidentesPorGrupo = new Map();
+    for (const envio of enviosRes.rows) {
+      const key = `${envio.pais}|${envio.estado}|${envio.id_cliente}`;
+      const total = incidentesPorEnvio.get(envio.id_envio)?.total_incidentes || 0;
+      incidentesPorGrupo.set(key, (incidentesPorGrupo.get(key) || 0) + total);
+    }
+
+    return gruposRes.rows
+      .map(grupo => {
+        const key = `${grupo.pais}|${grupo.estado}|${grupo.id_cliente}`;
+        const totalIncidentes = incidentesPorGrupo.get(key) || 0;
+        const totalEnvios = Number(grupo.total_envios);
+        return {
+          ...grupo,
+          total_incidentes: totalIncidentes,
+          promedio_incidentes_por_envio: totalEnvios > 0
+            ? Math.round((totalIncidentes / totalEnvios) * 100) / 100
+            : 0
+        };
+      })
+      .sort((a, b) =>
+        b.total_incidentes - a.total_incidentes ||
+        b.promedio_incidentes_por_envio - a.promedio_incidentes_por_envio
+      );
   }
 
   static async tiemposPromedioEntrega() {
     const query = `
       SELECT c.pais,
              COUNT(CASE WHEN e.estado = 'ENTREGADO' THEN 1 END) AS entregados,
-             ROUND(AVG(EXTRACT(EPOCH FROM (e.fecha_entrega_real - e.fecha_creacion)) / 86400)::numeric, 2) AS promedio_dias_entrega,
-             ROUND(MIN(EXTRACT(EPOCH FROM (e.fecha_entrega_real - e.fecha_creacion)) / 86400)::numeric, 2) AS min_dias,
-             ROUND(MAX(EXTRACT(EPOCH FROM (e.fecha_entrega_real - e.fecha_creacion)) / 86400)::numeric, 2) AS max_dias
+             ROUND(AVG(EXTRACT(EPOCH FROM (e.fecha_entrega - e.fecha_creacion)) / 86400)::numeric, 2) AS promedio_dias_entrega,
+             ROUND(MIN(EXTRACT(EPOCH FROM (e.fecha_entrega - e.fecha_creacion)) / 86400)::numeric, 2) AS min_dias,
+             ROUND(MAX(EXTRACT(EPOCH FROM (e.fecha_entrega - e.fecha_creacion)) / 86400)::numeric, 2) AS max_dias
       FROM envios e
       LEFT JOIN clientes c ON c.id_cliente = e.id_cliente
-      WHERE e.estado = 'ENTREGADO' AND e.fecha_entrega_real IS NOT NULL
+      WHERE e.estado = 'ENTREGADO' AND e.fecha_entrega IS NOT NULL
       GROUP BY c.pais
       ORDER BY promedio_dias_entrega ASC
     `;
@@ -223,13 +292,13 @@ export class ReporteComercialSqlRepository {
 
   static async costosPorTipoTransporte() {
     const query = `
-      SELECT t.medio,
+      SELECT t.medio_transporte AS medio,
              COUNT(DISTINCT t.id_envio) AS total_envios,
              COUNT(t.id_tramo) AS total_tramos,
-             COALESCE(SUM(t.costo_estimado), 0) AS costo_total_estimado,
-             COALESCE(AVG(t.costo_estimado), 0) AS costo_promedio_por_tramo
+             COALESCE(SUM(t.costo), 0) AS costo_total_estimado,
+             COALESCE(ROUND(AVG(t.costo)::numeric, 2), 0) AS costo_promedio_por_tramo
       FROM tramos t
-      GROUP BY t.medio
+      GROUP BY t.medio_transporte
       ORDER BY costo_total_estimado DESC
     `;
     const result = await pgPool.query(query);

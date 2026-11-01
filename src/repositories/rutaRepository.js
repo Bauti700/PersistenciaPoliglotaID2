@@ -57,6 +57,49 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Vincula un contenedor existente (o lo crea en el grafo) con un envío.
+  static async asignarContenedorAEnvio(id_envio, id_contenedor) {
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MATCH (e:Envio {id_envio: $id_envio})
+        MERGE (c:Contenedor {id_contenedor: $id_contenedor})
+        MERGE (c)-[:PERTENECE_A]->(e)
+        RETURN c.id_contenedor AS contenedor, e.id_envio AS envio
+      `;
+      const result = await session.run(cypher, { id_envio, id_contenedor });
+      if (result.records.length === 0) {
+        throw new Error(`El envío ${id_envio} no existe en Neo4j. Cree primero el envío o verifique el código.`);
+      }
+      return { status: 'OK', id_envio, id_contenedor };
+    } finally {
+      await session.close();
+    }
+  }
+
+  // Vincula sensor, contenedor y envío en una sola operación, dejando el grafo
+  // consistente con reconstruirRecorridoContenedor e historialMovimientosContenedor.
+  static async asignarSensorAContenedorEnvio(id_envio, id_contenedor, id_sensor) {
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MATCH (e:Envio {id_envio: $id_envio})
+        MERGE (c:Contenedor {id_contenedor: $id_contenedor})
+        MERGE (s:Sensor {id_sensor: $id_sensor})
+        MERGE (c)-[:PERTENECE_A]->(e)
+        MERGE (c)-[:MONITOREADO_POR]->(s)
+        RETURN c.id_contenedor AS contenedor, e.id_envio AS envio, s.id_sensor AS sensor
+      `;
+      const result = await session.run(cypher, { id_envio, id_contenedor, id_sensor });
+      if (result.records.length === 0) {
+        throw new Error(`El envío ${id_envio} no existe en Neo4j. Cree primero el envío o verifique el código.`);
+      }
+      return { status: 'OK', id_envio, id_contenedor, id_sensor };
+    } finally {
+      await session.close();
+    }
+  }
+
   // Consulta Avanzada: Reconstrucción de la ruta completa de un envío
   static async obtenerRutaCompletaEnvio(id_envio) {
     const session = neoDriver.session();

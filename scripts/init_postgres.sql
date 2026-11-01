@@ -165,12 +165,17 @@ CREATE TABLE IF NOT EXISTS tramos (
 -- DATOS SEMILLA (SEED DATA)
 -- =============================================================================
 
-INSERT INTO roles (descripcion, nivel_permisos, estado) VALUES
-('ADMIN',    10, 'ACTIVO'),
-('OPERADOR',  5, 'ACTIVO'),
-('CLIENTE',   1, 'ACTIVO'),
-('USUARIO',   1, 'ACTIVO')
-ON CONFLICT DO NOTHING;
+INSERT INTO roles (descripcion, nivel_permisos, estado)
+SELECT v.descripcion, v.nivel_permisos, v.estado
+FROM (VALUES
+  ('ADMIN',    10, 'ACTIVO'),
+  ('OPERADOR',  5, 'ACTIVO'),
+  ('CLIENTE',   1, 'ACTIVO'),
+  ('USUARIO',   1, 'ACTIVO')
+) AS v(descripcion, nivel_permisos, estado)
+WHERE NOT EXISTS (
+  SELECT 1 FROM roles r WHERE r.descripcion = v.descripcion
+);
 
 INSERT INTO clientes (id_cliente, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Importadora Andina S.A.', '30-71123456-8', 'contacto@andina.com', '+54 11 4321-8765', 'Av. Córdoba 1234', 'Argentina', 150000.00),
