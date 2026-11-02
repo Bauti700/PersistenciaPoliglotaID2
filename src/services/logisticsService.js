@@ -22,4 +22,32 @@ export class LogisticsService {
   static async obtenerOPredicirRiesgo(id_envio) {
     return RiesgoService.obtenerOPredicirRiesgo(id_envio);
   }
+
+  static async listarEnvios(filtro = {}) {
+    return EnvioOrchestratorService.listarEnvios(filtro);
+  }
+
+  static async actualizarEnvio(id_envio, cambios) {
+    return EnvioOrchestratorService.actualizarEnvio(id_envio, cambios);
+  }
+
+  static async cambiarEstadoEnvio(id_envio, estado) {
+    return EnvioOrchestratorService.cambiarEstadoEnvio(id_envio, estado);
+  }
+
+  static async cancelarEnvio(id_envio) {
+    return EnvioOrchestratorService.cancelarEnvio(id_envio);
+  }
+
+  static async eliminarEnvio(id_envio) {
+    return EnvioOrchestratorService.eliminarEnvio(id_envio);
+  }
+
+  static async asignarContenedorAEnvio(params) {
+    return EnvioOrchestratorService.asignarContenedorAEnvio(params);
+  }
+
+  static async asignarSensorAContenedorEnvio(params) {
+    return EnvioOrchestratorService.asignarSensorAContenedorEnvio(params);
+  }
 }

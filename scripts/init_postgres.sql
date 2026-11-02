@@ -45,7 +45,9 @@ CREATE TABLE IF NOT EXISTS roles (
     id_rol SERIAL PRIMARY KEY,
     descripcion VARCHAR(100) NOT NULL,
     nivel_permisos INT DEFAULT 1,
-    estado VARCHAR(50) DEFAULT 'ACTIVO'
+    estado VARCHAR(50) DEFAULT 'ACTIVO',
+    permisos JSONB DEFAULT '{}'::jsonb,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -56,17 +58,37 @@ CREATE TABLE IF NOT EXISTS usuarios (
     id_rol INT REFERENCES roles(id_rol),
     email VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    estado VARCHAR(50) DEFAULT 'ACTIVO'
+    estado VARCHAR(50) DEFAULT 'ACTIVO',
+    fecha_ultimo_acceso TIMESTAMP,
+    sesion_activa BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS historial_sesiones (
     id_sesion SERIAL PRIMARY KEY,
     id_usuario INT NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    id_rol INT REFERENCES roles(id_rol) ON DELETE SET NULL,
+    token VARCHAR(64),
     ip_origen VARCHAR(45),
     fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_fin TIMESTAMP,
+    fecha_ultima_actividad TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     estado VARCHAR(50) DEFAULT 'CERRADA'
 );
+
+-- Compatibilidad con bases creadas antes de incorporar seguridad e historial.
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS fecha_ultimo_acceso TIMESTAMP;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sesion_activa BOOLEAN DEFAULT FALSE;
+ALTER TABLE historial_sesiones ADD COLUMN IF NOT EXISTS id_rol INT REFERENCES roles(id_rol) ON DELETE SET NULL;
+ALTER TABLE historial_sesiones ADD COLUMN IF NOT EXISTS token VARCHAR(64);
+ALTER TABLE historial_sesiones ADD COLUMN IF NOT EXISTS fecha_ultima_actividad TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_historial_sesiones_token
+    ON historial_sesiones (token)
+    WHERE token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_historial_sesiones_usuario_estado
+    ON historial_sesiones (id_usuario, estado);
 
 CREATE TABLE IF NOT EXISTS contenedores (
     id_contenedor VARCHAR(50) PRIMARY KEY,
@@ -165,17 +187,22 @@ CREATE TABLE IF NOT EXISTS tramos (
 -- DATOS SEMILLA (SEED DATA)
 -- =============================================================================
 
-INSERT INTO roles (descripcion, nivel_permisos, estado)
-SELECT v.descripcion, v.nivel_permisos, v.estado
+INSERT INTO roles (descripcion, nivel_permisos, estado, permisos)
+SELECT v.descripcion, v.nivel_permisos, v.estado, v.permisos::jsonb
 FROM (VALUES
-  ('ADMIN',    10, 'ACTIVO'),
-  ('OPERADOR',  5, 'ACTIVO'),
-  ('CLIENTE',   1, 'ACTIVO'),
-  ('USUARIO',   1, 'ACTIVO')
-) AS v(descripcion, nivel_permisos, estado)
+  ('ADMIN',    10, 'ACTIVO', '{"admin":true,"seguridad":true,"usuarios":true,"roles":true,"sesiones":true,"envios":true,"alertas":true,"finanzas":true}'),
+  ('OPERADOR',  5, 'ACTIVO', '{"envios":true,"alertas":true}'),
+  ('CLIENTE',   1, 'ACTIVO', '{}'),
+  ('USUARIO',   1, 'ACTIVO', '{}')
+) AS v(descripcion, nivel_permisos, estado, permisos)
 WHERE NOT EXISTS (
   SELECT 1 FROM roles r WHERE r.descripcion = v.descripcion
 );
+
+-- Garantiza que el rol ADMIN conserve todos los permisos aunque ya existiera.
+UPDATE roles
+SET permisos = '{"admin":true,"seguridad":true,"usuarios":true,"roles":true,"sesiones":true,"envios":true,"alertas":true,"finanzas":true}'::jsonb
+WHERE UPPER(descripcion) IN ('ADMIN', 'ADMINISTRADOR');
 
 INSERT INTO clientes (id_cliente, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Importadora Andina S.A.', '30-71123456-8', 'contacto@andina.com', '+54 11 4321-8765', 'Av. Córdoba 1234', 'Argentina', 150000.00),

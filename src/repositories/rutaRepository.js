@@ -1,13 +1,13 @@
 import { neoDriver } from '../config/database.js';
 
 export class Neo4jRouteRepository {
-  static async crearEnvioConRuta({ id_envio, id_cliente, origen, destino, operador, vehiculo, tramos }) {
+  static async crearEnvioConRuta({ id_envio, id_cliente, origen, destino, operador, vehiculo, tramos, prioridad = 'MEDIA' }) {
     const session = neoDriver.session();
     try {
       const cypher = `
         MERGE (c:Cliente {id_cliente: $id_cliente})
         MERGE (e:Envio {id_envio: $id_envio})
-        SET e.estado = 'EN_TRANSITO', e.fecha_creacion = datetime()
+        SET e.estado = 'EN_TRANSITO', e.fecha_creacion = datetime(), e.prioridad = $prioridad
         MERGE (c)-[:SOLICITA]->(e)
 
         MERGE (uOri:Ubicacion {nombre: $origen})
@@ -25,7 +25,7 @@ export class Neo4jRouteRepository {
           MERGE (e)-[:TRANSPORTADO_POR]->(v)
         )
       `;
-      await session.run(cypher, { id_envio, id_cliente: Number(id_cliente), origen, destino, operador, vehiculo });
+      await session.run(cypher, { id_envio, id_cliente: Number(id_cliente), origen, destino, operador, vehiculo, prioridad });
 
       // Conectar tramos en secuencia si se proporcionaron
       if (tramos && tramos.length > 0) {
@@ -95,6 +95,130 @@ export class Neo4jRouteRepository {
         throw new Error(`El envío ${id_envio} no existe en Neo4j. Cree primero el envío o verifique el código.`);
       }
       return { status: 'OK', id_envio, id_contenedor, id_sensor };
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async actualizarEstadoEnvio(id_envio, estado) {
+    const session = neoDriver.session();
+    try {
+      const result = await session.run(`
+        MATCH (e:Envio {id_envio: $id_envio})
+        SET e.estado = $estado
+        RETURN e.id_envio AS envio
+      `, { id_envio, estado });
+      return result.records.length > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async actualizarDatosEnvio({ id_envio, origen, destino, prioridad, estado }) {
+    const session = neoDriver.session();
+    try {
+      const result = await session.run(`
+        MATCH (e:Envio {id_envio: $id_envio})
+        SET e.prioridad = COALESCE($prioridad, e.prioridad),
+            e.estado = COALESCE($estado, e.estado)
+        WITH e
+        OPTIONAL MATCH (e)-[ro:TIENE_ORIGEN]->(:Ubicacion)
+        DELETE ro
+        WITH e
+        OPTIONAL MATCH (e)-[rd:TIENE_DESTINO]->(:Ubicacion)
+        DELETE rd
+        WITH e
+        MERGE (uo:Ubicacion {nombre: $origen})
+        MERGE (ud:Ubicacion {nombre: $destino})
+        MERGE (e)-[:TIENE_ORIGEN]->(uo)
+        MERGE (e)-[:TIENE_DESTINO]->(ud)
+        RETURN e.id_envio AS envio
+      `, { id_envio, origen, destino, prioridad: prioridad || null, estado: estado || null });
+      return result.records.length > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async desasignarContenedorDeEnvio(id_envio, id_contenedor) {
+    const session = neoDriver.session();
+    try {
+      await session.run(`
+        MATCH (e:Envio {id_envio: $id_envio})<-[r:PERTENECE_A]-(c:Contenedor {id_contenedor: $id_contenedor})
+        DELETE r
+      `, { id_envio, id_contenedor });
+      return true;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async desasignarSensorDeContenedor(id_contenedor, id_sensor) {
+    const session = neoDriver.session();
+    try {
+      await session.run(`
+        MATCH (c:Contenedor {id_contenedor: $id_contenedor})-[r:MONITOREADO_POR]->(s:Sensor {id_sensor: $id_sensor})
+        DELETE r
+      `, { id_contenedor, id_sensor });
+      return true;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async eliminarSensor(id_sensor) {
+    const session = neoDriver.session();
+    try {
+      await session.run(`
+        MATCH (s:Sensor {id_sensor: $id_sensor})
+        DETACH DELETE s
+      `, { id_sensor });
+      return true;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async eliminarContenedor(id_contenedor) {
+    const session = neoDriver.session();
+    try {
+      await session.run(`
+        MATCH (c:Contenedor {id_contenedor: $id_contenedor})
+        DETACH DELETE c
+      `, { id_contenedor });
+      return true;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async eliminarEnvio(id_envio) {
+    const session = neoDriver.session();
+    try {
+      await session.run(`
+        MATCH (e:Envio {id_envio: $id_envio})-[:COMPUESTO_POR]->(tr:Tramo)
+        DETACH DELETE tr
+      `, { id_envio });
+      const result = await session.run(`
+        MATCH (e:Envio {id_envio: $id_envio})
+        DETACH DELETE e
+        RETURN count(*) AS eliminados
+      `, { id_envio });
+      return result.records.length > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async listarContenedoresDeEnvio(id_envio) {
+    const session = neoDriver.session();
+    try {
+      const result = await session.run(`
+        MATCH (c:Contenedor)-[:PERTENECE_A]->(e:Envio {id_envio: $id_envio})
+        OPTIONAL MATCH (c)-[:MONITOREADO_POR]->(s:Sensor)
+        RETURN c.id_contenedor AS contenedor, collect(s.id_sensor) AS sensores
+      `, { id_envio });
+      return result.records.map(r => r.toObject());
     } finally {
       await session.close();
     }

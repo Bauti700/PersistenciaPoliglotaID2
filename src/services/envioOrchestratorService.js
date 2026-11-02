@@ -1,91 +1,185 @@
-import { ClienteRepository } from '../repositories/actorRepository.js';
-import { ContenedorRepository } from '../repositories/contenedorRepository.js';
 import { ActorRepository } from '../repositories/actorRepository.js';
+import { ContenedorRepository } from '../repositories/contenedorRepository.js';
+import { SensorRepository } from '../repositories/sensorRepository.js';
+import { EnvioRepository } from '../repositories/envioRepository.js';
 import { MongoTelemetryRepository } from '../repositories/telemetriaRepository.js';
 import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
 import { RedisCacheRepository } from '../repositories/cacheRepository.js';
 import { pgPool } from '../config/database.js';
+import {
+  textoRequerido,
+  textoOpcional,
+  errorValidacion
+} from '../utils/validation.js';
+
+function claveCacheEnvio(id_envio) {
+  return `envio:estado:${id_envio}`;
+}
+
+async function compensar(acciones) {
+  const errores = [];
+  for (const accion of acciones) {
+    try {
+      await accion.run();
+    } catch (error) {
+      errores.push(`${accion.nombre}: ${error.message}`);
+    }
+  }
+  return errores;
+}
+
+async function actualizarCacheEnvio(id_envio, datos) {
+  await RedisCacheRepository.setCache(claveCacheEnvio(id_envio), {
+    ...datos,
+    ultima_actualizacion: new Date().toISOString()
+  }, 3600);
+}
 
 export class EnvioOrchestratorService {
   /**
    * Crea un envío de forma políglota y consistente:
-   * 1. Registra en PostgreSQL (fuente transaccional).
-   * 2. Registra el grafo y la red de trayectos en Neo4j.
-   * 3. Registra el evento inicial de trazabilidad en MongoDB.
-   * 4. Prepara el contenedor y su caché en Redis.
+   * 1. PostgreSQL es la fuente transaccional (envío + tramos en una transacción).
+   * 2. Neo4j proyecta la topología del envío.
+   * 3. MongoDB registra el evento inicial en eventos_logisticos.
+   * 4. Redis prepara la caché de estado.
+   *
+   * Si falla cualquier motor secundario se revierte PostgreSQL y se compensan
+   * los motores que ya habían escrito, informando los estados reales.
    */
-  static async crearEnvioPoliglota({ id_envio, id_cliente, origen, destino, prioridad = 'MEDIA', operador = null, vehiculo = null, tramos = [] }) {
-    // 1. PostgreSQL
-    const pgRes = await pgPool.query(`
-      INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad)
-      VALUES ($1, $2, $3, $4, 'EN_TRANSITO', $5)
-      RETURNING *;
-    `, [id_envio, id_cliente, origen, destino, prioridad]);
-
-    const envioCreado = pgRes.rows[0];
-
-    // Registrar tramos en PG si existen
-    for (let i = 0; i < tramos.length; i++) {
-      const t = tramos[i];
-      await pgPool.query(`
-        INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT DO NOTHING;
-      `, [t.id_tramo || `TR-${id_envio}-${i+1}`, id_envio, t.medio || 'Terrestre', t.desde, t.hasta]);
+  static async crearEnvioPoliglota({
+    id_envio,
+    id_cliente,
+    origen,
+    destino,
+    prioridad = 'MEDIA',
+    operador = null,
+    vehiculo = null,
+    tramos = []
+  }) {
+    const cliente = await ActorRepository.resolverActor(id_cliente, 'CLIENTE');
+    if (cliente.estado !== 'ACTIVO') {
+      throw errorValidacion(`El cliente ${cliente.razon_social} está inactivo.`, 409);
     }
 
-    // 2. Neo4j: Crear topología de red
+    const datosBase = EnvioRepository.validarEnvio({
+      id_envio,
+      id_cliente: cliente.id_actor,
+      origen,
+      destino,
+      prioridad,
+      estado: 'EN_TRANSITO'
+    });
+
+    const operadorNormalizado = textoOpcional(operador, 'operador', { max: 150 });
+    const vehiculoNormalizado = textoOpcional(vehiculo, 'vehiculo', { max: 100 });
+    const tramosNormalizados = Array.isArray(tramos) && tramos.length > 0
+      ? tramos
+      : [{ desde: datosBase.origen, hasta: datosBase.destino, medio: 'Terrestre' }];
+
+    const idEvento = `EVT-${datosBase.id_envio}-INIT`;
+    let neo4jOk = false;
+    let mongoOk = false;
+    let redisOk = false;
+    const client = await pgPool.connect();
+
     try {
+      await client.query('BEGIN');
+      const envioCreado = await EnvioRepository.crearEnvio(
+        { ...datosBase, tramos: tramosNormalizados },
+        client
+      );
+
+      // 2. Neo4j: topología de red
       await Neo4jRouteRepository.crearEnvioConRuta({
-        id_envio,
-        id_cliente,
-        origen,
-        destino,
-        operador,
-        vehiculo,
-        tramos
+        id_envio: datosBase.id_envio,
+        id_cliente: cliente.id_actor,
+        origen: datosBase.origen,
+        destino: datosBase.destino,
+        operador: operadorNormalizado,
+        vehiculo: vehiculoNormalizado,
+        prioridad: datosBase.prioridad,
+        tramos: tramosNormalizados
       });
-    } catch (err) {
-      console.warn(`[Sync Neo4j Warning] No se pudo proyectar en el grafo: ${err.message}`);
-    }
+      neo4jOk = true;
 
-    // 3. MongoDB: Evento inicial de seguimiento
-    try {
-      await MongoTelemetryRepository.registrarReporte({
-        id_reporte: `EVT-${id_envio}-INIT`,
-        tipo: 'EVENTO_LOGISTICO',
-        categoria: 'TRAZABILIDAD',
-        parametros: { id_envio, id_cliente, origen, destino },
-        resumen: { evento: 'ENVIO_CREADO', fecha: new Date().toISOString(), estado: 'EN_TRANSITO' }
+      // 3. MongoDB: evento de trazabilidad
+      await MongoTelemetryRepository.registrarEventoLogistico({
+        id_evento: idEvento,
+        id_envio: datosBase.id_envio,
+        tipo_evento: 'ENVIO_CREADO',
+        ubicacion: datosBase.origen,
+        descripcion:
+          `Envío creado con destino ${datosBase.destino}. ` +
+          `Prioridad ${datosBase.prioridad}; ${tramosNormalizados.length} tramo(s).`
       });
-    } catch (err) {
-      console.warn(`[Sync Mongo Warning] No se pudo registrar evento de trazabilidad: ${err.message}`);
-    }
+      mongoOk = true;
 
-    // 4. Redis: Inicializar caché para seguimiento
-    try {
-      await RedisCacheRepository.setCache(`envio:estado:${id_envio}`, {
+      // 4. Redis: caché de estado
+      await actualizarCacheEnvio(datosBase.id_envio, {
         estado: 'EN_TRANSITO',
-        ultima_actualizacion: new Date().toISOString(),
-        origen,
-        destino
-      }, 3600);
-    } catch (err) {
-      console.warn(`[Sync Redis Warning] No se pudo inicializar caché: ${err.message}`);
-    }
+        origen: datosBase.origen,
+        destino: datosBase.destino
+      });
+      redisOk = true;
 
-    return {
-      envio: envioCreado,
-      sincronizacion: {
-        postgresql: 'OK',
-        neo4j: 'PROYECTADO',
-        mongodb: 'TRAZABILIDAD_REGISTRADA',
-        redis: 'CACHE_INICIALIZADO'
+      await client.query('COMMIT');
+
+      return {
+        envio: envioCreado,
+        sincronizacion: {
+          postgresql: 'OK',
+          neo4j: 'OK',
+          mongodb: 'OK',
+          redis: 'OK'
+        }
+      };
+    } catch (error) {
+      let rollbackOk = false;
+      try {
+        await client.query('ROLLBACK');
+        rollbackOk = true;
+      } catch (rollbackError) {
+        console.warn(`[EnvioOrchestrator] Falló el ROLLBACK: ${rollbackError.message}`);
       }
-    };
+
+      const compensaciones = [];
+      if (redisOk) {
+        compensaciones.push({
+          nombre: 'redis',
+          run: () => RedisCacheRepository.delCache(claveCacheEnvio(datosBase.id_envio))
+        });
+      }
+      if (mongoOk) {
+        compensaciones.push({
+          nombre: 'mongodb',
+          run: () => MongoTelemetryRepository.eliminarEventoLogistico(idEvento)
+        });
+      }
+      if (neo4jOk) {
+        compensaciones.push({
+          nombre: 'neo4j',
+          run: () => Neo4jRouteRepository.eliminarEnvio(datosBase.id_envio)
+        });
+      }
+
+      const erroresCompensacion = await compensar(compensaciones);
+      const detalle = erroresCompensacion.length > 0
+        ? ` Compensaciones con error: ${erroresCompensacion.join('; ')}.`
+        : '';
+
+      if (error.code === '23505') {
+        throw errorValidacion(`Ya existe un envío con el ID ${datosBase.id_envio}.`, 409);
+      }
+      throw new Error(
+        `No se pudo crear el envío ${datosBase.id_envio}: ${error.message}. ` +
+        `PostgreSQL ${rollbackOk ? 'revertido' : 'NO revertido'}.${detalle}`
+      );
+    } finally {
+      client.release();
+    }
   }
 
-  static async crearEnvioSincronizado({ id_envio, id_cliente, origen, destino, prioridad = 'NORMAL' }) {
+  static async crearEnvioSincronizado({ id_envio, id_cliente, origen, destino, prioridad = 'MEDIA' }) {
     return this.crearEnvioPoliglota({
       id_envio,
       id_cliente,
@@ -94,6 +188,292 @@ export class EnvioOrchestratorService {
       prioridad,
       tramos: [{ desde: origen, hasta: destino, medio: 'Terrestre' }]
     });
+  }
+
+  static async asignarContenedorAEnvio({ id_envio, id_contenedor }) {
+    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const idContenedor = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
+
+    const envio = await EnvioRepository.obtenerPorId(idEnvio);
+    if (!envio) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
+    if (['ENTREGADO', 'CANCELADO'].includes(envio.estado)) {
+      throw errorValidacion(`El envío ${idEnvio} está ${envio.estado} y no admite asignaciones.`, 409);
+    }
+
+    const contenedor = await ContenedorRepository.obtenerPorId(idContenedor);
+    if (!contenedor) throw errorValidacion(`El contenedor ${idContenedor} no existe.`, 404);
+    if (contenedor.estado === 'FUERA_SERVICIO') {
+      throw errorValidacion(`El contenedor ${idContenedor} está fuera de servicio.`, 409);
+    }
+
+    const estadoAnterior = contenedor.estado;
+    await ContenedorRepository.marcarEnTransito(idContenedor);
+
+    try {
+      await Neo4jRouteRepository.asignarContenedorAEnvio(idEnvio, idContenedor);
+    } catch (error) {
+      await ContenedorRepository.restaurarEstado(idContenedor, estadoAnterior);
+      throw new Error(
+        `No se pudo asignar el contenedor ${idContenedor} al envío ${idEnvio}: ${error.message}. ` +
+        'Se restauró el estado del contenedor.'
+      );
+    }
+
+    return {
+      envio: idEnvio,
+      contenedor: idContenedor,
+      estado_contenedor: 'EN_TRANSITO',
+      grafo: 'OK'
+    };
+  }
+
+  static async asignarSensorAContenedorEnvio({ id_envio, id_contenedor, id_sensor }) {
+    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const idContenedor = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
+    const idSensor = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
+
+    const envio = await EnvioRepository.obtenerPorId(idEnvio);
+    if (!envio) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
+    if (['ENTREGADO', 'CANCELADO'].includes(envio.estado)) {
+      throw errorValidacion(`El envío ${idEnvio} está ${envio.estado} y no admite asignaciones.`, 409);
+    }
+
+    const contenedor = await ContenedorRepository.obtenerPorId(idContenedor);
+    if (!contenedor) throw errorValidacion(`El contenedor ${idContenedor} no existe.`, 404);
+    if (contenedor.estado === 'FUERA_SERVICIO') {
+      throw errorValidacion(`El contenedor ${idContenedor} está fuera de servicio.`, 409);
+    }
+
+    const sensor = await SensorRepository.obtenerSensorPorId(idSensor);
+    if (!sensor) throw errorValidacion(`El sensor ${idSensor} no existe.`, 404);
+    if (sensor.estado !== 'ACTIVO') {
+      throw errorValidacion(`El sensor ${idSensor} está inactivo.`, 409);
+    }
+
+    const contenedorAnteriorSensor = sensor.id_contenedor || null;
+    const estadoAnteriorContenedor = contenedor.estado;
+
+    let contenedorActualizado = false;
+    let sensorActualizado = false;
+
+    try {
+      if (contenedor.estado === 'DISPONIBLE') {
+        await ContenedorRepository.marcarEnTransito(idContenedor);
+        contenedorActualizado = true;
+      }
+
+      await SensorRepository.asignarSensorAContenedor(idSensor, idContenedor);
+      sensorActualizado = true;
+
+      await Neo4jRouteRepository.asignarSensorAContenedorEnvio(idEnvio, idContenedor, idSensor);
+    } catch (error) {
+      const compensaciones = [];
+      if (sensorActualizado) {
+        compensaciones.push({
+          nombre: 'mongo',
+          run: () => SensorRepository.restaurarAsignacion(idSensor, contenedorAnteriorSensor)
+        });
+      }
+      if (contenedorActualizado) {
+        compensaciones.push({
+          nombre: 'postgresql',
+          run: () => ContenedorRepository.restaurarEstado(idContenedor, estadoAnteriorContenedor)
+        });
+      }
+      compensaciones.push({
+        nombre: 'neo4j',
+        run: async () => {
+          await Neo4jRouteRepository.desasignarSensorDeContenedor(idContenedor, idSensor);
+          await Neo4jRouteRepository.desasignarContenedorDeEnvio(idEnvio, idContenedor);
+        }
+      });
+
+      const errores = await compensar(compensaciones);
+      const detalle = errores.length > 0 ? ` Compensaciones con error: ${errores.join('; ')}.` : '';
+      throw new Error(
+        `No se pudo asignar el sensor ${idSensor} al contenedor ${idContenedor} / envío ${idEnvio}: ` +
+        `${error.message}.${detalle}`
+      );
+    }
+
+    return {
+      envio: idEnvio,
+      contenedor: idContenedor,
+      sensor: idSensor,
+      estado_contenedor: 'EN_TRANSITO',
+      asignacion: 'OK'
+    };
+  }
+
+  static async actualizarEnvio(id_envio, cambios) {
+    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const existente = await EnvioRepository.obtenerPorId(idEnvio);
+    if (!existente) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
+
+    const cambiosNormalizados = EnvioRepository.validarEnvio(cambios, { parcial: true });
+    if (cambiosNormalizados.estado !== undefined) {
+      throw errorValidacion('Para cambiar el estado use la opción "Cambiar estado del envío".');
+    }
+    const actualizado = await EnvioRepository.actualizar(idEnvio, cambiosNormalizados);
+
+    const origen = cambiosNormalizados.origen || existente.origen;
+    const destino = cambiosNormalizados.destino || existente.destino;
+    const prioridad = cambiosNormalizados.prioridad || existente.prioridad;
+    const estado = cambiosNormalizados.estado || existente.estado;
+
+    let grafo = 'OK';
+    let redis = 'OK';
+    try {
+      await Neo4jRouteRepository.actualizarDatosEnvio({
+        id_envio: idEnvio,
+        origen,
+        destino,
+        prioridad,
+        estado
+      });
+    } catch (error) {
+      grafo = 'ERROR';
+      await EnvioRepository.actualizar(idEnvio, {
+        origen: existente.origen,
+        destino: existente.destino,
+        prioridad: existente.prioridad,
+        estado: existente.estado
+      });
+      throw new Error(
+        `No se pudo actualizar el envío ${idEnvio} en Neo4j: ${error.message}. ` +
+        'Se restauraron los datos en PostgreSQL.'
+      );
+    }
+
+    try {
+      await actualizarCacheEnvio(idEnvio, {
+        estado,
+        origen,
+        destino,
+        prioridad
+      });
+    } catch (error) {
+      redis = 'DEGRADADO';
+    }
+
+    return { envio: actualizado, sincronizacion: { postgresql: 'OK', neo4j: grafo, redis } };
+  }
+
+  static async cambiarEstadoEnvio(id_envio, estado) {
+    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const existente = await EnvioRepository.obtenerPorId(idEnvio);
+    if (!existente) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
+
+    const actualizado = await EnvioRepository.cambiarEstado(idEnvio, estado);
+    try {
+      await Neo4jRouteRepository.actualizarEstadoEnvio(idEnvio, actualizado.estado);
+    } catch (error) {
+      await EnvioRepository.cambiarEstado(idEnvio, existente.estado);
+      throw new Error(
+        `No se pudo cambiar el estado del envío ${idEnvio} en Neo4j: ${error.message}. ` +
+        'Se restauró el estado en PostgreSQL.'
+      );
+    }
+
+    let redis = 'OK';
+    try {
+      await actualizarCacheEnvio(idEnvio, {
+        estado: actualizado.estado,
+        origen: actualizado.origen,
+        destino: actualizado.destino,
+        prioridad: actualizado.prioridad
+      });
+    } catch {
+      redis = 'DEGRADADO';
+    }
+
+    return { envio: actualizado, sincronizacion: { postgresql: 'OK', neo4j: 'OK', redis } };
+  }
+
+  static async cancelarEnvio(id_envio) {
+    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const existente = await EnvioRepository.obtenerPorId(idEnvio);
+    if (!existente) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
+    if (existente.estado === 'ENTREGADO') {
+      throw errorValidacion(`El envío ${idEnvio} ya fue entregado y no puede cancelarse.`, 409);
+    }
+    if (existente.estado === 'CANCELADO') {
+      return { envio: existente, sincronizacion: { postgresql: 'OK', neo4j: 'OK', redis: 'OK' } };
+    }
+
+    const contenedoresGrafo = await Neo4jRouteRepository.listarContenedoresDeEnvio(idEnvio);
+    const contenedores = [];
+    for (const item of contenedoresGrafo) {
+      const contenedor = await ContenedorRepository.obtenerPorId(item.contenedor);
+      if (contenedor) contenedores.push(contenedor);
+    }
+
+    const cancelado = await EnvioRepository.cambiarEstado(idEnvio, 'CANCELADO');
+
+    try {
+      await Neo4jRouteRepository.actualizarEstadoEnvio(idEnvio, 'CANCELADO');
+      for (const contenedor of contenedores) {
+        if (contenedor.estado === 'EN_TRANSITO') {
+          await ContenedorRepository.restaurarEstado(contenedor.id_contenedor, 'DISPONIBLE');
+        }
+      }
+    } catch (error) {
+      await EnvioRepository.cambiarEstado(idEnvio, existente.estado);
+      for (const contenedor of contenedores) {
+        await ContenedorRepository.restaurarEstado(contenedor.id_contenedor, contenedor.estado);
+      }
+      throw new Error(
+        `No se pudo cancelar el envío ${idEnvio} en Neo4j: ${error.message}. ` +
+        'Se restauró el estado en PostgreSQL.'
+      );
+    }
+
+    let redis = 'OK';
+    try {
+      await RedisCacheRepository.delCache(claveCacheEnvio(idEnvio));
+    } catch {
+      redis = 'DEGRADADO';
+    }
+
+    return {
+      envio: cancelado,
+      contenedores_liberados: contenedores.map(c => c.id_contenedor),
+      sincronizacion: { postgresql: 'OK', neo4j: 'OK', redis }
+    };
+  }
+
+  static async eliminarEnvio(id_envio) {
+    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const existente = await EnvioRepository.obtenerPorId(idEnvio);
+    if (!existente) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
+
+    const eliminado = await EnvioRepository.eliminar(idEnvio);
+
+    const sincronizacion = { postgresql: 'OK', neo4j: 'OK', redis: 'OK', mongodb: 'OK' };
+    try {
+      await Neo4jRouteRepository.eliminarEnvio(idEnvio);
+    } catch {
+      sincronizacion.neo4j = 'ERROR';
+    }
+    try {
+      await RedisCacheRepository.delCache(claveCacheEnvio(idEnvio));
+    } catch {
+      sincronizacion.redis = 'ERROR';
+    }
+    try {
+      const eventos = await MongoTelemetryRepository.listarEventosPorEnvio(idEnvio, 500);
+      for (const evento of eventos) {
+        await MongoTelemetryRepository.eliminarEventoLogistico(evento.id_evento);
+      }
+    } catch {
+      sincronizacion.mongodb = 'ERROR';
+    }
+
+    return { envio: eliminado, sincronizacion };
+  }
+
+  static async listarEnvios(filtro = {}) {
+    return EnvioRepository.listarTodos(filtro);
   }
 }
 

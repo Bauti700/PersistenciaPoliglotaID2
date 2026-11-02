@@ -14,6 +14,7 @@ import { AlertaRepository } from './repositories/alertaRepository.js';
 import { MensajeRepository } from './repositories/mensajeRepository.js';
 import { UsuarioRepository } from './repositories/usuarioRepository.js';
 import { SesionRepository } from './repositories/sesionRepository.js';
+import { EnvioRepository } from './repositories/envioRepository.js';
 
 let currentUser = null;
 
@@ -47,15 +48,16 @@ async function login() {
       currentUser = user;
       
       try {
-        await SesionRepository.crearSesion({
+        const sesion = await SesionRepository.crearSesion({
           id_usuario: user.id_usuario,
           email: user.email,
           id_rol: user.id_rol,
           ip: '127.0.0.1',
           ttl: 3600
         });
+        currentUser = { ...user, token: sesion.token };
       } catch (e) {
-        console.warn('[Aviso] No se pudo registrar sesión en Redis');
+        console.warn(`[Aviso] No se pudo registrar la sesión en Redis/PostgreSQL: ${e.message}`);
       }
       
       console.log(`\nBienvenido/a: ${user.nombre} ${user.apellido} | Rol: ${user.rol_descripcion || 'N/A'} | Estado: ${user.estado}`);
@@ -228,20 +230,21 @@ Seleccione una opción:
   1.  [PostgreSQL] Gestionar Clientes, Proveedores y Operadores (ABMs Separados)
   2.  [PostgreSQL] Gestionar Contenedores (Listado, Alta, Modificación, Baja)
   3.  [Finanzas]   Gestión Comercial y Financiera (Facturación Clientes/Prov, Pagos, CC y Cierres)
-  4.  [MongoDB]    Ingresar Lectura de Sensor IoT (Temperatura/GPS/Batería)
+  4.  [MongoDB]    Telemetría IoT (Lecturas, ABM Sensores, Reglas y Alertas)
   5.  [MongoDB]    Ver Histórico de Lecturas y Detectar Anomalías
   6.  [MongoDB]    Gestionar Incidentes y Alertas
   7.  [MongoDB]    Mensajería y Chat (MongoDB)
   8.  [Neo4j]      Consultar Ruta Completa de un Envío (Grafo de Tramos)
   9.  [Neo4j]      Ver Red de Relaciones (Clientes - Operadores - Envíos)
   10. [Redis]      Consultar Última Posición GPS en Caché
-  11. [Políglota]  Crear Nuevo Envío Sincronizado (PG + Neo4j + Mongo)
+  11. [Políglota]  ABM de Envíos (Alta, Modificación, Estado, Cancelación, Asignaciones)
   12. [Políglota]  Calcular / Consultar Predicción de Riesgo
   13. [Reporte]    Ranking de Clientes por Volumen Facturado
   14. [Reporte]    Reportes Comerciales Parametrizados (Filtros y Auditoría en MongoDB)
   15. [Analítica]  Ranking de Rutas con Mayor Cantidad de Incidentes (Mongo + PG + Redis)
   16. [Analítica]  Análisis Histórico de Desempeño (Tiempos Entrega, Puntualidad y Costos)
-${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMIN' || Number(currentUser.nivel_permisos)>=9)) ? '  17. [Seguridad]   ABM Usuarios, Roles y Sesiones\n' : ''}  0.  Salir
+${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usuarios, Roles y Sesiones\n' : ''}  18. [Sesión]      Cerrar sesión actual y volver a autenticarse
+  0.  Salir
 `);
 
     const opt = (await ask('Opción > ')).trim();
@@ -295,62 +298,102 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
         }
 
         case '2': {
-          console.log('\n--- GESTIÓN DE CONTENEDORES (PostgreSQL) ---');
-          const contenedores = await ContenedorRepository.listarTodos();
-          console.table(contenedores.map(c => ({
-            ID: c.id_contenedor,
-            Codigo_Int: c.codigo_internacional,
-            Tipo: c.tipo,
-            Capacidad: `${c.capacidad} kg`,
-            Estado: c.estado
-          })));
-
-          console.log('\nAcciones:');
-          console.log('  1. Dar de alta nuevo contenedor');
-          console.log('  2. Modificar contenedor existente');
-          console.log('  3. Dar de baja contenedor (baja lógica)');
-          console.log('  4. Volver al menú principal');
-          const subOpt = (await ask('Seleccione acción (1-4) > ')).trim();
-
-          if (subOpt === '1') {
-            const id_contenedor = await ask('ID Contenedor (ej: CONT-100): ');
-            const codigo_internacional = await ask('Código Internacional (ej: BICU1234567): ');
-            const tipo = await ask('Tipo (DRY / REEFER / OPEN_TOP): ') || 'REEFER';
-            const capacidad = await ask('Capacidad (kg): ') || '25000';
-            const estado = await ask('Estado (DISPONIBLE / EN_TRANSITO / FUERA_SERVICIO): ') || 'DISPONIBLE';
-
-            const nuevo = await ContenedorRepository.crear({
-              id_contenedor,
-              codigo_internacional,
-              tipo,
-              capacidad: Number(capacidad),
-              estado
-            });
-            console.log('\nContenedor creado exitosamente:', nuevo);
-          } else if (subOpt === '2') {
-            const id = await ask('ID Contenedor a modificar: ');
-            const existente = await ContenedorRepository.obtenerPorId(id);
-            if (!existente) {
-              console.log('Contenedor no encontrado.');
-              break;
+          let salirCont = false;
+          while (!salirCont) {
+            console.log('\n--- GESTIÓN DE CONTENEDORES (PostgreSQL) ---');
+            const contenedores = await ContenedorRepository.listarTodos();
+            if (contenedores.length === 0) {
+              console.log('No hay contenedores registrados.');
+            } else {
+              console.table(contenedores.map(c => ({
+                ID: c.id_contenedor,
+                Codigo_Int: c.codigo_internacional,
+                Tipo: c.tipo,
+                Capacidad: `${c.capacidad} kg`,
+                Estado: c.estado
+              })));
             }
-            console.log('Presione ENTER para mantener el valor actual entre corchetes:');
-            const codigo_internacional = (await ask(`Código Internacional [${existente.codigo_internacional}]: `)).trim() || existente.codigo_internacional;
-            const tipo = (await ask(`Tipo [${existente.tipo}]: `)).trim() || existente.tipo;
-            const capacidad = (await ask(`Capacidad [${existente.capacidad}]: `)).trim() || existente.capacidad;
-            const estado = (await ask(`Estado [${existente.estado}]: `)).trim() || existente.estado;
 
-            const modificado = await ContenedorRepository.actualizar(id, {
-              codigo_internacional,
-              tipo,
-              capacidad: Number(capacidad),
-              estado
-            });
-            console.log('\nContenedor actualizado:', modificado);
-          } else if (subOpt === '3') {
-            const id = await ask('ID Contenedor a dar de baja: ');
-            const res = await ContenedorRepository.darDeBaja(id);
-            console.log(`\nContenedor ${id} dado de baja (estado FUERA_SERVICIO):`, res);
+            console.log('\nAcciones:');
+            console.log('  1. Dar de alta nuevo contenedor');
+            console.log('  2. Modificar contenedor existente');
+            console.log('  3. Dar de baja contenedor (baja lógica)');
+            console.log('  4. Activar contenedor');
+            console.log('  5. Eliminar contenedor definitivamente');
+            console.log('  6. Consultar contenedor por ID');
+            console.log('  0. Volver al menú principal');
+            const subOpt = (await ask('Seleccione acción (0-6) > ')).trim();
+
+            if (subOpt === '1') {
+              const id_contenedor = await ask('ID Contenedor (ej: CONT-100): ');
+              const codigo_internacional = await ask('Código Internacional (ej: BICU1234567): ');
+              const tipo = await ask('Tipo (DRY / REEFER / OPEN_TOP): ') || 'REEFER';
+              const capacidad = await ask('Capacidad (kg): ') || '25000';
+              const estado = await ask('Estado (DISPONIBLE / EN_TRANSITO / FUERA_SERVICIO): ') || 'DISPONIBLE';
+
+              const nuevo = await ContenedorRepository.crear({
+                id_contenedor,
+                codigo_internacional,
+                tipo,
+                capacidad,
+                estado
+              });
+              console.log('\nContenedor creado exitosamente:', nuevo);
+            } else if (subOpt === '2') {
+              const id = await ask('ID Contenedor a modificar: ');
+              const existente = await ContenedorRepository.obtenerPorId(id);
+              if (!existente) {
+                console.log('Contenedor no encontrado.');
+                continue;
+              }
+              console.log('Presione ENTER para mantener el valor actual entre corchetes:');
+              const codigo_internacional = (await ask(`Código Internacional [${existente.codigo_internacional}]: `)).trim() || existente.codigo_internacional;
+              const tipo = (await ask(`Tipo [${existente.tipo}]: `)).trim() || existente.tipo;
+              const capacidad = (await ask(`Capacidad [${existente.capacidad}]: `)).trim() || existente.capacidad;
+              const estado = (await ask(`Estado [${existente.estado}]: `)).trim() || existente.estado;
+
+              const modificado = await ContenedorRepository.actualizar(id, {
+                codigo_internacional,
+                tipo,
+                capacidad,
+                estado
+              });
+              console.log('\nContenedor actualizado:', modificado);
+            } else if (subOpt === '3') {
+              const id = await ask('ID Contenedor a dar de baja: ');
+              const res = await ContenedorRepository.darDeBaja(id);
+              console.log(res ? `\nContenedor ${id} dado de baja (estado FUERA_SERVICIO):` : '\nContenedor no encontrado.', res || '');
+            } else if (subOpt === '4') {
+              const id = await ask('ID Contenedor a activar: ');
+              const res = await ContenedorRepository.activar(id);
+              console.log(res ? `\nContenedor ${id} activado (estado DISPONIBLE):` : '\nContenedor no encontrado.', res || '');
+            } else if (subOpt === '5') {
+              const id = await ask('ID Contenedor a eliminar DEFINITIVAMENTE: ');
+              const existente = await ContenedorRepository.obtenerPorId(id);
+              if (!existente) {
+                console.log('Contenedor no encontrado.');
+                continue;
+              }
+              const conf = (await ask(`¿Eliminar físicamente el contenedor "${id}"? (s/n): `)).trim().toLowerCase();
+              if (conf === 's') {
+                try {
+                  const res = await ContenedorRepository.eliminar(id);
+                  console.log('\nContenedor eliminado:', res);
+                } catch (error) {
+                  console.log(`\n[No se pudo eliminar] ${error.message}`);
+                }
+              } else {
+                console.log('Operación cancelada.');
+              }
+            } else if (subOpt === '6') {
+              const id = await ask('ID Contenedor: ');
+              const item = await ContenedorRepository.obtenerPorId(id);
+              console.log(item ? '\nContenedor encontrado:' : '\nContenedor no encontrado.', item || '');
+            } else if (subOpt === '0') {
+              salirCont = true;
+            } else {
+              console.log('Opción inválida.');
+            }
           }
           break;
         }
@@ -698,131 +741,319 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
         }
 
         case '4': {
-          console.log('\n--- INGESTA DE TELEMETRÍA IOT (MongoDB + Redis) ---');
-          console.log('1. Registrar lectura de sensor');
-          console.log('2. ABM Sensores (Alta/Listado/Editar/Baja/Activar)');
-          console.log('3. Asignar sensor a contenedor');
-          console.log('4. Listar sensores por contenedor');
-          console.log('5. Reglas y Alertas de estado');
-          console.log('6. Ejecutar monitoreo de sensores (Alertas por batería/inactividad)');
-          console.log('7. Volver');
-          const subIoT = (await ask('Opción (1-7): ')).trim();
-          
-          if (subIoT === '1') {
-            const id_sensor = await ask('ID Sensor (ej: SENS-101): ') || 'SENS-101';
-            const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
-            const id_envio = await ask('ID Envío asociado (ej: ENV-1001): ') || 'ENV-1001';
-            const temperatura = await ask('Temperatura (°C): ') || '4.5';
-            const humedad = await ask('Humedad (%): ') || '60';
-            const latitud = await ask('Latitud GPS: ') || '-34.6037';
-            const longitud = await ask('Longitud GPS: ') || '-58.3816';
-            const nivel_bateria = await ask('Nivel batería (%): ') || '90';
+          let salirIoT = false;
+          while (!salirIoT) {
+            console.log('\n--- INGESTA DE TELEMETRÍA IOT (MongoDB + Redis) ---');
+            console.log('1. Registrar lectura de sensor');
+            console.log('2. ABM Sensores (Alta/Listado/Editar/Baja/Activar/Eliminar)');
+            console.log('3. Asignar sensor a contenedor/envío');
+            console.log('4. Listar sensores por contenedor');
+            console.log('5. Reglas y Alertas de estado');
+            console.log('6. Ejecutar monitoreo de sensores (Alertas por batería/inactividad)');
+            console.log('0. Volver');
+            const subIoT = (await ask('Opción (0-6): ')).trim();
 
-            const res = await LogisticsService.procesarLecturaSensor({
-              id_sensor,
-              id_contenedor,
-              id_envio,
-              temperatura,
-              humedad,
-              vibracion: 0.05,
-              latitud,
-              longitud,
-              nivel_bateria
-            });
-            console.log('\nTelemetría guardada en MongoDB y última coordenada actualizada en Redis');
-            console.log(res);
-          } else if (subIoT === '2') {
-            console.log('\n--- ABM DE SENSORES IOT ---');
-            console.log('1. Alta de sensor');
-            console.log('2. Listar sensores');
-            console.log('3. Editar sensor');
-            console.log('4. Dar de baja sensor');
-            console.log('5. Activar sensor');
-            console.log('6. Volver');
-            const abmOpt = (await ask('Opción (1-6): ')).trim();
-            
-            if (abmOpt === '1') {
-              const id_sensor = await ask('ID Sensor: ');
-              const tipo = await ask('Tipo (TEMPERATURA/HUMEDAD/GPS/VIBRACION): ');
-              const fabricante = await ask('Fabricante: ');
-              const id_contenedor = await ask('ID Contenedor asociado: ');
-              const sensor = await SensorRepository.registrarSensor({
+            if (subIoT === '0') {
+              salirIoT = true;
+              continue;
+            }
+
+            if (subIoT === '1') {
+              const id_sensor = await ask('ID Sensor (ej: SENS-101): ') || 'SENS-101';
+              const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
+              const id_envio = (await ask('ID Envío asociado (ej: ENV-1001, ENTER para omitir): ')).trim() || null;
+              const temperatura = await ask('Temperatura (°C): ') || '4.5';
+              const humedad = await ask('Humedad (%): ') || '60';
+              const latitud = await ask('Latitud GPS: ') || '-34.6037';
+              const longitud = await ask('Longitud GPS: ') || '-58.3816';
+              const nivel_bateria = await ask('Nivel batería (%): ') || '90';
+
+              const res = await LogisticsService.procesarLecturaSensor({
                 id_sensor,
-                tipo,
-                fabricante,
                 id_contenedor,
-                estado: 'ACTIVO'
+                id_envio,
+                temperatura,
+                humedad,
+                vibracion: 0.05,
+                latitud,
+                longitud,
+                nivel_bateria
               });
-              console.log('\nSensor registrado:', sensor);
-            } else if (abmOpt === '2') {
-              const sensores = await SensorRepository.listarSensores();
-              console.table(sensores);
-            } else if (abmOpt === '3') {
-              const id_sensor = await ask('ID Sensor a editar: ');
-              const tipo = await ask('Nuevo tipo (ENTER para mantener): ') || undefined;
-              const fabricante = await ask('Nuevo fabricante (ENTER para mantener): ') || undefined;
-              const datos = {};
-              if (tipo) datos.tipo = tipo;
-              if (fabricante) datos.fabricante = fabricante;
-              const actualizado = await SensorRepository.actualizarSensor(id_sensor, datos);
-              console.log(actualizado ? '\nSensor actualizado:' : '\nSensor no encontrado', actualizado || '');
-            } else if (abmOpt === '4') {
-              const id_sensor = await ask('ID Sensor a dar de baja: ');
-              const resultado = await SensorRepository.darDeBajaSensor(id_sensor);
-              console.log(resultado ? '\nSensor dado de baja:' : '\nSensor no encontrado', resultado || '');
-            } else if (abmOpt === '5') {
-              const id_sensor = await ask('ID Sensor a activar: ');
-              const resultado = await SensorRepository.activarSensor(id_sensor);
-              console.log(resultado ? '\nSensor activado:' : '\nSensor no encontrado', resultado || '');
+              console.log('\nTelemetría guardada en MongoDB y última coordenada actualizada en Redis');
+              console.log(res);
+            } else if (subIoT === '2') {
+              let salirSensores = false;
+              while (!salirSensores) {
+                console.log('\n--- ABM DE SENSORES IOT ---');
+                const sensores = await SensorRepository.listarSensores();
+                if (sensores.length === 0) {
+                  console.log('No hay sensores registrados.');
+                } else {
+                  console.table(sensores.map(s => ({
+                    ID: s.id_sensor,
+                    Tipo: s.tipo,
+                    Fabricante: s.fabricante || '-',
+                    Contenedor: s.id_contenedor || 'Sin asignar',
+                    Estado: s.estado,
+                    Instalacion: s.fecha_instalacion
+                  })));
+                }
+                console.log('1. Alta de sensor');
+                console.log('2. Listar sensores');
+                console.log('3. Editar sensor (incluye reasignar contenedor)');
+                console.log('4. Dar de baja sensor');
+                console.log('5. Activar sensor');
+                console.log('6. Eliminar sensor definitivamente');
+                console.log('0. Volver');
+                const abmOpt = (await ask('Opción (0-6): ')).trim();
+
+                if (abmOpt === '0') {
+                  salirSensores = true;
+                } else if (abmOpt === '1') {
+                  const id_sensor = await ask('ID Sensor: ');
+                  const tipo = await ask('Tipo (TEMPERATURA/HUMEDAD/GPS/VIBRACION): ');
+                  const fabricante = (await ask('Fabricante: ')).trim() || null;
+                  const id_contenedor = (await ask('ID Contenedor asociado (ENTER para dejar sin asignar): ')).trim() || null;
+                  const sensor = await SensorRepository.registrarSensor({
+                    id_sensor,
+                    tipo,
+                    fabricante,
+                    id_contenedor,
+                    estado: 'ACTIVO'
+                  });
+                  console.log('\nSensor registrado:', sensor);
+                } else if (abmOpt === '2') {
+                  const lista = await SensorRepository.listarSensores();
+                  console.table(lista);
+                } else if (abmOpt === '3') {
+                  const id_sensor = await ask('ID Sensor a editar: ');
+                  const sensor = await SensorRepository.obtenerSensorPorId(id_sensor);
+                  if (!sensor) {
+                    console.log('Sensor no encontrado.');
+                    continue;
+                  }
+                  console.log('Presione ENTER para mantener el valor actual:');
+                  const tipo = (await ask(`Tipo [${sensor.tipo}]: `)).trim();
+                  const fabricante = (await ask(`Fabricante [${sensor.fabricante || '-'}]: `)).trim();
+                  const contenedorActual = sensor.id_contenedor || 'sin asignar';
+                  const id_contenedor = (await ask(
+                    `ID Contenedor [${contenedorActual}] (ENTER mantiene, "-" desasigna): `
+                  )).trim();
+                  const estado = (await ask(`Estado (ACTIVO/INACTIVO) [${sensor.estado}]: `)).trim();
+
+                  const datos = {};
+                  if (tipo) datos.tipo = tipo;
+                  if (fabricante) datos.fabricante = fabricante;
+                  if (id_contenedor === '-') datos.id_contenedor = null;
+                  else if (id_contenedor) datos.id_contenedor = id_contenedor;
+                  if (estado) datos.estado = estado;
+
+                  const actualizado = await SensorRepository.actualizarSensor(id_sensor, datos);
+                  console.log(actualizado ? '\nSensor actualizado:' : '\nSensor no encontrado', actualizado || '');
+                } else if (abmOpt === '4') {
+                  const id_sensor = await ask('ID Sensor a dar de baja: ');
+                  const resultado = await SensorRepository.darDeBajaSensor(id_sensor);
+                  console.log(resultado ? '\nSensor dado de baja:' : '\nSensor no encontrado', resultado || '');
+                } else if (abmOpt === '5') {
+                  const id_sensor = await ask('ID Sensor a activar: ');
+                  const resultado = await SensorRepository.activarSensor(id_sensor);
+                  console.log(resultado ? '\nSensor activado:' : '\nSensor no encontrado', resultado || '');
+                } else if (abmOpt === '6') {
+                  const id_sensor = await ask('ID Sensor a eliminar DEFINITIVAMENTE: ');
+                  const conf = (await ask(
+                    `¿Eliminar físicamente el sensor "${id_sensor}"? Solo es posible si no tiene lecturas, alertas ni incidentes. (s/n): `
+                  )).trim().toLowerCase();
+                  if (conf === 's') {
+                    try {
+                      const ok = await SensorRepository.eliminarSensor(id_sensor);
+                      console.log(ok ? '\nSensor eliminado.' : '\nSensor no encontrado.');
+                    } catch (error) {
+                      console.log(`\n[No se pudo eliminar] ${error.message}`);
+                    }
+                  } else {
+                    console.log('Operación cancelada.');
+                  }
+                } else {
+                  console.log('Opción inválida.');
+                }
+              }
+            } else if (subIoT === '3') {
+              const id_sensor = await ask('ID Sensor: ');
+              const id_contenedor = await ask('ID Contenedor: ');
+              const id_envio = (await ask('ID Envío (ENTER para asignar sólo al contenedor): ')).trim();
+
+              try {
+                if (id_envio) {
+                  const res = await LogisticsService.asignarSensorAContenedorEnvio({
+                    id_envio,
+                    id_contenedor,
+                    id_sensor
+                  });
+                  console.log('\nSensor asignado a contenedor/envío correctamente:', res);
+                } else {
+                  const sensor = await SensorRepository.asignarSensorAContenedor(id_sensor, id_contenedor);
+                  console.log('\nSensor asignado al contenedor correctamente:', sensor);
+                }
+              } catch (error) {
+                console.log(`\n[No se pudo asignar] ${error.message}`);
+              }
+            } else if (subIoT === '4') {
+              const id_contenedor = await ask('ID Contenedor: ');
+              const sensores = await SensorRepository.listarSensoresPorContenedor(id_contenedor);
+              if (sensores.length === 0) {
+                console.log('El contenedor no tiene sensores asignados.');
+              } else {
+                console.table(sensores);
+              }
+            } else if (subIoT === '5') {
+              let salirReglas = false;
+              while (!salirReglas) {
+                console.log('\n--- REGLAS Y ALERTAS ---');
+                console.log('1. Crear regla de alerta');
+                console.log('2. Listar reglas');
+                console.log('3. Modificar regla');
+                console.log('4. Activar regla');
+                console.log('5. Desactivar regla');
+                console.log('6. Eliminar regla');
+                console.log('7. Ver reglas efectivas (con valores por defecto)');
+                console.log('8. Listar alertas (con filtros)');
+                console.log('9. Listar alertas abiertas');
+                console.log('10. Cerrar alerta');
+                console.log('0. Volver');
+                const rOpt = (await ask('Opción (0-10): ')).trim();
+
+                if (rOpt === '0') {
+                  salirReglas = true;
+                } else if (rOpt === '1') {
+                  const id_regla = (await ask('ID Regla (ENTER para generar automáticamente): ')).trim() || undefined;
+                  const tipo = (await ask('Tipo (TEMPERATURA/BATERIA/INACTIVIDAD): ')).trim();
+                  const condicion = (await ask(
+                    'Condición (MAYOR_QUE/MAYOR_IGUAL_QUE/MENOR_QUE/MENOR_IGUAL_QUE/IGUAL_QUE, ENTER según tipo): '
+                  )).trim() || undefined;
+                  const umbral = (await ask('Umbral: ')).trim();
+                  const severidad = (await ask('Severidad (BAJA/MEDIA/ALTA/CRITICA): ')).trim() || 'MEDIA';
+                  const descripcion = (await ask('Descripción: ')).trim() || undefined;
+                  const regla = await AlertaRepository.crearRegla({
+                    id_regla,
+                    tipo,
+                    condicion,
+                    umbral,
+                    severidad,
+                    descripcion
+                  });
+                  console.log('\nRegla creada:', regla);
+                } else if (rOpt === '2') {
+                  const reglas = await AlertaRepository.listarReglas();
+                  if (reglas.length === 0) {
+                    console.log('No hay reglas configuradas. Se aplican los umbrales por defecto.');
+                  } else {
+                    console.table(reglas.map(r => ({
+                      ID: r.id_regla,
+                      Tipo: r.tipo,
+                      Condicion: r.condicion,
+                      Umbral: r.umbral,
+                      Severidad: r.severidad,
+                      Activa: r.activa,
+                      Descripcion: r.descripcion || '-'
+                    })));
+                  }
+                } else if (rOpt === '3') {
+                  const id_regla = await ask('ID Regla a modificar: ');
+                  const regla = await AlertaRepository.obtenerReglaPorId(id_regla);
+                  if (!regla) {
+                    console.log('Regla no encontrada.');
+                    continue;
+                  }
+                  console.log('Presione ENTER para mantener el valor actual:');
+                  const condicion = (await ask(`Condición [${regla.condicion}]: `)).trim();
+                  const umbral = (await ask(`Umbral [${regla.umbral}]: `)).trim();
+                  const severidad = (await ask(`Severidad [${regla.severidad}]: `)).trim();
+                  const descripcion = (await ask(`Descripción [${regla.descripcion || '-'}]: `)).trim();
+                  const activa = (await ask(`Activa [${regla.activa}] (s/n): `)).trim();
+
+                  const datos = {};
+                  if (condicion) datos.condicion = condicion;
+                  if (umbral) datos.umbral = Number(umbral);
+                  if (severidad) datos.severidad = severidad;
+                  if (descripcion) datos.descripcion = descripcion;
+                  if (activa) datos.activa = activa.toLowerCase() === 's';
+
+                  const actualizada = await AlertaRepository.actualizarRegla(id_regla, datos);
+                  console.log(actualizada ? '\nRegla actualizada:' : '\nRegla no encontrada', actualizada || '');
+                } else if (rOpt === '4') {
+                  const id_regla = await ask('ID Regla a activar: ');
+                  const res = await AlertaRepository.activarRegla(id_regla);
+                  console.log(res ? '\nRegla activada' : '\nRegla no encontrada');
+                } else if (rOpt === '5') {
+                  const id_regla = await ask('ID Regla a desactivar: ');
+                  const res = await AlertaRepository.desactivarRegla(id_regla);
+                  console.log(res ? '\nRegla desactivada' : '\nRegla no encontrada');
+                } else if (rOpt === '6') {
+                  const id_regla = await ask('ID Regla a eliminar: ');
+                  const conf = (await ask(`¿Eliminar la regla "${id_regla}"? (s/n): `)).trim().toLowerCase();
+                  if (conf === 's') {
+                    try {
+                      const ok = await AlertaRepository.eliminarRegla(id_regla);
+                      console.log(ok ? '\nRegla eliminada' : '\nRegla no encontrada');
+                    } catch (error) {
+                      console.log(`\n[No se pudo eliminar] ${error.message}`);
+                    }
+                  } else {
+                    console.log('Operación cancelada.');
+                  }
+                } else if (rOpt === '7') {
+                  const reglas = await AlertaRepository.listarReglasEfectivas();
+                  console.log('\nReglas efectivas aplicadas por el monitoreo:');
+                  console.table(reglas.map(r => ({
+                    Tipo: r.tipo,
+                    Condicion: r.condicion,
+                    Umbral: r.umbral,
+                    Severidad: r.severidad,
+                    Origen: r.id_regla.startsWith('REG-DEF-') ? 'DEFAULT' : 'MONGODB',
+                    Descripcion: r.descripcion || '-'
+                  })));
+                } else if (rOpt === '8') {
+                  const estado = (await ask('Estado (ABIERTA/PENDIENTE/CERRADA, ENTER todas): ')).trim() || null;
+                  const tipo = (await ask('Tipo (TEMPERATURA/BATERIA/INACTIVIDAD, ENTER todos): ')).trim() || null;
+                  const id_sensor = (await ask('ID Sensor (opcional): ')).trim() || null;
+                  const alertas = await AlertaRepository.listarAlertas({ estado, tipo, id_sensor, limite: 100 });
+                  if (alertas.length === 0) {
+                    console.log('No se encontraron alertas con esos filtros.');
+                  } else {
+                    console.table(alertas.map(a => ({
+                      ID: a.id_alerta,
+                      Sensor: a.id_sensor,
+                      Contenedor: a.id_contenedor || '-',
+                      Tipo: a.tipo,
+                      Severidad: a.severidad,
+                      Estado: a.estado,
+                      Mensaje: a.mensaje,
+                      Fecha: a.fecha
+                    })));
+                  }
+                } else if (rOpt === '9') {
+                  const alertas = await AlertaRepository.listarAlertasAbiertas();
+                  if (alertas.length === 0) {
+                    console.log('No hay alertas abiertas.');
+                  } else {
+                    console.table(alertas);
+                  }
+                } else if (rOpt === '10') {
+                  const id_alerta = await ask('ID Alerta a cerrar: ');
+                  const res = await AlertaRepository.cerrarAlerta(id_alerta);
+                  console.log(res ? '\nAlerta cerrada' : '\nAlerta no encontrada');
+                } else {
+                  console.log('Opción inválida.');
+                }
+              }
+            } else if (subIoT === '6') {
+              console.log('\nEjecutando monitoreo de sensores...');
+              const monitoreo = await LogisticsService.ejecutarMonitoreoSensores();
+              console.log(`Alertas generadas: ${monitoreo.alertas_generadas}`);
+              if (monitoreo.alertas.length > 0) console.table(monitoreo.alertas);
+            } else {
+              console.log('Opción inválida.');
             }
-          } else if (subIoT === '3') {
-            const id_envio = await ask('ID Envío: ');
-            const id_contenedor = await ask('ID Contenedor: ');
-            const id_sensor = await ask('ID Sensor: ');
-            await Neo4jRouteRepository.asignarSensorAContenedorEnvio(id_envio, id_contenedor, id_sensor);
-            await SensorRepository.asignarSensorAContenedor(id_sensor, id_contenedor);
-            console.log('\nSensor asignado a contenedor/envío correctamente.');
-          } else if (subIoT === '4') {
-            const id_contenedor = await ask('ID Contenedor: ');
-            const sensores = await SensorRepository.listarSensoresPorContenedor(id_contenedor);
-            console.table(sensores);
-          } else if (subIoT === '5') {
-            console.log('\n--- REGLAS Y ALERTAS ---');
-            console.log('1. Crear regla de alerta');
-            console.log('2. Listar reglas');
-            console.log('3. Desactivar regla');
-            console.log('4. Listar alertas abiertas');
-            console.log('5. Cerrar alerta');
-            console.log('6. Volver');
-            const rOpt = (await ask('Opción (1-6): ')).trim();
-            if (rOpt === '1') {
-              const id_regla = await ask('ID Regla (ej: REG-TEMP-01): ');
-              const tipo = await ask('Tipo (TEMPERATURA/BATERIA/INACTIVIDAD): ');
-              const umbral = await ask('Umbral: ');
-              const severidad = await ask('Severidad (BAJA/MEDIA/ALTA/CRITICA): ');
-              const descripcion = await ask('Descripción: ');
-              const regla = await AlertaRepository.crearRegla({ id_regla, tipo, umbral, severidad, descripcion });
-              console.log('\nRegla creada:', regla);
-            } else if (rOpt === '2') {
-              const reglas = await AlertaRepository.listarReglas();
-              console.table(reglas);
-            } else if (rOpt === '3') {
-              const id_regla = await ask('ID Regla a desactivar: ');
-              const res = await AlertaRepository.desactivarRegla(id_regla);
-              console.log(res ? '\nRegla desactivada' : '\nRegla no encontrada');
-            } else if (rOpt === '4') {
-              const alertas = await AlertaRepository.listarAlertasAbiertas();
-              console.table(alertas);
-            } else if (rOpt === '5') {
-              const id_alerta = await ask('ID Alerta a cerrar: ');
-              const res = await AlertaRepository.cerrarAlerta(id_alerta);
-              console.log(res ? '\nAlerta cerrada' : '\nAlerta no encontrada');
-            }
-          } else if (subIoT === '6') {
-            console.log('\nEjecutando monitoreo de sensores...');
-            const monitoreo = await LogisticsService.ejecutarMonitoreoSensores();
-            console.log(`Alertas generadas: ${monitoreo.alertas_generadas}`);
-            if (monitoreo.alertas.length > 0) console.table(monitoreo.alertas);
           }
           break;
         }
@@ -840,8 +1071,15 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
             Coords: JSON.stringify(l.posicion_gps?.coordinates)
           })));
 
-          console.log('\nBuscando anomalías de temperatura (> 8°C)...');
-          const anomalias = await LecturaRepository.detectarAnomaliasTemperatura(8.0);
+          const reglaTemperatura = await AlertaRepository.obtenerReglaAplicable('TEMPERATURA');
+          console.log(
+            `\nBuscando anomalías de temperatura (${reglaTemperatura.condicion} ` +
+            `${reglaTemperatura.umbral}°C según regla ${reglaTemperatura.id_regla})...`
+          );
+          const anomalias = await LecturaRepository.detectarAnomaliasTemperatura(
+            reglaTemperatura.umbral,
+            reglaTemperatura.condicion
+          );
           console.log(`Se detectaron ${anomalias.length} lecturas anómalas:`);
           console.table(anomalias.map(a => ({
             Sensor: a.id_sensor,
@@ -974,207 +1212,499 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
         }
 
         case '17': {
-          const esAdmin = currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMIN' || Number(currentUser.nivel_permisos)>=9);
-          if (!esAdmin) {
-            console.log('\n[ACCESO DENEGADO] Solo usuarios con rol ADMIN pueden acceder a Gestión de Usuarios, Roles y Sesiones.');
+          if (!UsuarioRepository.esAdministrador(currentUser)) {
+            console.log('\n[ACCESO DENEGADO] Solo usuarios administradores pueden acceder a Gestión de Usuarios, Roles y Sesiones.');
             break;
           }
-          console.log('\n--- SEGURIDAD: ABM USUARIOS, ROLES Y SESIONES ---');
-          console.log('1. Gestionar Roles');
-          console.log('2. Gestionar Usuarios');
-          console.log('3. Gestionar Sesiones Activas');
-          console.log('0. Volver');
-          const segOpt = (await ask('Opción (0-3): ')).trim();
-          
-          if (segOpt === '1') {
-            console.log('\n--- GESTIÓN DE ROLES ---');
-            console.log('1. Crear Rol');
-            console.log('2. Listar Roles');
-            console.log('3. Editar Rol');
-            console.log('4. Desactivar Rol');
-            console.log('5. Volver');
-            const rolOpt = (await ask('Opción (1-5): ')).trim();
-            
-            if (rolOpt === '1') {
-              const descripcion = await ask('Descripción del Rol: ');
-              const nivel = await ask('Nivel de permisos (1-10) [1]: ') || '1';
-              const permisosStr = await ask('Permisos JSON (ej: {"admin":true}) [ {} ]: ') || '{}';
-              let permisos = {};
-              try { permisos = JSON.parse(permisosStr); } catch { permisos = {}; }
-              const rol = await UsuarioRepository.crearRol({ descripcion, nivel_permisos: Number(nivel), permisos });
-              console.log('\nRol creado:', rol);
-            } else if (rolOpt === '2') {
-              const roles = await UsuarioRepository.listarRoles();
-              console.table(roles);
-            } else if (rolOpt === '3') {
-              const id_rol = await ask('ID Rol a editar: ');
-              const descripcion = await ask('Nueva descripción (ENTER para mantener): ') || undefined;
-              const nivel = await ask('Nuevo nivel (ENTER para mantener): ') || undefined;
-              const datos = {};
-              if (descripcion) datos.descripcion = descripcion;
-              if (nivel) datos.nivel_permisos = Number(nivel);
-              const rol = await UsuarioRepository.actualizarRol(Number(id_rol), datos);
-              console.log(rol ? '\nRol actualizado:' : '\nRol no encontrado', rol || '');
-            } else if (rolOpt === '4') {
-              const id_rol = await ask('ID Rol a desactivar: ');
-              const rol = await UsuarioRepository.desactivarRol(Number(id_rol));
-              console.log(rol ? '\nRol desactivado:' : '\nRol no encontrado', rol || '');
-            }
-          } else if (segOpt === '2') {
-            console.log('\n--- GESTIÓN DE USUARIOS ---');
-            console.log('1. Crear Usuario');
-            console.log('2. Listar Usuarios');
-            console.log('3. Editar Usuario');
-            console.log('4. Cambiar Rol');
-            console.log('5. Bloquear Usuario');
-            console.log('6. Activar Usuario');
-            console.log('7. Volver');
-            const usrOpt = (await ask('Opción (1-7): ')).trim();
-            
-            if (usrOpt === '1') {
-              const roles = await UsuarioRepository.listarRoles();
-              console.table(roles);
-              const nombre = await ask('Nombre: ');
-              const apellido = await ask('Apellido: ');
-              const email = await ask('Email: ');
-              const password = await ask('Contraseña: ');
-              const id_rol = await ask('ID Rol: ');
-              const id_cliente = await ask('ID Cliente (opcional, ENTER para omitir): ') || null;
-              const user = await UsuarioRepository.crearUsuario({
-                nombre, apellido, email, password,
-                id_rol: Number(id_rol),
-                id_cliente: id_cliente ? Number(id_cliente) : null
-              });
-              console.log('\nUsuario creado:', user);
-            } else if (usrOpt === '2') {
-              const usuarios = await UsuarioRepository.listarUsuarios();
-              console.table(usuarios.map(u => ({
-                ID: u.id_usuario,
-                Nombre: `${u.nombre} ${u.apellido}`,
-                Email: u.email,
-                Rol: u.rol_descripcion,
-                Nivel: u.nivel_permisos,
-                Estado: u.estado,
-                Ultimo_Acceso: u.fecha_ultimo_acceso
-              })));
-            } else if (usrOpt === '3') {
-              const id_usuario = await ask('ID Usuario a editar: ');
-              const nombre = await ask('Nuevo nombre (ENTER para mantener): ') || undefined;
-              const apellido = await ask('Nuevo apellido (ENTER para mantener): ') || undefined;
-              const email = await ask('Nuevo email (ENTER para mantener): ') || undefined;
-              const password = await ask('Nueva contraseña (ENTER para mantener): ') || undefined;
-              const datos = {};
-              if (nombre) datos.nombre = nombre;
-              if (apellido) datos.apellido = apellido;
-              if (email) datos.email = email;
-              if (password) datos.password = password;
-              const user = await UsuarioRepository.actualizarUsuario(Number(id_usuario), datos);
-              console.log(user ? '\nUsuario actualizado:' : '\nUsuario no encontrado', user || '');
-            } else if (usrOpt === '4') {
-              const id_usuario = await ask('ID Usuario: ');
-              const roles = await UsuarioRepository.listarRoles();
-              console.table(roles);
-              const id_rol = await ask('Nuevo ID Rol: ');
-              const user = await UsuarioRepository.cambiarRol(Number(id_usuario), Number(id_rol));
-              console.log(user ? '\nRol actualizado:' : '\nUsuario no encontrado', user || '');
-            } else if (usrOpt === '5') {
-              const id_usuario = await ask('ID Usuario a bloquear: ');
-              const user = await UsuarioRepository.bloquearUsuario(Number(id_usuario));
-              console.log(user ? '\nUsuario bloqueado:' : '\nUsuario no encontrado', user || '');
-            } else if (usrOpt === '6') {
-              const id_usuario = await ask('ID Usuario a activar: ');
-              const user = await UsuarioRepository.activarUsuario(Number(id_usuario));
-              console.log(user ? '\nUsuario activado:' : '\nUsuario no encontrado', user || '');
-            }
-          } else if (segOpt === '3') {
-            console.log('\n--- SESIONES ACTIVAS (Redis con TTL) ---');
-            console.log('1. Listar sesiones activas');
-            console.log('2. Cerrar sesión específica');
-            console.log('3. Cerrar todas las sesiones de un usuario');
-            console.log('4. Cerrar todas las sesiones activas');
-            console.log('5. Volver');
-            const sesOpt = (await ask('Opción (1-5): ')).trim();
-            
-            if (sesOpt === '1') {
-              const sesiones = await SesionRepository.listarSesionesActivas();
-              console.log(`\nSesiones activas: ${sesiones.length}`);
-              if (sesiones.length > 0) {
-                console.table(sesiones.map(s => ({
-                  Token: s.token.substring(0, 8) + '...',
-                  ID_Usuario: s.id_usuario,
-                  Email: s.email,
-                  ID_Rol: s.id_rol,
-                  IP: s.ip || '-',
-                  Inicio: s.fecha_inicio,
-                  Ultimo_Acceso: s.ultimo_acceso,
-                  TTL_seg: s.ttl_segundos
-                })));
+
+          let salirSeguridad = false;
+          while (!salirSeguridad) {
+            console.log('\n--- SEGURIDAD: ABM USUARIOS, ROLES Y SESIONES ---');
+            console.log('1. Gestionar Roles');
+            console.log('2. Gestionar Usuarios');
+            console.log('3. Gestionar Sesiones e Historial');
+            console.log('0. Volver');
+            const segOpt = (await ask('Opción (0-3): ')).trim();
+
+            if (segOpt === '0') {
+              salirSeguridad = true;
+            } else if (segOpt === '1') {
+              let salirRoles = false;
+              while (!salirRoles) {
+                console.log('\n--- GESTIÓN DE ROLES ---');
+                console.log('1. Crear Rol');
+                console.log('2. Listar Roles');
+                console.log('3. Editar Rol (descripción, nivel y permisos)');
+                console.log('4. Activar Rol');
+                console.log('5. Desactivar Rol');
+                console.log('6. Eliminar Rol');
+                console.log('0. Volver');
+                const rolOpt = (await ask('Opción (0-6): ')).trim();
+
+                if (rolOpt === '0') {
+                  salirRoles = true;
+                } else if (rolOpt === '1') {
+                  const descripcion = await ask('Descripción del Rol: ');
+                  const nivel = await ask('Nivel de permisos (1-10) [1]: ') || '1';
+                  const permisosStr = await ask('Permisos JSON (ej: {"envios":true,"alertas":true}) [ {} ]: ') || '{}';
+                  const rol = await UsuarioRepository.crearRol({
+                    descripcion,
+                    nivel_permisos: Number(nivel),
+                    permisos: permisosStr
+                  });
+                  console.log('\nRol creado:', rol);
+                } else if (rolOpt === '2') {
+                  const roles = await UsuarioRepository.listarRoles();
+                  console.table(roles.map(r => ({
+                    ID: r.id_rol,
+                    Descripcion: r.descripcion,
+                    Nivel: r.nivel_permisos,
+                    Estado: r.estado,
+                    Usuarios: r.cantidad_usuarios,
+                    Permisos: JSON.stringify(r.permisos || {})
+                  })));
+                } else if (rolOpt === '3') {
+                  const id_rol = await ask('ID Rol a editar: ');
+                  const actual = await UsuarioRepository.obtenerRolPorId(Number(id_rol));
+                  if (!actual) {
+                    console.log('Rol no encontrado.');
+                    continue;
+                  }
+                  console.log('Presione ENTER para mantener el valor actual:');
+                  const descripcion = (await ask(`Descripción [${actual.descripcion}]: `)).trim();
+                  const nivel = (await ask(`Nivel de permisos [${actual.nivel_permisos}]: `)).trim();
+                  const permisosStr = (await ask(`Permisos JSON [${JSON.stringify(actual.permisos || {})}]: `)).trim();
+                  const datos = {};
+                  if (descripcion) datos.descripcion = descripcion;
+                  if (nivel) datos.nivel_permisos = Number(nivel);
+                  if (permisosStr) datos.permisos = permisosStr;
+                  const rol = await UsuarioRepository.actualizarRol(Number(id_rol), datos);
+                  console.log(rol ? '\nRol actualizado:' : '\nRol no encontrado', rol || '');
+                } else if (rolOpt === '4') {
+                  const id_rol = await ask('ID Rol a activar: ');
+                  const rol = await UsuarioRepository.activarRol(Number(id_rol));
+                  console.log(rol ? '\nRol activado:' : '\nRol no encontrado', rol || '');
+                } else if (rolOpt === '5') {
+                  const id_rol = await ask('ID Rol a desactivar: ');
+                  const rol = await UsuarioRepository.desactivarRol(Number(id_rol));
+                  console.log(rol ? '\nRol desactivado:' : '\nRol no encontrado', rol || '');
+                } else if (rolOpt === '6') {
+                  const id_rol = await ask('ID Rol a eliminar DEFINITIVAMENTE: ');
+                  const conf = (await ask(`¿Eliminar el rol "${id_rol}"? No debe tener usuarios asignados. (s/n): `)).trim().toLowerCase();
+                  if (conf === 's') {
+                    try {
+                      const rol = await UsuarioRepository.eliminarRol(Number(id_rol));
+                      console.log(rol ? '\nRol eliminado:' : '\nRol no encontrado', rol || '');
+                    } catch (error) {
+                      console.log(`\n[No se pudo eliminar] ${error.message}`);
+                    }
+                  } else {
+                    console.log('Operación cancelada.');
+                  }
+                } else {
+                  console.log('Opción inválida.');
+                }
               }
-            } else if (sesOpt === '2') {
-              const token = await ask('Token completo o prefijo: ');
-              if (!token) { console.log('Token requerido'); break; }
-              const sesiones = await SesionRepository.listarSesionesActivas();
-              const encontrada = sesiones.find(s => s.token.startsWith(token) || s.token === token);
-              if (!encontrada) { console.log('Sesión no encontrada'); break; }
-              const res = await SesionRepository.cerrarSesion(encontrada.token);
-              console.log(res ? '\nSesión cerrada correctamente' : '\nNo se pudo cerrar la sesión');
-            } else if (sesOpt === '3') {
-              const id_usuario = await ask('ID Usuario: ');
-              const cantidad = await SesionRepository.cerrarSesionesUsuario(Number(id_usuario));
-              console.log(`\nSesiones cerradas: ${cantidad}`);
-            } else if (sesOpt === '4') {
-              const conf = (await ask('¿Confirma cerrar TODAS las sesiones activas? (s/n): ')).toLowerCase();
-              if (conf === 's') {
-                const cantidad = await SesionRepository.cerrarTodas();
-                console.log(`\nSesiones cerradas: ${cantidad}`);
-              } else {
-                console.log('Operación cancelada');
+            } else if (segOpt === '2') {
+              let salirUsuarios = false;
+              while (!salirUsuarios) {
+                console.log('\n--- GESTIÓN DE USUARIOS ---');
+                console.log('1. Crear Usuario');
+                console.log('2. Listar Usuarios');
+                console.log('3. Editar Usuario (datos, rol, estado y contraseña)');
+                console.log('4. Cambiar Rol');
+                console.log('5. Bloquear Usuario');
+                console.log('6. Activar Usuario');
+                console.log('7. Eliminar Usuario');
+                console.log('0. Volver');
+                const usrOpt = (await ask('Opción (0-7): ')).trim();
+
+                if (usrOpt === '0') {
+                  salirUsuarios = true;
+                } else if (usrOpt === '1') {
+                  const roles = await UsuarioRepository.listarRoles({ soloActivos: true });
+                  console.table(roles);
+                  const nombre = await ask('Nombre: ');
+                  const apellido = await ask('Apellido: ');
+                  const email = await ask('Email: ');
+                  const password = await ask('Contraseña (mínimo 6 caracteres): ');
+                  const id_rol = await ask('ID Rol: ');
+                  const id_cliente = await ask('ID Cliente (opcional, ENTER para omitir): ') || null;
+                  const user = await UsuarioRepository.crearUsuario({
+                    nombre, apellido, email, password,
+                    id_rol: Number(id_rol),
+                    id_cliente: id_cliente ? Number(id_cliente) : null
+                  });
+                  console.log('\nUsuario creado:', user);
+                } else if (usrOpt === '2') {
+                  const usuarios = await UsuarioRepository.listarUsuarios();
+                  console.table(usuarios.map(u => ({
+                    ID: u.id_usuario,
+                    Nombre: `${u.nombre} ${u.apellido}`,
+                    Email: u.email,
+                    ID_Cliente: u.id_cliente || '-',
+                    Rol: u.rol_descripcion,
+                    Nivel: u.nivel_permisos,
+                    Estado: u.estado,
+                    Sesion_Activa: u.sesion_activa ? 'SI' : 'NO',
+                    Ultimo_Acceso: u.fecha_ultimo_acceso || '-'
+                  })));
+                } else if (usrOpt === '3') {
+                  const id_usuario = await ask('ID Usuario a editar: ');
+                  const user = await UsuarioRepository.obtenerUsuarioPorId(Number(id_usuario));
+                  if (!user) {
+                    console.log('Usuario no encontrado.');
+                    continue;
+                  }
+                  console.log('Presione ENTER para mantener el valor actual:');
+                  const nombre = (await ask(`Nombre [${user.nombre}]: `)).trim();
+                  const apellido = (await ask(`Apellido [${user.apellido}]: `)).trim();
+                  const email = (await ask(`Email [${user.email}]: `)).trim();
+                  const id_rol = (await ask(`ID Rol [${user.id_rol}]: `)).trim();
+                  const id_cliente = (await ask(`ID Cliente [${user.id_cliente || '-'}] ("-" limpia): `)).trim();
+                  const estado = (await ask(`Estado (ACTIVO/INACTIVO/BLOQUEADO) [${user.estado}]: `)).trim();
+                  const password = (await ask('Nueva contraseña (ENTER para mantener): ')).trim();
+
+                  const datos = {};
+                  if (nombre) datos.nombre = nombre;
+                  if (apellido) datos.apellido = apellido;
+                  if (email) datos.email = email;
+                  if (id_rol) datos.id_rol = Number(id_rol);
+                  if (id_cliente === '-') datos.id_cliente = null;
+                  else if (id_cliente) datos.id_cliente = Number(id_cliente);
+                  if (estado) datos.estado = estado;
+                  if (password) datos.password = password;
+
+                  const actualizado = await UsuarioRepository.actualizarUsuario(Number(id_usuario), datos);
+                  console.log(actualizado ? '\nUsuario actualizado:' : '\nUsuario no encontrado', actualizado || '');
+                } else if (usrOpt === '4') {
+                  const id_usuario = await ask('ID Usuario: ');
+                  const roles = await UsuarioRepository.listarRoles({ soloActivos: true });
+                  console.table(roles);
+                  const id_rol = await ask('Nuevo ID Rol: ');
+                  const user = await UsuarioRepository.cambiarRol(Number(id_usuario), Number(id_rol));
+                  console.log(user ? '\nRol actualizado:' : '\nUsuario no encontrado', user || '');
+                } else if (usrOpt === '5') {
+                  const id_usuario = await ask('ID Usuario a bloquear: ');
+                  const user = await UsuarioRepository.bloquearUsuario(Number(id_usuario));
+                  console.log(user ? '\nUsuario bloqueado:' : '\nUsuario no encontrado', user || '');
+                } else if (usrOpt === '6') {
+                  const id_usuario = await ask('ID Usuario a activar: ');
+                  const user = await UsuarioRepository.activarUsuario(Number(id_usuario));
+                  console.log(user ? '\nUsuario activado:' : '\nUsuario no encontrado', user || '');
+                } else if (usrOpt === '7') {
+                  const id_usuario = await ask('ID Usuario a eliminar DEFINITIVAMENTE: ');
+                  const conf = (await ask(
+                    `¿Eliminar el usuario "${id_usuario}"? Se eliminará también su historial de sesiones por cascada. (s/n): `
+                  )).trim().toLowerCase();
+                  if (conf === 's') {
+                    try {
+                      if (currentUser && Number(currentUser.id_usuario) === Number(id_usuario)) {
+                        throw new Error('No puede eliminar el usuario con el que está autenticado.');
+                      }
+                      const user = await UsuarioRepository.eliminarUsuario(Number(id_usuario));
+                      console.log(user ? '\nUsuario eliminado:' : '\nUsuario no encontrado', user || '');
+                    } catch (error) {
+                      console.log(`\n[No se pudo eliminar] ${error.message}`);
+                    }
+                  } else {
+                    console.log('Operación cancelada.');
+                  }
+                } else {
+                  console.log('Opción inválida.');
+                }
               }
+            } else if (segOpt === '3') {
+              let salirSesiones = false;
+              while (!salirSesiones) {
+                console.log('\n--- SESIONES E HISTORIAL ---');
+                console.log('1. Listar sesiones activas (Redis con TTL)');
+                console.log('2. Cerrar sesión específica');
+                console.log('3. Cerrar todas las sesiones de un usuario');
+                console.log('4. Cerrar todas las sesiones activas');
+                console.log('5. Consultar historial de sesiones (PostgreSQL)');
+                console.log('0. Volver');
+                const sesOpt = (await ask('Opción (0-5): ')).trim();
+
+                if (sesOpt === '0') {
+                  salirSesiones = true;
+                } else if (sesOpt === '1') {
+                  const sesiones = await SesionRepository.listarSesionesActivas();
+                  console.log(`\nSesiones activas: ${sesiones.length}`);
+                  if (sesiones.length > 0) {
+                    console.table(sesiones.map(s => ({
+                      Token: s.token.substring(0, 8) + '...',
+                      ID_Usuario: s.id_usuario,
+                      Email: s.email,
+                      ID_Rol: s.id_rol,
+                      IP: s.ip || '-',
+                      Inicio: s.fecha_inicio,
+                      Ultimo_Acceso: s.ultimo_acceso,
+                      TTL_seg: s.ttl_segundos
+                    })));
+                  }
+                } else if (sesOpt === '2') {
+                  const token = (await ask('Token completo o prefijo: ')).trim();
+                  if (!token) {
+                    console.log('Token requerido.');
+                    continue;
+                  }
+                  const sesiones = await SesionRepository.listarSesionesActivas();
+                  const encontrada = sesiones.find(s => s.token.startsWith(token) || s.token === token);
+                  if (!encontrada) {
+                    console.log('Sesión no encontrada.');
+                    continue;
+                  }
+                  const res = await SesionRepository.cerrarSesion(encontrada.token);
+                  console.log(res ? '\nSesión cerrada correctamente' : '\nNo se pudo cerrar la sesión');
+                } else if (sesOpt === '3') {
+                  const id_usuario = await ask('ID Usuario: ');
+                  const cantidad = await SesionRepository.cerrarSesionesUsuario(Number(id_usuario));
+                  console.log(`\nSesiones cerradas: ${cantidad}`);
+                } else if (sesOpt === '4') {
+                  const conf = (await ask('¿Confirma cerrar TODAS las sesiones activas? (s/n): ')).toLowerCase();
+                  if (conf === 's') {
+                    const cantidad = await SesionRepository.cerrarTodas();
+                    console.log(`\nSesiones cerradas: ${cantidad}`);
+                  } else {
+                    console.log('Operación cancelada');
+                  }
+                } else if (sesOpt === '5') {
+                  const id_usuario = (await ask('ID Usuario (opcional): ')).trim() || null;
+                  const estado = (await ask('Estado (ACTIVA/CERRADA/EXPIRADA, ENTER todos): ')).trim() || null;
+                  const limite = (await ask('Cantidad máxima de registros [50]: ')).trim() || '50';
+                  const historial = await SesionRepository.listarHistorialSesiones({
+                    id_usuario,
+                    estado,
+                    limite: Number(limite)
+                  });
+                  if (historial.length === 0) {
+                    console.log('No se encontraron registros en el historial.');
+                  } else {
+                    console.table(historial.map(h => ({
+                      ID: h.id_sesion,
+                      Usuario: `${h.nombre} ${h.apellido}`,
+                      Email: h.email,
+                      Rol: h.rol_descripcion || '-',
+                      Token: h.token ? h.token.substring(0, 8) + '...' : '-',
+                      Inicio: h.fecha_inicio,
+                      Fin: h.fecha_fin || '-',
+                      Ultima_Actividad: h.fecha_ultima_actividad,
+                      Estado: h.estado
+                    })));
+                  }
+                } else {
+                  console.log('Opción inválida.');
+                }
+              }
+            } else {
+              console.log('Opción inválida.');
             }
           }
           break;
         }
 
         case '11': {
-          console.log('\n--- ALTA DE ENVÍO POLÍGLOTA ---');
-          console.log('1. Crear envío completo');
-          console.log('2. Asignar contenedor a envío');
-          console.log('3. Asignar sensor a contenedor/envío');
-          const opEnv = (await ask('Opción (1-3): ')).trim();
-          if (opEnv === '1') {
-            const id_envio = await ask('Código Envío (ej: ENV-2005): ') || `ENV-${Date.now().toString().slice(-4)}`;
-            const id_cliente = await ask('ID Cliente (ej: 1): ') || '1';
-            const origen = await ask('Ciudad Origen: ') || 'Buenos Aires';
-            const destino = await ask('Ciudad Destino: ') || 'Montevideo';
-            const operador = await ask('Empresa Operadora: ') || 'Logística Express del Plata';
-            const vehiculo = await ask('Vehículo Patente: ') || 'AF-204-ZX';
+          let salirEnvios = false;
+          while (!salirEnvios) {
+            console.log('\n--- ABM DE ENVÍOS (PostgreSQL + Neo4j + MongoDB + Redis) ---');
+            console.log('1. Listar envíos (con filtros)');
+            console.log('2. Consultar envío por ID');
+            console.log('3. Crear envío políglota');
+            console.log('4. Modificar datos del envío');
+            console.log('5. Cambiar estado del envío');
+            console.log('6. Cancelar envío');
+            console.log('7. Eliminar envío definitivamente');
+            console.log('8. Asignar contenedor a envío');
+            console.log('9. Asignar sensor a contenedor/envío');
+            console.log('10. Ver eventos logísticos del envío (MongoDB)');
+            console.log('0. Volver');
+            const opEnv = (await ask('Opción (0-10): ')).trim();
 
-            const res = await LogisticsService.crearEnvioPoliglota({
-              id_envio,
-              id_cliente: Number(id_cliente),
-              origen,
-              destino,
-              prioridad: 'ALTA',
-              operador,
-              vehiculo,
-              tramos: [
-                { desde: origen, hasta: destino, medio: 'Ferry / Fluvial' }
-              ]
-            });
-            console.log('\nEnvío creado y propagado en PostgreSQL, Neo4j y MongoDB exitosamente:');
-            console.log(res);
-          } else if (opEnv === '2') {
-            const id_envio = await ask('ID Envío: ');
-            const id_contenedor = await ask('ID Contenedor: ');
-            await Neo4jRouteRepository.asignarContenedorAEnvio(id_envio, id_contenedor);
-            console.log('\nContenedor asignado a envío correctamente.');
-          } else if (opEnv === '3') {
-            const id_envio = await ask('ID Envío: ');
-            const id_contenedor = await ask('ID Contenedor: ');
-            const id_sensor = await ask('ID Sensor: ');
-            await Neo4jRouteRepository.asignarSensorAContenedorEnvio(id_envio, id_contenedor, id_sensor);
-            await SensorRepository.asignarSensorAContenedor(id_sensor, id_contenedor);
-            console.log('\nSensor asignado a contenedor/envío correctamente.');
+            if (opEnv === '0') {
+              salirEnvios = true;
+            } else if (opEnv === '1') {
+              const estado = (await ask('Estado (CREADO/EN_TRANSITO/ENTREGADO/RETRASADO/CANCELADO, ENTER todos): ')).trim() || null;
+              const id_cliente = (await ask('ID Cliente (opcional): ')).trim() || null;
+              const prioridad = (await ask('Prioridad (BAJA/MEDIA/ALTA/URGENTE, ENTER todas): ')).trim() || null;
+              const envios = await EnvioRepository.listarTodos({
+                estado,
+                id_cliente: id_cliente ? Number(id_cliente) : null,
+                prioridad
+              });
+              if (envios.length === 0) {
+                console.log('No se encontraron envíos con esos filtros.');
+              } else {
+                console.table(envios.map(e => ({
+                  ID: e.id_envio,
+                  Cliente: e.cliente,
+                  Origen: e.origen,
+                  Destino: e.destino,
+                  Estado: e.estado,
+                  Prioridad: e.prioridad,
+                  Tramos: e.cantidad_tramos,
+                  Creacion: e.fecha_creacion,
+                  Entrega: e.fecha_entrega || '-'
+                })));
+              }
+            } else if (opEnv === '2') {
+              const id_envio = await ask('ID Envío: ');
+              const envio = await EnvioRepository.obtenerPorId(id_envio);
+              if (!envio) {
+                console.log('Envío no encontrado.');
+              } else {
+                console.log('\nDatos del envío:');
+                console.table([{
+                  ID: envio.id_envio,
+                  Cliente: envio.cliente,
+                  Origen: envio.origen,
+                  Destino: envio.destino,
+                  Estado: envio.estado,
+                  Prioridad: envio.prioridad,
+                  Creacion: envio.fecha_creacion,
+                  Entrega: envio.fecha_entrega || '-'
+                }]);
+                if (envio.tramos.length > 0) {
+                  console.log('\nTramos:');
+                  console.table(envio.tramos);
+                }
+              }
+            } else if (opEnv === '3') {
+              const id_envio = await ask('Código Envío (ej: ENV-2005): ') || `ENV-${Date.now().toString().slice(-6)}`;
+              const id_cliente = await ask('ID Cliente (ej: 1): ') || '1';
+              const origen = await ask('Ciudad Origen: ') || 'Buenos Aires';
+              const destino = await ask('Ciudad Destino: ') || 'Montevideo';
+              const prioridad = (await ask('Prioridad (BAJA/MEDIA/ALTA/URGENTE) [MEDIA]: ')).trim() || 'MEDIA';
+              const operador = (await ask('Empresa Operadora (opcional): ')).trim() || null;
+              const vehiculo = (await ask('Vehículo Patente (opcional): ')).trim() || null;
+              const medio = (await ask('Medio de transporte del tramo principal [Terrestre]: ')).trim() || 'Terrestre';
+
+              try {
+                const res = await LogisticsService.crearEnvioPoliglota({
+                  id_envio,
+                  id_cliente: Number(id_cliente),
+                  origen,
+                  destino,
+                  prioridad,
+                  operador,
+                  vehiculo,
+                  tramos: [{ desde: origen, hasta: destino, medio }]
+                });
+                console.log('\nEnvío creado y propagado exitosamente:');
+                console.log(res);
+              } catch (error) {
+                console.log(`\n[No se pudo crear el envío] ${error.message}`);
+              }
+            } else if (opEnv === '4') {
+              const id_envio = await ask('ID Envío a modificar: ');
+              const envio = await EnvioRepository.obtenerPorId(id_envio);
+              if (!envio) {
+                console.log('Envío no encontrado.');
+                continue;
+              }
+              console.log('Presione ENTER para mantener el valor actual (el estado se cambia en la opción 5):');
+              const origen = (await ask(`Origen [${envio.origen}]: `)).trim();
+              const destino = (await ask(`Destino [${envio.destino}]: `)).trim();
+              const prioridad = (await ask(`Prioridad [${envio.prioridad}]: `)).trim();
+              const fecha_entrega = (await ask(`Fecha entrega [${envio.fecha_entrega || '-'}] (YYYY-MM-DD, "-" limpia): `)).trim();
+
+              const cambios = {};
+              if (origen) cambios.origen = origen;
+              if (destino) cambios.destino = destino;
+              if (prioridad) cambios.prioridad = prioridad;
+              if (fecha_entrega === '-') cambios.fecha_entrega = null;
+              else if (fecha_entrega) cambios.fecha_entrega = fecha_entrega;
+
+              if (Object.keys(cambios).length === 0) {
+                console.log('No se indicaron cambios.');
+                continue;
+              }
+              try {
+                const res = await LogisticsService.actualizarEnvio(id_envio, cambios);
+                console.log('\nEnvío actualizado:', res);
+              } catch (error) {
+                console.log(`\n[No se pudo actualizar] ${error.message}`);
+              }
+            } else if (opEnv === '5') {
+              const id_envio = await ask('ID Envío: ');
+              console.log('Estados válidos: CREADO, EN_TRANSITO, ENTREGADO, RETRASADO, CANCELADO');
+              const estado = await ask('Nuevo estado: ');
+              try {
+                const res = await LogisticsService.cambiarEstadoEnvio(id_envio, estado);
+                console.log('\nEstado actualizado:', res);
+              } catch (error) {
+                console.log(`\n[No se pudo cambiar el estado] ${error.message}`);
+              }
+            } else if (opEnv === '6') {
+              const id_envio = await ask('ID Envío a cancelar: ');
+              const conf = (await ask(
+                `¿Cancelar el envío "${id_envio}"? Se liberarán sus contenedores. (s/n): `
+              )).trim().toLowerCase();
+              if (conf === 's') {
+                try {
+                  const res = await LogisticsService.cancelarEnvio(id_envio);
+                  console.log('\nEnvío cancelado:', res);
+                } catch (error) {
+                  console.log(`\n[No se pudo cancelar] ${error.message}`);
+                }
+              } else {
+                console.log('Operación cancelada.');
+              }
+            } else if (opEnv === '7') {
+              const id_envio = await ask('ID Envío a eliminar DEFINITIVAMENTE: ');
+              const conf = (await ask(
+                `¿Eliminar físicamente el envío "${id_envio}"? No se permite si tiene facturas emitidas. (s/n): `
+              )).trim().toLowerCase();
+              if (conf === 's') {
+                try {
+                  const res = await LogisticsService.eliminarEnvio(id_envio);
+                  console.log('\nEnvío eliminado:', res);
+                } catch (error) {
+                  console.log(`\n[No se pudo eliminar] ${error.message}`);
+                }
+              } else {
+                console.log('Operación cancelada.');
+              }
+            } else if (opEnv === '8') {
+              const id_envio = await ask('ID Envío: ');
+              const id_contenedor = await ask('ID Contenedor: ');
+              try {
+                const res = await LogisticsService.asignarContenedorAEnvio({ id_envio, id_contenedor });
+                console.log('\nContenedor asignado al envío:', res);
+              } catch (error) {
+                console.log(`\n[No se pudo asignar] ${error.message}`);
+              }
+            } else if (opEnv === '9') {
+              const id_envio = await ask('ID Envío: ');
+              const id_contenedor = await ask('ID Contenedor: ');
+              const id_sensor = await ask('ID Sensor: ');
+              try {
+                const res = await LogisticsService.asignarSensorAContenedorEnvio({
+                  id_envio,
+                  id_contenedor,
+                  id_sensor
+                });
+                console.log('\nSensor asignado a contenedor/envío:', res);
+              } catch (error) {
+                console.log(`\n[No se pudo asignar] ${error.message}`);
+              }
+            } else if (opEnv === '10') {
+              const id_envio = await ask('ID Envío: ');
+              const eventos = await MongoTelemetryRepository.listarEventosPorEnvio(id_envio, 100);
+              if (eventos.length === 0) {
+                console.log('No hay eventos logísticos registrados para ese envío.');
+              } else {
+                console.table(eventos.map(e => ({
+                  ID: e.id_evento,
+                  Fecha: e.fecha_hora,
+                  Tipo: e.tipo_evento,
+                  Ubicacion: e.ubicacion || '-',
+                  Descripcion: e.descripcion || '-'
+                })));
+              }
+            } else {
+              console.log('Opción inválida.');
+            }
           }
           break;
         }
@@ -1352,6 +1882,21 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
           break;
         }
 
+        case '18': {
+          const tokenActual = currentUser?.token;
+          if (tokenActual) {
+            try {
+              await SesionRepository.cerrarSesion(tokenActual);
+            } catch (error) {
+              console.warn(`[Aviso] No se pudo cerrar la sesión en Redis/PostgreSQL: ${error.message}`);
+            }
+          }
+          currentUser = null;
+          console.log('\nSesión cerrada. Debe autenticarse nuevamente.\n');
+          await login();
+          break;
+        }
+
         case '0':
           salir = true;
           break;
@@ -1366,6 +1911,15 @@ ${(currentUser && (String(currentUser.rol_descripcion||'').toUpperCase()==='ADMI
     if (!salir) {
       await ask('\nPresione ENTER para continuar...');
     }
+  }
+
+  if (currentUser && currentUser.token) {
+    try {
+      await SesionRepository.cerrarSesion(currentUser.token);
+    } catch (error) {
+      console.warn(`[Aviso] No se pudo cerrar la sesión al salir: ${error.message}`);
+    }
+    currentUser = null;
   }
 
   rl.close();

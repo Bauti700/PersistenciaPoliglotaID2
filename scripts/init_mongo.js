@@ -1,7 +1,7 @@
 // =============================================================================
 // SCRIPT DE INICIALIZACIÓN MONGODB - TPO PERSISTENCIA POLÍGLOTA GRUPO 12
 // Colecciones: sensores, lecturas_sensores, incidentes, eventos_logisticos,
-//              alertas, mensajes, grupos_trabajo, predicciones_riesgo
+//              reglas_alertas, alertas, mensajes, grupos_trabajo, predicciones_riesgo
 // =============================================================================
 
 db = db.getSiblingDB('tpo_telemetria');
@@ -75,6 +75,7 @@ db.lecturas_sensores.insertMany([
 
 // Eventos Logísticos
 db.eventos_logisticos.drop();
+db.eventos_logisticos.createIndex({ id_evento: 1 }, { unique: true });
 db.eventos_logisticos.createIndex({ id_envio: 1, fecha_hora: -1 });
 
 db.eventos_logisticos.insertMany([
@@ -166,16 +167,63 @@ db.incidentes.insertMany([
   }
 ]);
 
+// Reglas de alerta configurables (umbrales dinámicos)
+db.reglas_alertas.drop();
+db.reglas_alertas.createIndex({ id_regla: 1 }, { unique: true });
+db.reglas_alertas.createIndex({ tipo: 1, activa: 1 });
+
+db.reglas_alertas.insertMany([
+  {
+    id_regla: "REG-TEMP-01",
+    tipo: "TEMPERATURA",
+    condicion: "MAYOR_QUE",
+    umbral: 8,
+    severidad: "ALTA",
+    activa: true,
+    descripcion: "Temperatura máxima permitida para cadena de frío (°C).",
+    fecha_creacion: new Date()
+  },
+  {
+    id_regla: "REG-BAT-01",
+    tipo: "BATERIA",
+    condicion: "MENOR_QUE",
+    umbral: 20,
+    severidad: "MEDIA",
+    activa: true,
+    descripcion: "Nivel mínimo de batería de un sensor (%).",
+    fecha_creacion: new Date()
+  },
+  {
+    id_regla: "REG-INACT-01",
+    tipo: "INACTIVIDAD",
+    condicion: "MAYOR_QUE",
+    umbral: 2,
+    severidad: "ALTA",
+    activa: true,
+    descripcion: "Horas máximas sin lecturas antes de generar una alerta.",
+    fecha_creacion: new Date()
+  }
+]);
+
 db.alertas.drop();
+db.alertas.createIndex({ id_alerta: 1 }, { unique: true });
+db.alertas.createIndex({ id_sensor: 1, tipo: 1, estado: 1 });
+
 db.alertas.insertMany([
   {
     id_alerta: "ALT-501",
     id_sensor: "SENS-101",
-    evento: "Alerta de Temperatura",
-    mensaje: "Temperatura por encima del límite de refrigeración (8.9°C)",
-    tipo: "CRITICA",
-    fecha: new Date(Date.now() - 3600000 * 2),
-    estado: "PENDIENTE"
+    id_contenedor: "CONT-001",
+    id_envio: "ENV-1001",
+    tipo: "TEMPERATURA",
+    severidad: "ALTA",
+    estado: "ABIERTA",
+    motivo: "UMBRAL_TEMPERATURA",
+    valor_detectado: 8.9,
+    umbral_aplicado: 8,
+    id_regla: "REG-TEMP-01",
+    mensaje: "Temperatura 8.9°C superior a 8°C",
+    fecha: new Date(Date.now() - 3600000 * 2)
   }
 ]);
 

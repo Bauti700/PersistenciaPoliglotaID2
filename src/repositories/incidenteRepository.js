@@ -20,6 +20,14 @@ export class IncidenteRepository {
     return doc;
   }
 
+  static async existeIncidenteAbierto({ id_sensor, tipo }) {
+    const filtro = { estado: 'ABIERTO' };
+    if (id_sensor) filtro.id_sensor = id_sensor;
+    if (tipo) filtro.tipo = tipo;
+    const res = await getDb().collection('incidentes').findOne(filtro, { projection: { _id: 1 } });
+    return Boolean(res);
+  }
+
   static async listarIncidentesAbiertos() {
     return await getDb().collection('incidentes').find({ estado: 'ABIERTO' }).toArray();
   }

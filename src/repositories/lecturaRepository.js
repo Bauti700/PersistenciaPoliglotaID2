@@ -39,9 +39,17 @@ export class LecturaRepository {
       .toArray();
   }
 
-  static async detectarAnomaliasTemperatura(umbral = 8.0) {
+  static async detectarAnomaliasTemperatura(umbral = 8.0, condicion = 'MAYOR_QUE') {
+    const operadores = {
+      MAYOR_QUE: '$gt',
+      MAYOR_IGUAL_QUE: '$gte',
+      MENOR_QUE: '$lt',
+      MENOR_IGUAL_QUE: '$lte',
+      IGUAL_QUE: '$eq'
+    };
+    const operador = operadores[condicion] || '$gt';
     const pipeline = [
-      { $match: { temperatura: { $gt: umbral } } },
+      { $match: { temperatura: { [operador]: Number(umbral) } } },
       { $sort: { fecha_hora: -1 } },
       { $limit: 50 },
       {
