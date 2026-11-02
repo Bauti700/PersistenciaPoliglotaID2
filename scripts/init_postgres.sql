@@ -129,13 +129,17 @@ CREATE TABLE IF NOT EXISTS facturas (
     concepto VARCHAR(255),
     id_envio VARCHAR(50),
     fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    importe_total NUMERIC(12, 2) NOT NULL,
-    estado VARCHAR(50) DEFAULT 'PENDIENTE',
+    importe_total NUMERIC(12, 2) NOT NULL CONSTRAINT chk_facturas_importe_positivo CHECK (importe_total > 0),
+    estado VARCHAR(50) DEFAULT 'PENDIENTE' CONSTRAINT chk_facturas_estado CHECK (estado IN ('PENDIENTE', 'PAGADA', 'ANULADA')),
     CONSTRAINT chk_factura_emitida_cliente CHECK (tipo_factura <> 'EMITIDA' OR tipo_actor = 'CLIENTE')
 );
 
 CREATE INDEX IF NOT EXISTS idx_facturas_actor ON facturas (tipo_actor, id_cliente);
 CREATE INDEX IF NOT EXISTS idx_facturas_envio ON facturas (id_envio);
+CREATE INDEX IF NOT EXISTS idx_facturas_fecha ON facturas (fecha_emision);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_facturas_comprobante
+    ON facturas (tipo_actor, tipo_factura, numero_comprobante)
+    WHERE numero_comprobante IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS pagos (
     id_pago SERIAL PRIMARY KEY,
@@ -143,9 +147,12 @@ CREATE TABLE IF NOT EXISTS pagos (
     tipo_pago VARCHAR(20) DEFAULT 'COBRO_CLIENTE' CHECK (tipo_pago IN ('COBRO_CLIENTE', 'PAGO_PROVEEDOR', 'PAGO_OPERADOR')),
     referencia_comprobante VARCHAR(100),
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    monto NUMERIC(12, 2) NOT NULL,
+    monto NUMERIC(12, 2) NOT NULL CONSTRAINT chk_pagos_monto_positivo CHECK (monto > 0),
     medio_pago VARCHAR(50) NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_pagos_factura ON pagos (id_factura);
+CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos (fecha);
 
 CREATE TABLE IF NOT EXISTS cierres_cuentas_corrientes (
     id_cierre SERIAL PRIMARY KEY,
@@ -232,11 +239,25 @@ UNION ALL
 SELECT NULL, 'Carlos',  'López',     (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'carlos.lopez@logistica.com',   '$2a$10$Emh9.PoIl59Din8sywPp1.CEclhzFXUMw45htSxHcU.t4ZRqKdepa', 'ACTIVO'
 ON CONFLICT (email) DO NOTHING;
 
+-- Saldos de arrastre coherentes con las facturas y pagos semilla:
+--   CLIENTE 1:  -62.000 (factura EMITIDA pendiente)
+--   CLIENTE 2:  -25.000 (saldo de arrastre sin movimientos semilla)
+--   OPERADOR 1:  35.000 (factura RECIBIDA pendiente)
+--   PROVEEDOR 1:      0 (factura RECIBIDA ya pagada)
 INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo) VALUES
-(1, 'CLIENTE', 150000.00),
+(1, 'CLIENTE', -62000.00),
 (2, 'CLIENTE', -25000.00),
-(1, 'OPERADOR', 0.00),
-(1, 'PROVEEDOR', 80000.00)
+(1, 'OPERADOR', 35000.00),
+(1, 'PROVEEDOR', 0.00)
+ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
+
+-- Completar la cuenta corriente de cualquier actor que no la tenga.
+INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo)
+SELECT id_cliente, 'CLIENTE', 0.00 FROM clientes
+UNION ALL
+SELECT id_proveedor, 'PROVEEDOR', 0.00 FROM proveedores
+UNION ALL
+SELECT id_operador, 'OPERADOR', 0.00 FROM operadores
 ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
 
 INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, estado) VALUES

@@ -1,5 +1,14 @@
 import { pgPool } from '../config/database.js';
 import { IncidenteRepository } from './incidenteRepository.js';
+import {
+  fechaValida,
+  unoDe,
+  enteroPositivo,
+  errorValidacion,
+  TIPOS_ACTOR_FINANCIERO,
+  TIPOS_FACTURA,
+  ESTADOS_FACTURA
+} from '../utils/validation.js';
 
 export class ReporteComercialSqlRepository {
   // Los incidentes viven en MongoDB, no en PostgreSQL. Este helper devuelve un
@@ -22,34 +31,64 @@ export class ReporteComercialSqlRepository {
     tipo_factura = null,
     id_actor = null
   } = {}) {
+    const parametros = {
+      fecha_desde: fecha_desde ? fechaValida(fecha_desde, 'fecha_desde') : null,
+      fecha_hasta: fecha_hasta ? fechaValida(fecha_hasta, 'fecha_hasta') : null,
+      tipo_actor: null,
+      estado_factura: null,
+      tipo_factura: null,
+      id_actor: null
+    };
+
+    if (
+      parametros.fecha_desde &&
+      parametros.fecha_hasta &&
+      parametros.fecha_desde > parametros.fecha_hasta
+    ) {
+      throw errorValidacion('La fecha desde no puede ser posterior a la fecha hasta.');
+    }
+
+    if (tipo_actor && String(tipo_actor).trim().toUpperCase() !== 'TODOS') {
+      parametros.tipo_actor = unoDe(tipo_actor, TIPOS_ACTOR_FINANCIERO, 'tipo_actor');
+    }
+    if (estado_factura && String(estado_factura).trim().toUpperCase() !== 'TODAS') {
+      parametros.estado_factura = unoDe(estado_factura, ESTADOS_FACTURA, 'estado_factura');
+    }
+    if (tipo_factura && String(tipo_factura).trim().toUpperCase() !== 'TODAS') {
+      parametros.tipo_factura = unoDe(tipo_factura, TIPOS_FACTURA, 'tipo_factura');
+    }
+    if (id_actor !== null && id_actor !== undefined && id_actor !== '') {
+      if (!parametros.tipo_actor) {
+        throw errorValidacion('Para filtrar por ID de actor debe indicar también el tipo (CLIENTE / PROVEEDOR / OPERADOR).');
+      }
+      parametros.id_actor = enteroPositivo(id_actor, 'id_actor');
+    }
+
     const conditions = [];
     const params = [];
 
-    if (fecha_desde) {
-      params.push(fecha_desde);
-      conditions.push(`f.fecha_emision >= $${params.length}`);
+    if (parametros.fecha_desde) {
+      params.push(parametros.fecha_desde);
+      conditions.push(`f.fecha_emision >= $${params.length}::date`);
     }
-    if (fecha_hasta) {
-      params.push(fecha_hasta);
-      conditions.push(`f.fecha_emision <= $${params.length}::TIMESTAMP + INTERVAL '1 day'`);
+    if (parametros.fecha_hasta) {
+      params.push(parametros.fecha_hasta);
+      conditions.push(`f.fecha_emision < ($${params.length}::date + INTERVAL '1 day')`);
     }
-    if (tipo_actor && tipo_actor !== 'TODOS') {
-      params.push(tipo_actor.toUpperCase());
+    if (parametros.tipo_actor) {
+      params.push(parametros.tipo_actor);
       conditions.push(`a.tipo_actor = $${params.length}`);
     }
-    if (estado_factura && estado_factura !== 'TODAS') {
-      params.push(estado_factura.toUpperCase());
+    if (parametros.estado_factura) {
+      params.push(parametros.estado_factura);
       conditions.push(`f.estado = $${params.length}`);
     }
-    if (tipo_factura && tipo_factura !== 'TODAS') {
-      params.push(tipo_factura.toUpperCase());
+    if (parametros.tipo_factura) {
+      params.push(parametros.tipo_factura);
       conditions.push(`f.tipo_factura = $${params.length}`);
     }
-    if (id_actor) {
-      if (!tipo_actor || tipo_actor === 'TODOS') {
-        throw new Error('Para filtrar por ID de actor debe indicar también el tipo (CLIENTE / PROVEEDOR / OPERADOR).');
-      }
-      params.push(id_actor);
+    if (parametros.id_actor) {
+      params.push(parametros.id_actor);
       conditions.push(`f.id_cliente = $${params.length}`);
     }
 
@@ -75,23 +114,45 @@ export class ReporteComercialSqlRepository {
     const res = await pgPool.query(query, params);
     const facturas = res.rows;
 
-    const totalFacturado = facturas.reduce((acc, f) => acc + Number(f.importe_total), 0);
-    const totalPagado = facturas.reduce((acc, f) => acc + Number(f.total_pagado), 0);
-    const totalPendiente = totalFacturado - totalPagado;
-    const totalFacturas = facturas.length;
-    const facturasPagadas = facturas.filter(f => f.estado === 'PAGADA').length;
-    const facturasPendientes = facturas.filter(f => f.estado === 'PENDIENTE').length;
+    let facturadoEmitido = 0;
+    let cobradoEmitido = 0;
+    let facturadoRecibido = 0;
+    let pagadoRecibido = 0;
+
+    for (const factura of facturas) {
+      const importe = Number(factura.importe_total);
+      const pagado = Number(factura.total_pagado);
+      if (factura.tipo_factura === 'EMITIDA') {
+        facturadoEmitido += importe;
+        cobradoEmitido += pagado;
+      } else {
+        facturadoRecibido += importe;
+        pagadoRecibido += pagado;
+      }
+    }
+
+    const totalFacturado = facturadoEmitido + facturadoRecibido;
+    const totalPagado = cobradoEmitido + pagadoRecibido;
+    const pendienteCobro = facturadoEmitido - cobradoEmitido;
+    const pendientePago = facturadoRecibido - pagadoRecibido;
 
     const metricas = {
-      total_facturas: totalFacturas,
-      facturas_pagadas: facturasPagadas,
-      facturas_pendientes: facturasPendientes,
+      total_facturas: facturas.length,
+      facturas_pagadas: facturas.filter(f => f.estado === 'PAGADA').length,
+      facturas_pendientes: facturas.filter(f => f.estado === 'PENDIENTE').length,
+      facturas_anuladas: facturas.filter(f => f.estado === 'ANULADA').length,
       importe_total_facturado: Math.round(totalFacturado * 100) / 100,
       importe_total_pagado: Math.round(totalPagado * 100) / 100,
-      saldo_pendiente_total: Math.round(totalPendiente * 100) / 100
+      facturado_emitido: Math.round(facturadoEmitido * 100) / 100,
+      cobrado_emitido: Math.round(cobradoEmitido * 100) / 100,
+      pendiente_cobro: Math.round(pendienteCobro * 100) / 100,
+      facturado_recibido: Math.round(facturadoRecibido * 100) / 100,
+      pagado_recibido: Math.round(pagadoRecibido * 100) / 100,
+      pendiente_pago: Math.round(pendientePago * 100) / 100,
+      saldo_pendiente_total: Math.round((pendienteCobro - pendientePago) * 100) / 100
     };
 
-    return { parametros: { fecha_desde, fecha_hasta, tipo_actor, estado_factura, tipo_factura, id_actor }, metricas, facturas };
+    return { parametros, metricas, facturas };
   }
 
   static async rankingClientesPorVolumen() {

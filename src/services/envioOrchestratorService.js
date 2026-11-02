@@ -2,6 +2,7 @@ import { ActorRepository } from '../repositories/actorRepository.js';
 import { ContenedorRepository } from '../repositories/contenedorRepository.js';
 import { SensorRepository } from '../repositories/sensorRepository.js';
 import { EnvioRepository } from '../repositories/envioRepository.js';
+import { FacturaRepository } from '../repositories/facturaRepository.js';
 import { MongoTelemetryRepository } from '../repositories/telemetriaRepository.js';
 import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
 import { RedisCacheRepository } from '../repositories/cacheRepository.js';
@@ -387,7 +388,30 @@ export class EnvioOrchestratorService {
       redis = 'DEGRADADO';
     }
 
-    return { envio: actualizado, sincronizacion: { postgresql: 'OK', neo4j: 'OK', redis } };
+    // Al cerrar el envío como ENTREGADO se dispara la facturación automática.
+    // Es best-effort: si falla, el cambio de estado no se revierte y se informa
+    // el error para poder reintentar desde el módulo financiero.
+    let facturacion = null;
+    if (actualizado.estado === 'ENTREGADO' && existente.estado !== 'ENTREGADO') {
+      try {
+        const resultado = await FacturaRepository.facturacionAutomaticaPorEnvio(idEnvio);
+        facturacion = resultado.ya_facturado
+          ? { estado: 'YA_FACTURADO', factura_id: resultado.factura.id_factura }
+          : {
+              estado: 'FACTURADO',
+              factura_id: resultado.factura.id_factura,
+              importe: resultado.factura.importe_total
+            };
+      } catch (error) {
+        facturacion = { estado: 'ERROR', mensaje: error.message };
+      }
+    }
+
+    return {
+      envio: actualizado,
+      sincronizacion: { postgresql: 'OK', neo4j: 'OK', redis },
+      facturacion
+    };
   }
 
   static async cancelarEnvio(id_envio) {

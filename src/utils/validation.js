@@ -104,3 +104,51 @@ export function booleano(valor, campo = 'activa') {
   if (['false', '0', 'n', 'no'].includes(normalizado)) return false;
   throw errorValidacion(`El campo ${campo} debe ser booleano.`);
 }
+
+// ---------------------------------------------------------------------------
+// Validaciones del módulo comercial / financiero
+// ---------------------------------------------------------------------------
+
+export const TIPOS_ACTOR_FINANCIERO = ['CLIENTE', 'PROVEEDOR', 'OPERADOR'];
+export const TIPOS_FACTURA = ['EMITIDA', 'RECIBIDA'];
+export const ESTADOS_FACTURA = ['PENDIENTE', 'PAGADA', 'ANULADA'];
+export const MEDIOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA_BANCARIA', 'TARJETA', 'CHEQUE'];
+
+/**
+ * Valida un importe monetario positivo (máximo compatible con NUMERIC(12,2)).
+ */
+export function montoPositivo(valor, campo = 'importe') {
+  return numeroPositivo(valor, campo, { min: 0.01, max: 9999999999.99 });
+}
+
+/**
+ * Valida una fecha en formato YYYY-MM-DD y devuelve el texto normalizado.
+ * Rechaza fechas inexistentes como 2026-02-31.
+ */
+export function fechaValida(valor, campo = 'fecha') {
+  const limpio = textoRequerido(valor, campo, { max: 10 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(limpio)) {
+    throw errorValidacion(`El campo ${campo} debe tener formato YYYY-MM-DD.`);
+  }
+  const [anio, mes, dia] = limpio.split('-').map(Number);
+  const fecha = new Date(Date.UTC(anio, mes - 1, dia));
+  if (
+    fecha.getUTCFullYear() !== anio ||
+    fecha.getUTCMonth() !== mes - 1 ||
+    fecha.getUTCDate() !== dia
+  ) {
+    throw errorValidacion(`El campo ${campo} no es una fecha válida.`);
+  }
+  return limpio;
+}
+
+/**
+ * Valida un período contable en formato YYYY-MM.
+ */
+export function periodoMensual(valor, campo = 'periodo') {
+  const limpio = textoRequerido(valor, campo, { max: 7 });
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(limpio)) {
+    throw errorValidacion(`El campo ${campo} debe tener formato YYYY-MM (ej: 2026-10).`);
+  }
+  return limpio;
+}

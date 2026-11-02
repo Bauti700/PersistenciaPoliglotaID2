@@ -1,39 +1,119 @@
+import { randomUUID } from 'crypto';
 import { pgPool } from '../config/database.js';
 import { ActorRepository } from './actorRepository.js';
+import { CuentaCorrienteRepository } from './cuentaCorrienteRepository.js';
 import { MongoTelemetryRepository } from './telemetriaRepository.js';
+import {
+  textoRequerido,
+  textoOpcional,
+  enteroPositivo,
+  montoPositivo,
+  unoDe,
+  errorValidacion,
+  TIPOS_ACTOR_FINANCIERO
+} from '../utils/validation.js';
+
+async function verificarComprobanteUnico(client, { tipo_actor, tipo_factura, numero_comprobante }) {
+  const res = await client.query(`
+    SELECT id_factura
+    FROM facturas
+    WHERE tipo_actor = $1 AND tipo_factura = $2 AND numero_comprobante = $3
+    LIMIT 1;
+  `, [tipo_actor, tipo_factura, numero_comprobante]);
+
+  if (res.rowCount > 0) {
+    throw errorValidacion(
+      `Ya existe una factura ${tipo_factura} para ${tipo_actor} con el comprobante ${numero_comprobante}.`,
+      409
+    );
+  }
+}
+
+async function verificarEnvio(client, id_envio, { id_cliente = null, marcar_entregado = false } = {}) {
+  if (!id_envio) return null;
+
+  const res = await client.query(
+    'SELECT id_envio, id_cliente, estado FROM envios WHERE id_envio = $1',
+    [id_envio]
+  );
+  if (res.rowCount === 0) {
+    throw errorValidacion(`El envío ${id_envio} no existe.`, 404);
+  }
+
+  const envio = res.rows[0];
+  if (id_cliente !== null && Number(envio.id_cliente) !== Number(id_cliente)) {
+    throw errorValidacion(`El envío ${id_envio} no pertenece al cliente ${id_cliente}.`, 409);
+  }
+  if (envio.estado === 'CANCELADO') {
+    throw errorValidacion(`El envío ${id_envio} está CANCELADO y no puede facturarse.`, 409);
+  }
+  if (marcar_entregado && envio.estado !== 'ENTREGADO') {
+    await client.query(`
+      UPDATE envios
+      SET estado = 'ENTREGADO',
+          fecha_entrega = COALESCE(fecha_entrega, CURRENT_TIMESTAMP)
+      WHERE id_envio = $1;
+    `, [id_envio]);
+  }
+  return envio;
+}
 
 export class FacturaRepository {
   /**
    * Emite factura a un CLIENTE (Facturación de venta emitida por el sistema)
    */
-  static async emitirFactura({ id_cliente, importe_total, concepto = 'Servicio de logística internacional', id_envio = null, numero_comprobante = null }) {
-    const actor = await ActorRepository.obtenerPorId(id_cliente, 'CLIENTE');
-    if (!actor) throw new Error(`El cliente con ID ${id_cliente} no existe.`);
+  static async emitirFactura({
+    id_cliente,
+    importe_total,
+    concepto = 'Servicio de logística internacional',
+    id_envio = null,
+    numero_comprobante = null,
+    marcar_entregado = false
+  }) {
+    const idCliente = enteroPositivo(id_cliente, 'id_cliente');
+    const importe = montoPositivo(importe_total, 'importe_total');
+    const conceptoFinal = textoOpcional(concepto, 'concepto', { max: 255 })
+      || 'Servicio de logística internacional';
+    const envioFinal = textoOpcional(id_envio, 'id_envio', { max: 50 });
+    const comprobante = textoOpcional(numero_comprobante, 'numero_comprobante', { max: 50 });
 
-    const nroComp = numero_comprobante || `FC-CLI-${Date.now().toString().slice(-8)}`;
+    await ActorRepository.resolverActor(idCliente, 'CLIENTE');
 
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');
-      const insertFactura = `
+
+      await verificarEnvio(client, envioFinal, { id_cliente: idCliente, marcar_entregado });
+
+      const nroComp = comprobante || `FC-CLI-${Date.now()}-${randomUUID().slice(0, 8)}`;
+      await verificarComprobanteUnico(client, {
+        tipo_actor: 'CLIENTE',
+        tipo_factura: 'EMITIDA',
+        numero_comprobante: nroComp
+      });
+
+      const resFactura = await client.query(`
         INSERT INTO facturas (id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
         VALUES ($1, 'EMITIDA', 'CLIENTE', $2, $3, $4, $5, 'PENDIENTE')
         RETURNING *;
-      `;
-      const resFactura = await client.query(insertFactura, [id_cliente, nroComp, concepto, id_envio, importe_total]);
+      `, [idCliente, nroComp, conceptoFinal, envioFinal, importe]);
+
       const factura = resFactura.rows[0];
 
-      // Impactar Cuenta Corriente del cliente: debita el importe (deuda del cliente hacia la empresa)
-      await client.query(`
-        UPDATE cuentas_corrientes
-        SET saldo = saldo - $1, fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_actor = $2 AND tipo_actor = 'CLIENTE';
-      `, [importe_total, id_cliente]);
+      // Factura emitida: el cliente contrae una deuda (saldo más negativo).
+      const saldo = await CuentaCorrienteRepository.aplicarMovimiento(client, {
+        id_actor: idCliente,
+        tipo_actor: 'CLIENTE',
+        delta: -importe
+      });
 
       await client.query('COMMIT');
-      return factura;
+      return { ...factura, saldo_cuenta_corriente: saldo };
     } catch (e) {
       await client.query('ROLLBACK');
+      if (e.code === '23505') {
+        throw errorValidacion('Ya existe una factura con el mismo comprobante para ese actor.', 409);
+      }
       throw e;
     } finally {
       client.release();
@@ -44,38 +124,63 @@ export class FacturaRepository {
    * Registra una FACTURA RECIBIDA ya confeccionada por un PROVEEDOR u OPERADOR LOGÍSTICO
    * (El sistema NO las genera, sino que recibe las facturas externas ya hechas por ellos)
    */
-  static async registrarFacturaRecibida({ id_actor, tipo_actor, importe_total, numero_comprobante, concepto = 'Factura de servicios/insumos recibida', id_envio = null }) {
-    if (!numero_comprobante || !numero_comprobante.trim()) {
-      throw new Error('Debe especificar el número de comprobante externo provisto por el proveedor u operador.');
+  static async registrarFacturaRecibida({
+    id_actor,
+    tipo_actor,
+    importe_total,
+    numero_comprobante,
+    concepto = 'Factura de servicios/insumos recibida',
+    id_envio = null
+  }) {
+    const tipo = unoDe(tipo_actor, TIPOS_ACTOR_FINANCIERO, 'tipo_actor');
+    if (tipo !== 'PROVEEDOR' && tipo !== 'OPERADOR') {
+      throw errorValidacion(
+        `Solo se registran facturas recibidas de PROVEEDORES y OPERADORES (recibido: ${tipo}).`
+      );
     }
 
-    const actor = await ActorRepository.resolverActor(id_actor, tipo_actor);
-    if (actor.tipo_actor !== 'PROVEEDOR' && actor.tipo_actor !== 'OPERADOR') {
-      throw new Error(`El actor ${actor.razon_social} es de tipo ${actor.tipo_actor}. Solo se registran facturas recibidas de PROVEEDORES y OPERADORES.`);
-    }
+    const idActor = enteroPositivo(id_actor, 'id_actor');
+    const importe = montoPositivo(importe_total, 'importe_total');
+    const comprobante = textoRequerido(numero_comprobante, 'numero_comprobante', { max: 50 });
+    const conceptoFinal = textoOpcional(concepto, 'concepto', { max: 255 })
+      || 'Factura de servicios/insumos recibida';
+    const envioFinal = textoOpcional(id_envio, 'id_envio', { max: 50 });
+
+    const actor = await ActorRepository.resolverActor(idActor, tipo);
 
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');
-      const insertFactura = `
+
+      await verificarEnvio(client, envioFinal);
+      await verificarComprobanteUnico(client, {
+        tipo_actor: tipo,
+        tipo_factura: 'RECIBIDA',
+        numero_comprobante: comprobante
+      });
+
+      const resFactura = await client.query(`
         INSERT INTO facturas (id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
         VALUES ($1, 'RECIBIDA', $2, $3, $4, $5, $6, 'PENDIENTE')
         RETURNING *;
-      `;
-      const resFactura = await client.query(insertFactura, [actor.id_actor, actor.tipo_actor, numero_comprobante.trim(), concepto, id_envio, importe_total]);
+      `, [actor.id_actor, tipo, comprobante, conceptoFinal, envioFinal, importe]);
+
       const factura = resFactura.rows[0];
 
-      // Impactar Cuenta Corriente de proveedor/operador: se reconoce la deuda contraída con el tercero (saldo acreedor a su favor)
-      await client.query(`
-        UPDATE cuentas_corrientes
-        SET saldo = saldo + $1, fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_actor = $2 AND tipo_actor = $3;
-      `, [importe_total, actor.id_actor, actor.tipo_actor]);
+      // Factura recibida: se reconoce la deuda con el proveedor/operador.
+      const saldo = await CuentaCorrienteRepository.aplicarMovimiento(client, {
+        id_actor: actor.id_actor,
+        tipo_actor: tipo,
+        delta: importe
+      });
 
       await client.query('COMMIT');
-      return factura;
+      return { ...factura, saldo_cuenta_corriente: saldo };
     } catch (e) {
       await client.query('ROLLBACK');
+      if (e.code === '23505') {
+        throw errorValidacion('Ya existe una factura recibida con ese comprobante para el actor.', 409);
+      }
       throw e;
     } finally {
       client.release();
@@ -86,36 +191,44 @@ export class FacturaRepository {
    * Facturación automática de un envío (calcula tarifa base + tramos + prioridad)
    */
   static async facturacionAutomaticaPorEnvio(id_envio) {
+    const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
+
     const resEnvio = await pgPool.query(`
-      SELECT e.*, a.razon_social
+      SELECT e.*, c.razon_social
       FROM envios e
-      JOIN clientes a ON e.id_cliente = a.id_cliente
+      JOIN clientes c ON e.id_cliente = c.id_cliente
       WHERE e.id_envio = $1;
-    `, [id_envio]);
+    `, [id]);
 
     if (resEnvio.rows.length === 0) {
-      throw new Error(`Envío ${id_envio} no encontrado.`);
+      throw errorValidacion(`Envío ${id} no encontrado.`, 404);
     }
 
     const envio = resEnvio.rows[0];
+    if (envio.estado === 'CANCELADO') {
+      throw errorValidacion(`El envío ${id} está CANCELADO y no puede facturarse.`, 409);
+    }
 
     // Verificar si ya fue facturado
     const resFacturada = await pgPool.query(`
-      SELECT * FROM facturas 
+      SELECT * FROM facturas
       WHERE id_envio = $1 AND tipo_factura = 'EMITIDA';
-    `, [id_envio]);
+    `, [id]);
 
     if (resFacturada.rows.length > 0) {
       return {
         ya_facturado: true,
         factura: resFacturada.rows[0],
-        mensaje: `El envío ${id_envio} ya fue facturado previamente (Factura N° ${resFacturada.rows[0].id_factura}).`
+        mensaje: `El envío ${id} ya fue facturado previamente (Factura N° ${resFacturada.rows[0].id_factura}).`
       };
     }
 
-    // Contar tramos para cálculo
-    const resTramos = await pgPool.query(`SELECT COUNT(*) AS total_tramos FROM tramos WHERE id_envio = $1;`, [id_envio]);
-    const cantTramos = Math.max(1, parseInt(resTramos.rows[0].total_tramos, 10));
+    // Contar tramos para cálculo (un envío sin tramos no inventa uno).
+    const resTramos = await pgPool.query(
+      'SELECT COUNT(*) AS total_tramos FROM tramos WHERE id_envio = $1;',
+      [id]
+    );
+    const cantTramos = parseInt(resTramos.rows[0].total_tramos, 10) || 0;
 
     // Regla de cálculo comercial:
     // Tarifa base: $50,000 + $15,000 por tramo
@@ -128,21 +241,21 @@ export class FacturaRepository {
     const importeTotal = Math.round((baseTarifa + costoTramos) * factorPrioridad * 100) / 100;
     const concepto = `Facturación automática de servicio logístico [${envio.id_envio}] (${envio.origen} -> ${envio.destino}) con ${cantTramos} tramo(s) - Prioridad ${envio.prioridad}`;
 
+    // El comprobante AUTO-<envio> es el candado de idempotencia: la restricción
+    // única impide que dos ejecuciones simultáneas facturen el mismo envío.
     const factura = await FacturaRepository.emitirFactura({
       id_cliente: envio.id_cliente,
       importe_total: importeTotal,
       concepto,
       id_envio: envio.id_envio,
-      numero_comprobante: `AUTO-${envio.id_envio}`
+      numero_comprobante: `AUTO-${envio.id_envio}`,
+      marcar_entregado: true
     });
-
-    // Actualizar estado del envío a ENTREGADO si no estaba finalizado
-    await pgPool.query(`UPDATE envios SET estado = 'ENTREGADO' WHERE id_envio = $1 AND estado <> 'ENTREGADO';`, [id_envio]);
 
     // Registrar evento de auditoría en MongoDB
     try {
       await MongoTelemetryRepository.registrarEventoLogistico({
-        id_evento: `EVT-FAC-${Date.now()}`,
+        id_evento: `EVT-FAC-${factura.id_factura}`,
         id_envio: envio.id_envio,
         tipo_evento: 'Facturación Automática',
         ubicacion: envio.destino,
@@ -166,16 +279,19 @@ export class FacturaRepository {
   }
 
   /**
-   * Ejecución por lote de Facturación Automática
+   * Ejecución por lote de Facturación Automática.
+   * Solo toma envíos efectivamente entregados y sin factura emitida.
    */
   static async ejecutarFacturacionAutomaticaMasiva() {
-    // Buscar envíos que no tengan factura emitida
     const res = await pgPool.query(`
-      SELECT e.id_envio 
+      SELECT e.id_envio
       FROM envios e
-      WHERE NOT EXISTS (
-        SELECT 1 FROM facturas f WHERE f.id_envio = e.id_envio AND f.tipo_factura = 'EMITIDA'
-      );
+      WHERE e.estado = 'ENTREGADO'
+        AND NOT EXISTS (
+          SELECT 1 FROM facturas f
+          WHERE f.id_envio = e.id_envio AND f.tipo_factura = 'EMITIDA'
+        )
+      ORDER BY e.id_envio ASC;
     `);
 
     const resultados = [];

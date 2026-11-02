@@ -266,4 +266,17 @@ db.predicciones_riesgo.insertOne({
   fecha_calculo: new Date()
 });
 
+// Reportes comerciales / contables / analíticos (histórico documental)
+db.reportes.aggregate([
+  { $match: { id_reporte: { $type: "string" } } },
+  { $sort: { fecha_generacion: -1, _id: -1 } },
+  { $group: { _id: "$id_reporte", ids: { $push: "$_id" }, total: { $sum: 1 } } },
+  { $match: { total: { $gt: 1 } } }
+]).forEach(function (grupo) {
+  grupo.ids.slice(1).forEach(function (id) { db.reportes.deleteOne({ _id: id }); });
+});
+db.reportes.createIndex({ id_reporte: 1 }, { unique: true, sparse: true });
+db.reportes.createIndex({ fecha_generacion: -1 });
+db.reportes.createIndex({ categoria: 1, tipo: 1 });
+
 print("MongoDB inicializado exitosamente para tpo_telemetria");

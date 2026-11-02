@@ -399,7 +399,10 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
         }
 
         case '3': {
-          console.log(`
+          let salirCom = false;
+          while (!salirCom) {
+            try {
+              console.log(`
 ========================================================================
              MÓDULO DE GESTIÓN COMERCIAL Y FINANCIERA
 ========================================================================
@@ -414,6 +417,11 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
 0. Volver al menú principal
 `);
           const subCom = (await ask('Seleccione operación comercial (0-7) > ')).trim();
+
+          if (subCom === '0') {
+            salirCom = true;
+            continue;
+          }
 
           if (subCom === '1') {
             console.log('\n--- FACTURACIÓN A CLIENTES (EMISIÓN DE VENTA) ---');
@@ -442,11 +450,12 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
 
             const cobrar = (await ask('¿Desea registrar el cobro de esta factura ahora? (s/n): ')).toLowerCase();
             if (cobrar === 's') {
+              const montoCobro = (await ask(`Monto a cobrar (total facturado $${factura.importe_total}) [${factura.importe_total}]: `)).trim() || factura.importe_total;
               const medio = await ask('Medio de pago (TRANSFERENCIA_BANCARIA / EFECTIVO / CHEQUE / TARJETA) [TRANSFERENCIA_BANCARIA]: ') || 'TRANSFERENCIA_BANCARIA';
               const ref = (await ask('Referencia de cobro / comprobante (opcional): ')).trim() || null;
               const resPago = await PagoRepository.registrarPago({
                 id_factura: factura.id_factura,
-                monto: Number(importe),
+                monto: Number(montoCobro),
                 medio_pago: medio.toUpperCase(),
                 referencia_comprobante: ref
               });
@@ -526,6 +535,8 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                 });
                 console.log('\nPago registrado exitosamente y deuda cancelada en Cuenta Corriente:', resPago);
               }
+            } else if (optProv !== '3') {
+              console.log('Opción inválida.');
             }
 
           } else if (subCom === '3') {
@@ -650,11 +661,15 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                 ? (await ask('Tipo de Actor a cerrar (CLIENTE / PROVEEDOR / OPERADOR): ')).trim().toUpperCase()
                 : null;
 
+              const recalcular = (await ask('¿Recalcular cierres ya existentes del período? (s/n) [n]: ')).trim().toLowerCase();
+
               console.log(`\nEjecutando cierre contable mensual para el período ${periodo}...`);
                const resCierre = await CuentaCorrienteRepository.ejecutarCierreMensual({
                 periodo,
                 id_actor: id_actor ? Number(id_actor) : null,
-                tipo_actor
+                tipo_actor,
+                forzar: recalcular === 's',
+                usuario: currentUser?.email || 'sistema'
               });
 
               console.log(`\nCierre mensual ${resCierre.periodo} finalizado. Actores procesados: ${resCierre.total_procesados}.`);
@@ -711,7 +726,7 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
               tipo_factura,
               estado_factura,
               id_actor: id_actor ? Number(id_actor) : null
-            });
+            }, currentUser?.email || 'sistema');
 
             console.log('\n=== COMPROBANTES ENCONTRADOS ===');
             if (rep.facturas.length === 0) {
@@ -736,6 +751,15 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
             if (rep.id_reporte_mongo) {
               console.log(`Documento de reporte persistido en MongoDB (Colección: reportes, ID: ${rep.id_reporte_mongo})`);
             }
+          } else {
+            console.log('Opción inválida.');
+          }
+
+          await ask('\nPresione ENTER para continuar...');
+        } catch (error) {
+          console.log(`\n[Error] ${error.message}`);
+          await ask('\nPresione ENTER para continuar...');
+        }
           }
           break;
         }

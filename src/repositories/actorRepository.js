@@ -92,8 +92,11 @@ class BaseEntidadRepository {
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
+
+    const client = await pgPool.connect();
     try {
-      const res = await pgPool.query(query, [
+      await client.query('BEGIN');
+      const res = await client.query(query, [
         actor.razon_social,
         actor.cuit,
         actor.email,
@@ -101,12 +104,25 @@ class BaseEntidadRepository {
         actor.direccion,
         actor.pais
       ]);
+
+      // Todo actor nace con su cuenta corriente para que facturas y pagos
+      // siempre tengan una fila que impactar.
+      await client.query(`
+        INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo)
+        VALUES ($1, $2, 0.00)
+        ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
+      `, [res.rows[0][this.idColumna], this.tipoActor]);
+
+      await client.query('COMMIT');
       return this.mapear(res.rows[0]);
     } catch (error) {
+      await client.query('ROLLBACK');
       if (error.code === '23505') {
         throw errorValidacion('Ya existe un actor con el mismo CUIT.', 409);
       }
       throw error;
+    } finally {
+      client.release();
     }
   }
 
