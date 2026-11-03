@@ -1,12 +1,12 @@
 import { pgPool } from '../config/database.js';
 import { RedisCacheRepository } from '../repositories/cacheRepository.js';
 import { IncidenteRepository } from '../repositories/incidenteRepository.js';
+import { ReporteMongoRepository } from '../repositories/reporteMongoRepository.js';
 
 export class RiesgoService {
-  static async obtenerOPredicirRiesgo(id_envio) {
-    const cacheKey = `prediccion:riesgo:${id_envio}`;
+  static async obtenerOPredicirRiesgo(id_envio, usuario = 'sistema') {
     try {
-      const cached = await RedisCacheRepository.getCache(cacheKey);
+      const cached = await RedisCacheRepository.obtenerPrediccionRiesgo(id_envio);
       if (cached) {
         return { ...cached, origen: 'REDIS_CACHE', ttl_restante: '24h' };
       }
@@ -67,8 +67,26 @@ export class RiesgoService {
     };
 
     try {
-      await RedisCacheRepository.setCache(cacheKey, riesgo, 86400); // 24 horas
+      await RedisCacheRepository.cachearPrediccionRiesgo(id_envio, riesgo, 86400); // 24 horas
     } catch (e) {}
+
+    // Dejar trazabilidad del análisis predictivo en la colección documental de
+    // reportes. Es best-effort: la predicción se devuelve aunque Mongo falle.
+    try {
+      await ReporteMongoRepository.registrarReporte({
+        usuario: usuario || 'sistema',
+        tipo: 'PREDICCION_RIESGO_ENVIO',
+        categoria: 'PREDICTIVO',
+        parametros: { id_envio },
+        resumen: {
+          probabilidad_demora: riesgo.probabilidad_demora,
+          nivel_riesgo: riesgo.nivel_riesgo,
+          factores: riesgo.factores
+        }
+      });
+    } catch (eMongo) {
+      console.warn(`[Riesgo] No se pudo auditar la predicción en MongoDB: ${eMongo.message}`);
+    }
 
     return riesgo;
   }

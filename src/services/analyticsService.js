@@ -427,8 +427,8 @@ export class AnalyticsService {
   /**
    * 4. Predicción de atrasos / riesgos (con caché Redis 24h)
    */
-  static async predecirRiesgo(id_envio) {
-    return LogisticsService.obtenerOPredicirRiesgo(id_envio);
+  static async predecirRiesgo(id_envio, usuario = 'sistema') {
+    return LogisticsService.obtenerOPredicirRiesgo(id_envio, usuario);
   }
 
   /**

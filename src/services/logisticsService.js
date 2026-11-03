@@ -27,8 +27,8 @@ export class LogisticsService {
     return MonitoreoService.cerrarIncidente(id_incidente);
   }
 
-  static async obtenerOPredicirRiesgo(id_envio) {
-    return RiesgoService.obtenerOPredicirRiesgo(id_envio);
+  static async obtenerOPredicirRiesgo(id_envio, usuario = 'sistema') {
+    return RiesgoService.obtenerOPredicirRiesgo(id_envio, usuario);
   }
 
   static async listarEnvios(filtro = {}) {

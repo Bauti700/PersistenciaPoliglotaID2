@@ -1,5 +1,6 @@
 import { pgPool } from '../config/database.js';
 import { IncidenteRepository } from './incidenteRepository.js';
+import { ESTADOS_ENVIO } from './envioRepository.js';
 import {
   fechaValida,
   unoDe,
@@ -199,21 +200,35 @@ export class ReporteComercialSqlRepository {
       solo_incidentes_abiertos = false
     } = filtros;
 
+    const estadoNormalizado = estado ? unoDe(estado, ESTADOS_ENVIO, 'estado') : null;
+    const idCliente = id_cliente !== null && id_cliente !== undefined && id_cliente !== ''
+      ? enteroPositivo(id_cliente, 'id_cliente')
+      : null;
+
     // La fecha estimada de entrega surge del último tramo planificado y la real
     // es envios.fecha_entrega. Los incidentes se agregan luego desde MongoDB.
     const params = [];
     const filtrosSQL = [];
 
     if (pais) {
-      params.push(pais);
-      filtrosSQL.push(`LOWER(c.pais) = LOWER($${params.length})`);
+      const paisFiltro = String(pais).trim();
+      if (paisFiltro) {
+        params.push(paisFiltro);
+        // "País" puede referirse al país del cliente o al de origen/destino del
+        // trayecto. Se admiten las tres variantes para no limitar el reporte.
+        filtrosSQL.push(`(
+          LOWER(c.pais) = LOWER($${params.length})
+          OR LOWER(e.origen) LIKE '%' || LOWER($${params.length}) || '%'
+          OR LOWER(e.destino) LIKE '%' || LOWER($${params.length}) || '%'
+        )`);
+      }
     }
-    if (estado) {
-      params.push(estado);
+    if (estadoNormalizado) {
+      params.push(estadoNormalizado);
       filtrosSQL.push(`UPPER(e.estado) = UPPER($${params.length})`);
     }
-    if (id_cliente) {
-      params.push(Number(id_cliente));
+    if (idCliente) {
+      params.push(idCliente);
       filtrosSQL.push(`e.id_cliente = $${params.length}`);
     }
 
@@ -221,7 +236,7 @@ export class ReporteComercialSqlRepository {
     const whereDemorados = solo_demorados
       ? `WHERE b.fecha_entrega IS NULL
            AND b.fecha_entrega_estimada < CURRENT_DATE
-           AND b.estado <> 'ENTREGADO'`
+           AND b.estado NOT IN ('ENTREGADO', 'CANCELADO')`
       : '';
 
     const query = `
@@ -240,7 +255,7 @@ export class ReporteComercialSqlRepository {
              CASE
                WHEN b.fecha_entrega IS NULL
                 AND b.fecha_entrega_estimada < CURRENT_DATE
-                AND b.estado <> 'ENTREGADO'
+                AND b.estado NOT IN ('ENTREGADO', 'CANCELADO')
                THEN 'SI' ELSE 'NO'
              END AS demorado
       FROM base b
@@ -265,18 +280,32 @@ export class ReporteComercialSqlRepository {
   }
 
   static async tiemposEnvioPorCliente() {
+    // Solo los envíos ENTREGADO tienen un tiempo de entrega definitivo. Los que
+    // están en curso se informan por separado para no mezclar tiempos cerrados
+    // con el tiempo transcurrido hasta hoy ni con envíos cancelados.
     const query = `
       SELECT c.id_cliente, c.razon_social, c.pais,
              COUNT(e.id_envio) AS total_envios,
-             COUNT(CASE WHEN e.estado = 'ENTREGADO' THEN 1 END) AS entregados,
-             ROUND(MIN(EXTRACT(EPOCH FROM (COALESCE(e.fecha_entrega, CURRENT_TIMESTAMP) - e.fecha_creacion)) / 86400)::numeric, 2) AS min_dias,
-             ROUND(MAX(EXTRACT(EPOCH FROM (COALESCE(e.fecha_entrega, CURRENT_TIMESTAMP) - e.fecha_creacion)) / 86400)::numeric, 2) AS max_dias,
-             ROUND(AVG(EXTRACT(EPOCH FROM (COALESCE(e.fecha_entrega, CURRENT_TIMESTAMP) - e.fecha_creacion)) / 86400)::numeric, 2) AS promedio_dias
+             COUNT(*) FILTER (WHERE e.estado = 'ENTREGADO') AS entregados,
+             COUNT(*) FILTER (WHERE e.estado NOT IN ('ENTREGADO', 'CANCELADO')) AS en_curso,
+             COUNT(*) FILTER (WHERE e.estado = 'CANCELADO') AS cancelados,
+             ROUND((
+               MIN(EXTRACT(EPOCH FROM (e.fecha_entrega - e.fecha_creacion)) / 86400)
+               FILTER (WHERE e.estado = 'ENTREGADO' AND e.fecha_entrega IS NOT NULL)
+             )::numeric, 2) AS min_dias,
+             ROUND((
+               MAX(EXTRACT(EPOCH FROM (e.fecha_entrega - e.fecha_creacion)) / 86400)
+               FILTER (WHERE e.estado = 'ENTREGADO' AND e.fecha_entrega IS NOT NULL)
+             )::numeric, 2) AS max_dias,
+             ROUND((
+               AVG(EXTRACT(EPOCH FROM (e.fecha_entrega - e.fecha_creacion)) / 86400)
+               FILTER (WHERE e.estado = 'ENTREGADO' AND e.fecha_entrega IS NOT NULL)
+             )::numeric, 2) AS promedio_dias
       FROM clientes c
       LEFT JOIN envios e ON e.id_cliente = c.id_cliente
       GROUP BY c.id_cliente, c.razon_social, c.pais
       HAVING COUNT(e.id_envio) > 0
-      ORDER BY total_envios DESC
+      ORDER BY total_envios DESC, c.razon_social ASC
     `;
     const result = await pgPool.query(query);
     return result.rows;
@@ -284,19 +313,26 @@ export class ReporteComercialSqlRepository {
 
   static async promedioIncidentesPorPaisEstadoCliente(filtros = {}) {
     const { pais = null, estado = null, id_cliente = null } = filtros;
+    const estadoNormalizado = estado ? unoDe(estado, ESTADOS_ENVIO, 'estado') : null;
+    const idCliente = id_cliente !== null && id_cliente !== undefined && id_cliente !== ''
+      ? enteroPositivo(id_cliente, 'id_cliente')
+      : null;
     const params = [];
     const conditions = [];
 
     if (pais) {
-      params.push(pais);
-      conditions.push(`LOWER(c.pais) = LOWER($${params.length})`);
+      const paisFiltro = String(pais).trim();
+      if (paisFiltro) {
+        params.push(paisFiltro);
+        conditions.push(`LOWER(c.pais) = LOWER($${params.length})`);
+      }
     }
-    if (estado) {
-      params.push(estado);
+    if (estadoNormalizado) {
+      params.push(estadoNormalizado);
       conditions.push(`UPPER(e.estado) = UPPER($${params.length})`);
     }
-    if (id_cliente) {
-      params.push(Number(id_cliente));
+    if (idCliente) {
+      params.push(idCliente);
       conditions.push(`c.id_cliente = $${params.length}`);
     }
 

@@ -36,6 +36,14 @@ async function actualizarCacheEnvio(id_envio, datos) {
   }, 3600);
 }
 
+async function invalidarPrediccionEnvio(id_envio) {
+  try {
+    await RedisCacheRepository.invalidarPrediccionRiesgo(id_envio);
+  } catch (error) {
+    console.warn(`[EnvioOrchestrator] No se pudo invalidar la predicción de ${id_envio}: ${error.message}`);
+  }
+}
+
 async function registrarEventoTrazabilidad({ id_envio, tipo_evento, descripcion, ubicacion = null }) {
   try {
     await MongoTelemetryRepository.registrarEventoLogistico({
@@ -434,6 +442,7 @@ export class EnvioOrchestratorService {
     } catch (error) {
       redis = 'DEGRADADO';
     }
+    await invalidarPrediccionEnvio(idEnvio);
 
     await registrarEventoTrazabilidad({
       id_envio: idEnvio,
@@ -472,6 +481,7 @@ export class EnvioOrchestratorService {
     } catch {
       redis = 'DEGRADADO';
     }
+    await invalidarPrediccionEnvio(idEnvio);
 
     await registrarEventoTrazabilidad({
       id_envio: idEnvio,
@@ -550,6 +560,7 @@ export class EnvioOrchestratorService {
     } catch {
       redis = 'DEGRADADO';
     }
+    await invalidarPrediccionEnvio(idEnvio);
 
     await registrarEventoTrazabilidad({
       id_envio: idEnvio,
@@ -583,6 +594,7 @@ export class EnvioOrchestratorService {
     } catch {
       sincronizacion.redis = 'ERROR';
     }
+    await invalidarPrediccionEnvio(idEnvio);
     try {
       const eventos = await MongoTelemetryRepository.listarEventosPorEnvio(idEnvio, 500);
       for (const evento of eventos) {

@@ -133,17 +133,28 @@ export class RedisCacheRepository {
   }
 
   // --- CACHÉ DE PREDICCIÓN DE RIESGO ---
+  // La misma clave se usa en RiesgoService y en la invalidación que disparan
+  // los cambios de envío y los incidentes.
+  static clavePrediccionRiesgo(id_envio) {
+    return `prediccion:riesgo:${id_envio}`;
+  }
+
   static async cachearPrediccionRiesgo(id_envio, prediccion, ttlSegundos = 86400) {
     if (!redisClient.isOpen) return false;
-    const key = `prediccion:envio:${id_envio}`;
+    const key = RedisCacheRepository.clavePrediccionRiesgo(id_envio);
     await redisClient.set(key, JSON.stringify(prediccion), { EX: ttlSegundos });
     return true;
   }
 
   static async obtenerPrediccionRiesgo(id_envio) {
     if (!redisClient.isOpen) return null;
-    const raw = await redisClient.get(`prediccion:envio:${id_envio}`);
+    const raw = await redisClient.get(RedisCacheRepository.clavePrediccionRiesgo(id_envio));
     return raw ? JSON.parse(raw) : null;
+  }
+
+  static async invalidarPrediccionRiesgo(id_envio) {
+    if (!redisClient.isOpen || !id_envio) return false;
+    return (await redisClient.del(RedisCacheRepository.clavePrediccionRiesgo(id_envio))) > 0;
   }
 
   // --- CACHÉ DE INTELIGENCIA ANALÍTICA Y REPORTES ---

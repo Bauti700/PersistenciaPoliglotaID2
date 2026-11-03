@@ -240,7 +240,7 @@ Seleccione una opción:
   11. [Políglota]  ABM de Envíos (Alta, Modificación, Estado, Cancelación, Asignaciones)
   12. [Políglota]  Calcular / Consultar Predicción de Riesgo
   13. [Reporte]    Ranking de Clientes por Volumen Transportado / Facturado
-  14. [Reporte]    Reportes Comerciales Parametrizados (Filtros y Auditoría en MongoDB)
+  14. [Reporte]    Reportes Operativos y Analíticos (Filtros y Auditoría en MongoDB)
   15. [Analítica]  Ranking de Rutas con Mayor Cantidad de Incidentes (Mongo + PG + Redis)
   16. [Analítica]  Análisis Histórico de Desempeño (Tiempos Entrega, Puntualidad y Costos)
 ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usuarios, Roles y Sesiones\n' : ''}  18. [Sesión]      Cerrar sesión actual y volver a autenticarse
@@ -504,7 +504,7 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
               const rep = await ReporteComercialRepository.reporteComercialParametrizado({
                 tipo_factura: 'RECIBIDA',
                 estado_factura: 'PENDIENTE'
-              });
+              }, currentUser?.email || 'sistema');
 
               if (rep.facturas.length === 0) {
                 console.log('\nNo hay facturas recibidas de proveedores u operadores pendientes de pago.');
@@ -1969,7 +1969,10 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
         case '12': {
           console.log('\n--- PREDICCIÓN DE RIESGO DE DEMORA ---');
           const id_envio = await ask('ID Envío (ej: ENV-1001): ') || 'ENV-1001';
-          const riesgo = await LogisticsService.obtenerOPredicirRiesgo(id_envio);
+          const riesgo = await LogisticsService.obtenerOPredicirRiesgo(
+            id_envio,
+            currentUser?.email || 'sistema'
+          );
           console.log('\nResultado de predicción:');
           console.log(riesgo);
           break;
@@ -2014,7 +2017,7 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
               tipo_factura,
               estado_factura,
               id_actor: id_actor ? Number(id_actor) : null
-            });
+            }, currentUser?.email || 'sistema');
 
             console.log('\n=== COMPROBANTES ENCONTRADOS ===');
             if (rep.facturas.length === 0) {
@@ -2041,39 +2044,49 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
             }
           } else if (opRep === '2') {
             console.log('\n--- REPORTE OPERATIVO DE ENVÍOS ---');
-            const pais = (await ask('País (opcional): ')).trim() || null;
-            const estado = (await ask('Estado (CREADO/EN_TRANSITO/ENTREGADO/RETRASADO): ')).trim() || null;
+            const pais = (await ask('País (cliente/origen/destino, opcional): ')).trim() || null;
+            const estado = (await ask('Estado (CREADO/EN_TRANSITO/ENTREGADO/RETRASADO/CANCELADO, ENTER todos): ')).trim() || null;
             const id_cliente = (await ask('ID Cliente (opcional): ')).trim() || null;
             const solo_demorados = (await ask('Solo demorados (s/n): ')).toLowerCase() === 's';
             const solo_incidentes_abiertos = (await ask('Solo con incidentes abiertos (s/n): ')).toLowerCase() === 's';
             
             const rep = await ReporteComercialRepository.reporteOperativoEnvios({
               pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null, solo_demorados, solo_incidentes_abiertos
-            });
+            }, currentUser?.email || 'sistema');
             console.log(`\nRegistros encontrados: ${rep.datos.length}`);
             console.table(rep.datos);
             if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
           } else if (opRep === '3') {
             console.log('\n--- TIEMPOS MÁXIMOS Y MÍNIMOS DE ENVÍO POR CLIENTE ---');
-            const datos = await ReporteComercialRepository.tiemposEnvioPorCliente();
-            console.table(datos);
+            const rep = await ReporteComercialRepository.tiemposEnvioPorCliente(
+              currentUser?.email || 'sistema'
+            );
+            console.table(rep.datos);
+            if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
           } else if (opRep === '4') {
             console.log('\n--- PROMEDIO DE INCIDENTES POR PAÍS/ESTADO/CLIENTE ---');
             const pais = (await ask('País (opcional): ')).trim() || null;
             const estado = (await ask('Estado (opcional): ')).trim() || null;
             const id_cliente = (await ask('ID Cliente (opcional): ')).trim() || null;
-            const datos = await ReporteComercialRepository.promedioIncidentesPorPaisEstadoCliente({
+            const rep = await ReporteComercialRepository.promedioIncidentesPorPaisEstadoCliente({
               pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null
-            });
-            console.table(datos);
+            }, currentUser?.email || 'sistema');
+            console.table(rep.datos);
+            if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
           } else if (opRep === '5') {
             console.log('\n--- TIEMPOS PROMEDIO DE ENTREGA ---');
-            const datos = await ReporteComercialRepository.tiemposPromedioEntrega();
-            console.table(datos);
+            const rep = await ReporteComercialRepository.tiemposPromedioEntrega(
+              currentUser?.email || 'sistema'
+            );
+            console.table(rep.datos);
+            if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
           } else if (opRep === '6') {
             console.log('\n--- COSTOS POR TIPO DE TRANSPORTE ---');
-            const datos = await ReporteComercialRepository.costosPorTipoTransporte();
-            console.table(datos);
+            const rep = await ReporteComercialRepository.costosPorTipoTransporte(
+              currentUser?.email || 'sistema'
+            );
+            console.table(rep.datos);
+            if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
           }
           break;
         }

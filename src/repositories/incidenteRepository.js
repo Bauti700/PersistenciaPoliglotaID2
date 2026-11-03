@@ -1,4 +1,5 @@
 import { getDb } from '../config/database.js';
+import { RedisCacheRepository } from './cacheRepository.js';
 import {
   textoRequerido,
   textoOpcional,
@@ -22,6 +23,17 @@ export const TIPOS_INCIDENTE = [
 export const SEVERIDADES_INCIDENTE = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA'];
 export const ESTADOS_INCIDENTE = ['ABIERTO', 'EN_PROCESO', 'CERRADO'];
 const ESTADOS_ABIERTOS = ['ABIERTO', 'EN_PROCESO'];
+
+// Cuando cambia un incidente, la predicción de riesgo del envío queda
+// desactualizada. La invalidación es best-effort para no bloquear el ABM.
+async function invalidarPrediccionDeIncidente(id_envio) {
+  if (!id_envio) return;
+  try {
+    await RedisCacheRepository.invalidarPrediccionRiesgo(id_envio);
+  } catch (error) {
+    console.warn(`[Incidentes] No se pudo invalidar la predicción de ${id_envio}: ${error.message}`);
+  }
+}
 
 function fechaValida(valor, campo = 'fecha') {
   const fecha = valor instanceof Date ? valor : new Date(valor);
@@ -117,6 +129,7 @@ export class IncidenteRepository {
   static async registrarIncidente(incidente) {
     const doc = validarIncidente(incidente);
     await getDb().collection('incidentes').insertOne(doc);
+    await invalidarPrediccionDeIncidente(doc.id_envio);
     return doc;
   }
 
@@ -124,12 +137,16 @@ export class IncidenteRepository {
     const id = textoRequerido(id_incidente, 'id_incidente', { max: 100 });
     const actualizacion = validarIncidente(cambios, { parcial: true });
     const col = getDb().collection('incidentes');
+    const previo = await col.findOne({ id_incidente: id }, { projection: { id_envio: 1 } });
     const res = await col.updateOne(
       { id_incidente: id },
       { $set: { ...actualizacion, fecha_actualizacion: new Date() } }
     );
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_incidente: id });
+    const actualizado = await col.findOne({ id_incidente: id });
+    await invalidarPrediccionDeIncidente(previo?.id_envio);
+    await invalidarPrediccionDeIncidente(actualizado?.id_envio);
+    return actualizado;
   }
 
   static async existeIncidenteAbierto({ id_sensor = null, tipo = null, id_envio = null } = {}) {
@@ -181,7 +198,9 @@ export class IncidenteRepository {
       { $set: { estado: 'CERRADO', fecha_cierre: new Date() } }
     );
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_incidente: id });
+    const cerrado = await col.findOne({ id_incidente: id });
+    await invalidarPrediccionDeIncidente(cerrado?.id_envio);
+    return cerrado;
   }
 
   // --- ANALÍTICA DE INCIDENTES POR ENVÍO (AGGREGATION PIPELINE) ---
