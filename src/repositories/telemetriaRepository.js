@@ -27,6 +27,8 @@ export class MongoTelemetryRepository {
 
   // --- INCIDENTES ---
   static registrarIncidente = IncidenteRepository.registrarIncidente;
+  static actualizarIncidente = IncidenteRepository.actualizarIncidente;
+  static listarIncidentes = IncidenteRepository.listarIncidentes;
   static listarIncidentesAbiertos = IncidenteRepository.listarIncidentesAbiertos;
   static listarIncidentesPorEnvio = IncidenteRepository.listarIncidentesPorEnvio;
   static cerrarIncidente = IncidenteRepository.cerrarIncidente;

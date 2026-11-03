@@ -234,6 +234,34 @@ export class EnvioRepository {
     }
   }
 
+  static async actualizarExtremosTramos(id_envio, origen, destino) {
+    const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
+    const tramos = await pgPool.query(
+      `SELECT id_tramo FROM tramos
+       WHERE id_envio = $1
+       ORDER BY fecha_salida NULLS LAST, id_tramo ASC`,
+      [id]
+    );
+    if (tramos.rows.length === 0) return 0;
+
+    if (tramos.rows.length === 1) {
+      await pgPool.query(
+        'UPDATE tramos SET origen = $2, destino = $3 WHERE id_tramo = $1',
+        [tramos.rows[0].id_tramo, origen, destino]
+      );
+    } else {
+      await pgPool.query(
+        'UPDATE tramos SET origen = $2 WHERE id_tramo = $1',
+        [tramos.rows[0].id_tramo, origen]
+      );
+      await pgPool.query(
+        'UPDATE tramos SET destino = $2 WHERE id_tramo = $1',
+        [tramos.rows[tramos.rows.length - 1].id_tramo, destino]
+      );
+    }
+    return tramos.rows.length;
+  }
+
   static async cambiarEstado(id_envio, estado) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const estadoNormalizado = unoDe(estado, ESTADOS_ENVIO, 'estado');

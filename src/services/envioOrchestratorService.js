@@ -36,6 +36,50 @@ async function actualizarCacheEnvio(id_envio, datos) {
   }, 3600);
 }
 
+async function registrarEventoTrazabilidad({ id_envio, tipo_evento, descripcion, ubicacion = null }) {
+  try {
+    await MongoTelemetryRepository.registrarEventoLogistico({
+      id_evento: `EVT-${id_envio}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id_envio,
+      tipo_evento,
+      descripcion,
+      ubicacion
+    });
+  } catch (error) {
+    console.warn(`[EnvioOrchestrator] No se pudo registrar el evento ${tipo_evento} de ${id_envio}: ${error.message}`);
+  }
+}
+
+function construirTramosActualizados(tramosActuales, origen, destino) {
+  const normalizar = (tramo) => ({
+    id_tramo: tramo.id_tramo || tramo.tramo_id || null,
+    desde: tramo.origen || tramo.desde,
+    hasta: tramo.destino || tramo.hasta,
+    medio: tramo.medio_transporte || tramo.medio || 'Terrestre'
+  });
+  const tramos = (tramosActuales || [])
+    .filter(t => t && (t.id_tramo || t.tramo_id))
+    .map(normalizar);
+
+  if (tramos.length === 0) {
+    return [{ desde: origen, hasta: destino, medio: 'Terrestre' }];
+  }
+  if (tramos.length === 1) {
+    return [{
+      id_tramo: tramos[0].id_tramo,
+      desde: origen,
+      hasta: destino,
+      medio: tramos[0].medio
+    }];
+  }
+  return tramos.map((tramo, indice) => ({
+    id_tramo: tramo.id_tramo,
+    desde: indice === 0 ? origen : tramo.desde,
+    hasta: indice === tramos.length - 1 ? destino : tramo.hasta,
+    medio: tramo.medio
+  }));
+}
+
 export class EnvioOrchestratorService {
   /**
    * Crea un envío de forma políglota y consistente:
@@ -220,6 +264,13 @@ export class EnvioOrchestratorService {
       );
     }
 
+    await registrarEventoTrazabilidad({
+      id_envio: idEnvio,
+      tipo_evento: 'CONTENEDOR_ASIGNADO',
+      descripcion: `Contenedor ${idContenedor} asignado al envío.`,
+      ubicacion: envio.origen
+    });
+
     return {
       envio: idEnvio,
       contenedor: idContenedor,
@@ -297,6 +348,13 @@ export class EnvioOrchestratorService {
       );
     }
 
+    await registrarEventoTrazabilidad({
+      id_envio: idEnvio,
+      tipo_evento: 'SENSOR_ASIGNADO',
+      descripcion: `Sensor ${idSensor} asignado al contenedor ${idContenedor}.`,
+      ubicacion: envio.origen
+    });
+
     return {
       envio: idEnvio,
       contenedor: idContenedor,
@@ -321,6 +379,11 @@ export class EnvioOrchestratorService {
     const destino = cambiosNormalizados.destino || existente.destino;
     const prioridad = cambiosNormalizados.prioridad || existente.prioridad;
     const estado = cambiosNormalizados.estado || existente.estado;
+    const cambioRuta = origen !== existente.origen || destino !== existente.destino;
+
+    if (cambioRuta) {
+      await EnvioRepository.actualizarExtremosTramos(idEnvio, origen, destino);
+    }
 
     let grafo = 'OK';
     let redis = 'OK';
@@ -332,6 +395,12 @@ export class EnvioOrchestratorService {
         prioridad,
         estado
       });
+      if (cambioRuta) {
+        await Neo4jRouteRepository.reemplazarTramosEnvio(
+          idEnvio,
+          construirTramosActualizados(existente.tramos, origen, destino)
+        );
+      }
     } catch (error) {
       grafo = 'ERROR';
       await EnvioRepository.actualizar(idEnvio, {
@@ -340,6 +409,13 @@ export class EnvioOrchestratorService {
         prioridad: existente.prioridad,
         estado: existente.estado
       });
+      if (cambioRuta) {
+        await EnvioRepository.actualizarExtremosTramos(
+          idEnvio,
+          existente.origen,
+          existente.destino
+        );
+      }
       throw new Error(
         `No se pudo actualizar el envío ${idEnvio} en Neo4j: ${error.message}. ` +
         'Se restauraron los datos en PostgreSQL.'
@@ -356,6 +432,13 @@ export class EnvioOrchestratorService {
     } catch (error) {
       redis = 'DEGRADADO';
     }
+
+    await registrarEventoTrazabilidad({
+      id_envio: idEnvio,
+      tipo_evento: 'ENVIO_ACTUALIZADO',
+      descripcion: `Envío actualizado: origen ${origen}, destino ${destino}, prioridad ${prioridad}.`,
+      ubicacion: origen
+    });
 
     return { envio: actualizado, sincronizacion: { postgresql: 'OK', neo4j: grafo, redis } };
   }
@@ -387,6 +470,13 @@ export class EnvioOrchestratorService {
     } catch {
       redis = 'DEGRADADO';
     }
+
+    await registrarEventoTrazabilidad({
+      id_envio: idEnvio,
+      tipo_evento: 'ESTADO_CAMBIADO',
+      descripcion: `Estado del envío cambiado de ${existente.estado} a ${actualizado.estado}.`,
+      ubicacion: actualizado.origen
+    });
 
     // Al cerrar el envío como ENTREGADO se dispara la facturación automática.
     // Es best-effort: si falla, el cambio de estado no se revierte y se informa
@@ -458,6 +548,13 @@ export class EnvioOrchestratorService {
     } catch {
       redis = 'DEGRADADO';
     }
+
+    await registrarEventoTrazabilidad({
+      id_envio: idEnvio,
+      tipo_evento: 'ENVIO_CANCELADO',
+      descripcion: `Envío cancelado. Contenedores liberados: ${contenedores.map(c => c.id_contenedor).join(', ') || 'ninguno'}.`,
+      ubicacion: existente.origen
+    });
 
     return {
       envio: cancelado,

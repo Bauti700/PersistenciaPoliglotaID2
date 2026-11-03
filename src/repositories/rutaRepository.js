@@ -35,10 +35,15 @@ export class Neo4jRouteRepository {
             MATCH (e:Envio {id_envio: $id_envio})
             MERGE (u1:Ubicacion {nombre: $desde})
             MERGE (u2:Ubicacion {nombre: $hasta})
-            CREATE (tr:Tramo {id_tramo: $id_tramo, orden: $orden, medio: $medio})
-            CREATE (e)-[:COMPUESTO_POR]->(tr)
-            CREATE (tr)-[:DESDE]->(u1)
-            CREATE (tr)-[:HASTA]->(u2)
+            MERGE (tr:Tramo {id_tramo: $id_tramo})
+            SET tr.orden = $orden, tr.medio = $medio
+            MERGE (e)-[:COMPUESTO_POR]->(tr)
+            WITH tr, u1, u2
+            OPTIONAL MATCH (tr)-[r:DESDE|HASTA]->(:Ubicacion)
+            DELETE r
+            WITH tr, u1, u2
+            MERGE (tr)-[:DESDE]->(u1)
+            MERGE (tr)-[:HASTA]->(u2)
           `;
           await session.run(tramoCypher, {
             id_envio,
@@ -134,6 +139,146 @@ export class Neo4jRouteRepository {
         MERGE (e)-[:TIENE_DESTINO]->(ud)
         RETURN e.id_envio AS envio
       `, { id_envio, origen, destino, prioridad: prioridad || null, estado: estado || null });
+      return result.records.length > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async reemplazarTramosEnvio(id_envio, tramos = []) {
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MATCH (e:Envio {id_envio: $id_envio})
+        OPTIONAL MATCH (e)-[:COMPUESTO_POR]->(tr:Tramo)
+        WITH e, collect(tr) AS existentes
+        FOREACH (t IN existentes | DETACH DELETE t)
+        WITH e
+        UNWIND $tramos AS t
+        MERGE (u1:Ubicacion {nombre: t.desde})
+        MERGE (u2:Ubicacion {nombre: t.hasta})
+        MERGE (tr:Tramo {id_tramo: t.id_tramo})
+        SET tr.orden = t.orden, tr.medio = t.medio
+        MERGE (e)-[:COMPUESTO_POR]->(tr)
+        MERGE (tr)-[:DESDE]->(u1)
+        MERGE (tr)-[:HASTA]->(u2)
+        RETURN count(tr) AS tramos_actualizados
+      `;
+      const tramosNormalizados = tramos.map((t, i) => ({
+        id_tramo: t.id_tramo || `TR-${id_envio}-${i + 1}`,
+        orden: i + 1,
+        medio: t.medio || 'Terrestre',
+        desde: t.desde,
+        hasta: t.hasta
+      }));
+      const result = await session.run(cypher, { id_envio, tramos: tramosNormalizados });
+      return result.records[0]?.get('tramos_actualizados')?.toNumber?.() ?? tramosNormalizados.length;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Mantiene sincronizado el nodo Sensor y su relación MONITOREADO_POR con el
+   * contenedor actual. Se usa desde el ABM de sensores para que los cambios
+   * hechos en MongoDB no dejen el grafo desactualizado.
+   */
+  static async sincronizarSensor(sensor) {
+    const idSensor = sensor.id_sensor;
+    const idContenedor = sensor.id_contenedor || null;
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MERGE (s:Sensor {id_sensor: $id_sensor})
+        SET s.tipo = COALESCE($tipo, s.tipo),
+            s.fabricante = COALESCE($fabricante, s.fabricante),
+            s.estado = COALESCE($estado, s.estado)
+        WITH s
+        OPTIONAL MATCH (c:Contenedor)-[r:MONITOREADO_POR]->(s)
+        DELETE r
+        WITH s
+        FOREACH (_ IN CASE WHEN $id_contenedor IS NOT NULL THEN [1] ELSE [] END |
+          MERGE (c:Contenedor {id_contenedor: $id_contenedor})
+          MERGE (c)-[:MONITOREADO_POR]->(s)
+        )
+        RETURN s.id_sensor AS sensor
+      `;
+      const result = await session.run(cypher, {
+        id_sensor: idSensor,
+        id_contenedor: idContenedor,
+        tipo: sensor.tipo || null,
+        fabricante: sensor.fabricante || null,
+        estado: sensor.estado || null
+      });
+      return result.records.length > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async actualizarEstadoSensor(id_sensor, estado) {
+    const session = neoDriver.session();
+    try {
+      const result = await session.run(`
+        MERGE (s:Sensor {id_sensor: $id_sensor})
+        SET s.estado = $estado
+        RETURN s.id_sensor AS sensor
+      `, { id_sensor, estado });
+      return result.records.length > 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Proyecta una lectura IoT a Neo4j para que el historial de movimientos y la
+   * reconstrucción del recorrido puedan consultarse desde el grafo.
+   */
+  static async registrarLectura(lectura) {
+    const fecha = lectura.fecha_hora instanceof Date
+      ? lectura.fecha_hora
+      : new Date(lectura.fecha_hora || Date.now());
+    const tieneGPS =
+      lectura.latitud !== undefined && lectura.latitud !== null &&
+      lectura.longitud !== undefined && lectura.longitud !== null;
+
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MERGE (s:Sensor {id_sensor: $id_sensor})
+        MERGE (c:Contenedor {id_contenedor: $id_contenedor})
+        MERGE (c)-[:MONITOREADO_POR]->(s)
+        MERGE (l:Lectura {id_lectura: $id_lectura})
+        SET l.timestamp = datetime($fecha_hora),
+            l.fecha_hora = datetime($fecha_hora),
+            l.temperatura = $temperatura,
+            l.humedad = $humedad,
+            l.vibracion = $vibracion,
+            l.nivel_bateria = $nivel_bateria,
+            l.latitud = $latitud,
+            l.longitud = $longitud,
+            l.evento = 'LECTURA',
+            l.ubicacion = CASE
+              WHEN $latitud IS NULL OR $longitud IS NULL THEN null
+              ELSE toString($latitud) + ',' + toString($longitud)
+            END,
+            l.id_envio = $id_envio
+        MERGE (s)-[:REGISTRA]->(l)
+        RETURN l.id_lectura AS lectura
+      `;
+      const result = await session.run(cypher, {
+        id_lectura: lectura.id_lectura,
+        id_sensor: lectura.id_sensor,
+        id_contenedor: lectura.id_contenedor,
+        id_envio: lectura.id_envio || null,
+        fecha_hora: fecha.toISOString(),
+        temperatura: lectura.temperatura ?? null,
+        humedad: lectura.humedad ?? null,
+        vibracion: lectura.vibracion ?? null,
+        nivel_bateria: lectura.nivel_bateria ?? null,
+        latitud: tieneGPS ? Number(lectura.latitud) : null,
+        longitud: tieneGPS ? Number(lectura.longitud) : null
+      });
       return result.records.length > 0;
     } finally {
       await session.close();

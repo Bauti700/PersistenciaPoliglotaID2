@@ -91,6 +91,13 @@ export class SensorRepository {
       fecha_registro: new Date()
     };
     await col.insertOne(doc);
+
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(doc);
+    } catch (error) {
+      console.warn(`[SensorRepository] Sensor ${doc.id_sensor} guardado en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+
     return doc;
   }
 
@@ -138,7 +145,13 @@ export class SensorRepository {
         $unset: { fecha_desasignacion: '' }
       }
     );
-    return await col.findOne({ id_sensor: id });
+    const actualizado = await col.findOne({ id_sensor: id });
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(actualizado);
+    } catch (error) {
+      console.warn(`[SensorRepository] Asignación de ${id} guardada en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+    return actualizado;
   }
 
   static async desasignarSensorDeContenedor(id_sensor) {
@@ -152,7 +165,13 @@ export class SensorRepository {
       }
     );
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_sensor: id });
+    const actualizado = await col.findOne({ id_sensor: id });
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(actualizado);
+    } catch (error) {
+      console.warn(`[SensorRepository] Desasignación de ${id} guardada en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+    return actualizado;
   }
 
   static async restaurarAsignacion(id_sensor, id_contenedor) {
@@ -167,7 +186,13 @@ export class SensorRepository {
       { $set: { id_contenedor: textoRequerido(id_contenedor, 'id_contenedor', { max: 50 }) } }
     );
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_sensor: id });
+    const actualizado = await col.findOne({ id_sensor: id });
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(actualizado);
+    } catch (error) {
+      console.warn(`[SensorRepository] Restauración de ${id} guardada en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+    return actualizado;
   }
 
   static async actualizarSensor(id_sensor, datos) {
@@ -188,7 +213,13 @@ export class SensorRepository {
 
     const res = await col.updateOne({ id_sensor: id }, update);
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_sensor: id });
+    const actualizado = await col.findOne({ id_sensor: id });
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(actualizado);
+    } catch (error) {
+      console.warn(`[SensorRepository] Sensor ${id} actualizado en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+    return actualizado;
   }
 
   static async darDeBajaSensor(id_sensor) {
@@ -199,7 +230,13 @@ export class SensorRepository {
       { $set: { estado: 'INACTIVO', fecha_baja: new Date() }, $unset: { fecha_reactivacion: '' } }
     );
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_sensor: id });
+    const actualizado = await col.findOne({ id_sensor: id });
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(actualizado);
+    } catch (error) {
+      console.warn(`[SensorRepository] Baja de ${id} guardada en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+    return actualizado;
   }
 
   static async activarSensor(id_sensor) {
@@ -210,7 +247,13 @@ export class SensorRepository {
       { $set: { estado: 'ACTIVO', fecha_reactivacion: new Date() }, $unset: { fecha_baja: '' } }
     );
     if (res.matchedCount === 0) return null;
-    return await col.findOne({ id_sensor: id });
+    const actualizado = await col.findOne({ id_sensor: id });
+    try {
+      await Neo4jRouteRepository.sincronizarSensor(actualizado);
+    } catch (error) {
+      console.warn(`[SensorRepository] Activación de ${id} guardada en MongoDB, pero no en Neo4j: ${error.message}`);
+    }
+    return actualizado;
   }
 
   static async contarDependencias(id_sensor) {

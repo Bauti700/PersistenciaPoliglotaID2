@@ -19,6 +19,14 @@ export class LogisticsService {
     return MonitoreoService.ejecutarMonitoreoSensores();
   }
 
+  static async registrarIncidenteManual(data) {
+    return MonitoreoService.registrarIncidenteManual(data);
+  }
+
+  static async cerrarIncidente(id_incidente) {
+    return MonitoreoService.cerrarIncidente(id_incidente);
+  }
+
   static async obtenerOPredicirRiesgo(id_envio) {
     return RiesgoService.obtenerOPredicirRiesgo(id_envio);
   }

@@ -38,9 +38,20 @@ db.sensores.insertMany([
   }
 ]);
 
-// Lecturas Sensores (Telemetría con índices temporales y geoespaciales)
+// Lecturas Sensores (Telemetría como colección time-series)
+// El metaField id_sensor agrupa las mediciones por sensor; fecha_hora es el
+// campo temporal. MongoDB 6 permite índices secundarios (incluido 2dsphere)
+// sobre colecciones time-series.
 db.lecturas_sensores.drop();
+db.createCollection('lecturas_sensores', {
+  timeseries: {
+    timeField: 'fecha_hora',
+    metaField: 'id_sensor',
+    granularity: 'seconds'
+  }
+});
 db.lecturas_sensores.createIndex({ id_sensor: 1, fecha_hora: -1 });
+db.lecturas_sensores.createIndex({ id_contenedor: 1, fecha_hora: -1 });
 db.lecturas_sensores.createIndex({ posicion_gps: "2dsphere" });
 
 db.lecturas_sensores.insertMany([
@@ -99,13 +110,18 @@ db.eventos_logisticos.insertMany([
 
 // Incidentes y Alertas
 db.incidentes.drop();
+db.incidentes.createIndex({ id_incidente: 1 }, { unique: true });
 db.incidentes.createIndex({ id_envio: 1, estado: 1 });
+db.incidentes.createIndex({ id_sensor: 1, tipo: 1, estado: 1 });
+db.incidentes.createIndex({ fecha: -1 });
 
 db.incidentes.insertMany([
   {
     id_incidente: "INC-201",
     id_envio: "ENV-1001",
-    tipo: "Temperatura fuera de rango",
+    id_sensor: "SENS-101",
+    id_contenedor: "CONT-001",
+    tipo: "EXCESO_TEMPERATURA",
     severidad: "ALTA",
     estado: "ABIERTO",
     descripcion: "Pico de temperatura superior a 8°C registrado por SENS-101.",
@@ -114,7 +130,9 @@ db.incidentes.insertMany([
   {
     id_incidente: "INC-202",
     id_envio: "ENV-1001",
-    tipo: "Demora Aduanera",
+    id_sensor: null,
+    id_contenedor: null,
+    tipo: "DEMORA",
     severidad: "MEDIA",
     estado: "CERRADO",
     descripcion: "Retención de documentación en frontera Paso de los Libres.",
@@ -123,7 +141,9 @@ db.incidentes.insertMany([
   {
     id_incidente: "INC-203",
     id_envio: "ENV-1001",
-    tipo: "Vibración Excesiva",
+    id_sensor: "SENS-102",
+    id_contenedor: "CONT-001",
+    tipo: "VIBRACION_EXCESIVA",
     severidad: "BAJA",
     estado: "CERRADO",
     descripcion: "Vibración de 0.85g registrada por sensor en bacheo Ruta 14.",
@@ -132,7 +152,9 @@ db.incidentes.insertMany([
   {
     id_incidente: "INC-204",
     id_envio: "ENV-1003",
-    tipo: "Condiciones Climáticas Adversas",
+    id_sensor: null,
+    id_contenedor: null,
+    tipo: "CONDICIONES_CLIMATICAS",
     severidad: "ALTA",
     estado: "CERRADO",
     descripcion: "Paso Cristo Redentor cerrado preventivamente por temporal de nieve.",
@@ -141,7 +163,9 @@ db.incidentes.insertMany([
   {
     id_incidente: "INC-205",
     id_envio: "ENV-1003",
-    tipo: "Desvío de Ruta",
+    id_sensor: null,
+    id_contenedor: null,
+    tipo: "DESVIO_RUTA",
     severidad: "MEDIA",
     estado: "CERRADO",
     descripcion: "Desvío obligatorio por mantenimiento de calzada RN 7.",
@@ -150,7 +174,9 @@ db.incidentes.insertMany([
   {
     id_incidente: "INC-206",
     id_envio: "ENV-1004",
-    tipo: "Demora Portuaria",
+    id_sensor: null,
+    id_contenedor: null,
+    tipo: "DEMORA",
     severidad: "BAJA",
     estado: "CERRADO",
     descripcion: "Demora en atraque de buque en Terminal Santos.",
@@ -159,7 +185,9 @@ db.incidentes.insertMany([
   {
     id_incidente: "INC-207",
     id_envio: "ENV-1005",
-    tipo: "Ruptura de Cadena de Frío",
+    id_sensor: "SENS-103",
+    id_contenedor: "CONT-002",
+    tipo: "RUPTURA_CADENA_FRIO",
     severidad: "CRITICA",
     estado: "ABIERTO",
     descripcion: "Alarma de temperatura 10.4°C en contenedor reefer durante escala.",
@@ -208,6 +236,8 @@ db.reglas_alertas.insertMany([
 db.alertas.drop();
 db.alertas.createIndex({ id_alerta: 1 }, { unique: true });
 db.alertas.createIndex({ id_sensor: 1, tipo: 1, estado: 1 });
+db.alertas.createIndex({ id_incidente: 1, estado: 1 });
+db.alertas.createIndex({ id_contenedor: 1, estado: 1 });
 
 db.alertas.insertMany([
   {
@@ -267,6 +297,7 @@ db.predicciones_riesgo.insertOne({
 });
 
 // Reportes comerciales / contables / analíticos (histórico documental)
+db.reportes.drop();
 db.reportes.aggregate([
   { $match: { id_reporte: { $type: "string" } } },
   { $sort: { fecha_generacion: -1, _id: -1 } },

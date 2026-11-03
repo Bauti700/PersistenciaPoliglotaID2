@@ -9,7 +9,7 @@ import { ContenedorRepository } from './repositories/contenedorRepository.js';
 import { MongoTelemetryRepository } from './repositories/telemetriaRepository.js';
 import { SensorRepository } from './repositories/sensorRepository.js';
 import { LecturaRepository } from './repositories/lecturaRepository.js';
-import { IncidenteRepository } from './repositories/incidenteRepository.js';
+import { IncidenteRepository, TIPOS_INCIDENTE, ESTADOS_INCIDENTE } from './repositories/incidenteRepository.js';
 import { AlertaRepository } from './repositories/alertaRepository.js';
 import { MensajeRepository } from './repositories/mensajeRepository.js';
 import { UsuarioRepository } from './repositories/usuarioRepository.js';
@@ -786,11 +786,17 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
               const id_sensor = await ask('ID Sensor (ej: SENS-101): ') || 'SENS-101';
               const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
               const id_envio = (await ask('ID Envío asociado (ej: ENV-1001, ENTER para omitir): ')).trim() || null;
-              const temperatura = await ask('Temperatura (°C): ') || '4.5';
-              const humedad = await ask('Humedad (%): ') || '60';
-              const latitud = await ask('Latitud GPS: ') || '-34.6037';
-              const longitud = await ask('Longitud GPS: ') || '-58.3816';
-              const nivel_bateria = await ask('Nivel batería (%): ') || '90';
+              const leerNumeroOpcional = async (mensaje) => {
+                const valor = (await ask(mensaje)).trim();
+                return valor === '' ? null : valor;
+              };
+              console.log('Deje vacío cualquier métrica opcional; las coordenadas 0 son válidas.');
+              const temperatura = await leerNumeroOpcional('Temperatura (°C, ENTER para omitir): ');
+              const humedad = await leerNumeroOpcional('Humedad (%, ENTER para omitir): ');
+              const vibracion = await leerNumeroOpcional('Vibración (ENTER para omitir): ');
+              const latitud = await leerNumeroOpcional('Latitud GPS (ENTER para omitir, 0 es válido): ');
+              const longitud = await leerNumeroOpcional('Longitud GPS (ENTER para omitir, 0 es válido): ');
+              const nivel_bateria = await leerNumeroOpcional('Nivel batería (%, ENTER para omitir): ');
 
               const res = await LogisticsService.procesarLecturaSensor({
                 id_sensor,
@@ -798,13 +804,32 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                 id_envio,
                 temperatura,
                 humedad,
-                vibracion: 0.05,
+                vibracion,
                 latitud,
                 longitud,
                 nivel_bateria
               });
-              console.log('\nTelemetría guardada en MongoDB y última coordenada actualizada en Redis');
-              console.log(res);
+              console.log('\nTelemetría guardada en MongoDB, posición actualizada en Redis y lectura proyectada en Neo4j.');
+              console.log(
+                `Alertas generadas: ${res.alertas_generadas} | Incidentes generados: ${res.incidentes_generados}`
+              );
+              if (res.alertas.length > 0) {
+                console.table(res.alertas.map(a => ({
+                  ID: a.id_alerta,
+                  Tipo: a.tipo,
+                  Severidad: a.severidad,
+                  Mensaje: a.mensaje
+                })));
+              }
+              if (res.incidentes.length > 0) {
+                console.table(res.incidentes.map(i => ({
+                  ID: i.id_incidente,
+                  Tipo: i.tipo,
+                  Severidad: i.severidad,
+                  Estado: i.estado,
+                  Descripcion: i.descripcion
+                })));
+              }
             } else if (subIoT === '2') {
               let salirSensores = false;
               while (!salirSensores) {
@@ -1033,21 +1058,36 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                     Condicion: r.condicion,
                     Umbral: r.umbral,
                     Severidad: r.severidad,
-                    Origen: r.id_regla.startsWith('REG-DEF-') ? 'DEFAULT' : 'MONGODB',
+                    Activa: r.activa,
+                    Origen: r.id_regla.startsWith('REG-DEF-')
+                      ? 'DEFAULT'
+                      : (r.id_regla.startsWith('REG-DESACTIVADA-') ? 'DESACTIVADA' : 'MONGODB'),
                     Descripcion: r.descripcion || '-'
                   })));
                 } else if (rOpt === '8') {
                   const estado = (await ask('Estado (ABIERTA/PENDIENTE/CERRADA, ENTER todas): ')).trim() || null;
-                  const tipo = (await ask('Tipo (TEMPERATURA/BATERIA/INACTIVIDAD, ENTER todos): ')).trim() || null;
+                  const tipo = (await ask(
+                    'Tipo (TEMPERATURA/BATERIA/INACTIVIDAD/INCIDENTE, ENTER todos): '
+                  )).trim() || null;
                   const id_sensor = (await ask('ID Sensor (opcional): ')).trim() || null;
-                  const alertas = await AlertaRepository.listarAlertas({ estado, tipo, id_sensor, limite: 100 });
+                  const id_contenedor = (await ask('ID Contenedor (opcional): ')).trim() || null;
+                  const id_incidente = (await ask('ID Incidente (opcional): ')).trim() || null;
+                  const alertas = await AlertaRepository.listarAlertas({
+                    estado,
+                    tipo,
+                    id_sensor,
+                    id_contenedor,
+                    id_incidente,
+                    limite: 100
+                  });
                   if (alertas.length === 0) {
                     console.log('No se encontraron alertas con esos filtros.');
                   } else {
                     console.table(alertas.map(a => ({
                       ID: a.id_alerta,
-                      Sensor: a.id_sensor,
+                      Sensor: a.id_sensor || '-',
                       Contenedor: a.id_contenedor || '-',
+                      Incidente: a.id_incidente || '-',
                       Tipo: a.tipo,
                       Severidad: a.severidad,
                       Estado: a.estado,
@@ -1073,8 +1113,29 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
             } else if (subIoT === '6') {
               console.log('\nEjecutando monitoreo de sensores...');
               const monitoreo = await LogisticsService.ejecutarMonitoreoSensores();
-              console.log(`Alertas generadas: ${monitoreo.alertas_generadas}`);
-              if (monitoreo.alertas.length > 0) console.table(monitoreo.alertas);
+              console.log(
+                `Alertas generadas: ${monitoreo.alertas_generadas} | ` +
+                `Incidentes generados: ${monitoreo.incidentes_generados}`
+              );
+              if (monitoreo.alertas.length > 0) {
+                console.table(monitoreo.alertas.map(a => ({
+                  ID: a.id_alerta,
+                  Sensor: a.id_sensor,
+                  Tipo: a.tipo,
+                  Severidad: a.severidad,
+                  Mensaje: a.mensaje
+                })));
+              }
+              if (monitoreo.incidentes.length > 0) {
+                console.table(monitoreo.incidentes.map(i => ({
+                  ID: i.id_incidente,
+                  Sensor: i.id_sensor,
+                  Tipo: i.tipo,
+                  Severidad: i.severidad,
+                  Estado: i.estado,
+                  Descripcion: i.descripcion
+                })));
+              }
             } else {
               console.log('Opción inválida.');
             }
@@ -1084,66 +1145,190 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
 
         case '5': {
           console.log('\n--- HISTÓRICO Y DETECCIÓN DE ANOMALÍAS (MongoDB) ---');
-          const id_sensor = await ask('ID Sensor para ver histórico (ej: SENS-101): ') || 'SENS-101';
-          const lecturas = await LecturaRepository.consultarHistoricoLecturas(id_sensor, 5);
-          console.log('\nÚltimas 5 lecturas registradas:');
-          console.table(lecturas.map(l => ({
-            Sensor: l.id_sensor,
-            Fecha: l.fecha_hora,
-            Temp: `${l.temperatura}°C`,
-            Hum: `${l.humedad}%`,
-            Coords: JSON.stringify(l.posicion_gps?.coordinates)
-          })));
+          console.log('1. Histórico por sensor');
+          console.log('2. Histórico por contenedor');
+          const modo = (await ask('Opción (1-2) [1]: ')).trim() || '1';
+          const identificador = modo === '2'
+            ? (await ask('ID Contenedor (ej: CONT-001): ')).trim()
+            : (await ask('ID Sensor (ej: SENS-101): ')).trim();
+          const desde = (await ask('Desde (YYYY-MM-DD, ENTER sin límite): ')).trim() || null;
+          const hasta = (await ask('Hasta (YYYY-MM-DD, ENTER sin límite): ')).trim() || null;
+          const limite = (await ask('Cantidad máxima de lecturas [10]: ')).trim() || '10';
+
+          const lecturas = modo === '2'
+            ? await LecturaRepository.consultarHistoricoPorContenedor(
+                identificador,
+                limite,
+                { desde, hasta }
+              )
+            : await LecturaRepository.consultarHistoricoLecturas(
+                identificador,
+                limite,
+                { desde, hasta }
+              );
+
+          console.log(`\nSe encontraron ${lecturas.length} lecturas:`);
+          if (lecturas.length === 0) {
+            console.log('No hay lecturas para los filtros indicados.');
+          } else {
+            console.table(lecturas.map(l => ({
+              Sensor: l.id_sensor,
+              Contenedor: l.id_contenedor || '-',
+              Fecha: l.fecha_hora,
+              Temperatura: l.temperatura !== null && l.temperatura !== undefined ? `${l.temperatura} °C` : '-',
+              Humedad: l.humedad !== null && l.humedad !== undefined ? `${l.humedad} %` : '-',
+              Bateria: l.nivel_bateria !== null && l.nivel_bateria !== undefined ? `${l.nivel_bateria} %` : '-',
+              Coords: l.posicion_gps?.coordinates
+                ? l.posicion_gps.coordinates.join(', ')
+                : '-'
+            })));
+          }
 
           const reglaTemperatura = await AlertaRepository.obtenerReglaAplicable('TEMPERATURA');
-          console.log(
-            `\nBuscando anomalías de temperatura (${reglaTemperatura.condicion} ` +
-            `${reglaTemperatura.umbral}°C según regla ${reglaTemperatura.id_regla})...`
-          );
-          const anomalias = await LecturaRepository.detectarAnomaliasTemperatura(
-            reglaTemperatura.umbral,
-            reglaTemperatura.condicion
-          );
-          console.log(`Se detectaron ${anomalias.length} lecturas anómalas:`);
-          console.table(anomalias.map(a => ({
-            Sensor: a.id_sensor,
-            Fecha: a.fecha_hora,
-            Temperatura: `${a.temperatura} °C (Alerta)`,
-            Contenedor: a.sensor_info?.id_contenedor || 'N/A'
-          })));
+          if (!reglaTemperatura) {
+            console.log(
+              '\nLa detección de anomalías de temperatura está desactivada: ' +
+              'no hay una regla activa para ese tipo.'
+            );
+          } else {
+            console.log(
+              `\nBuscando anomalías de temperatura (${reglaTemperatura.condicion} ` +
+              `${reglaTemperatura.umbral}°C según regla ${reglaTemperatura.id_regla})...`
+            );
+            const anomalias = await LecturaRepository.detectarAnomaliasTemperatura(
+              reglaTemperatura.umbral,
+              reglaTemperatura.condicion,
+              { desde, hasta, limite }
+            );
+            console.log(`Se detectaron ${anomalias.length} lecturas anómalas:`);
+            console.table(anomalias.map(a => ({
+              Sensor: a.id_sensor,
+              Fecha: a.fecha_hora,
+              Temperatura: `${a.temperatura} °C (Alerta)`,
+              Contenedor: a.id_contenedor || a.sensor_info?.id_contenedor || 'N/A'
+            })));
+          }
           break;
         }
 
         case '6': {
-          console.log('\n--- GESTIÓN DE INCIDENTES Y ALERTAS (MongoDB) ---');
-          const incidentes = await IncidenteRepository.listarIncidentesAbiertos();
-          console.log('\nIncidentes actualmente abiertos:');
-          console.table(incidentes.map(i => ({
-            ID: i.id_incidente,
-            Envio: i.id_envio,
-            Tipo: i.tipo,
-            Severidad: i.severidad,
-            Estado: i.estado,
-            Descripcion: i.descripcion,
-            Fecha: i.fecha
-          })));
+          let salirIncidentes = false;
+          while (!salirIncidentes) {
+            console.log('\n--- GESTIÓN DE INCIDENTES (MongoDB) ---');
+            console.log('1. Listar incidentes con filtros');
+            console.log('2. Registrar incidente manual (genera alerta)');
+            console.log('3. Cerrar incidente y sus alertas');
+            console.log('4. Incidentes agrupados por envío');
+            console.log('0. Volver');
+            const optIncidente = (await ask('Opción (0-4): ')).trim();
 
-          const crear = (await ask('¿Desea registrar un nuevo incidente? (s/n): ')).toLowerCase();
-          if (crear === 's') {
-            const id_incidente = `INC-${Date.now().toString().slice(-4)}`;
-            const id_envio = await ask('ID Envío asociado (ej: ENV-1001): ') || 'ENV-1001';
-            const tipo = await ask('Tipo de incidente (DESVIO_RUTA / RUPTURA_CADENA_FRIO / DEMORA): ') || 'RUPTURA_CADENA_FRIO';
-            const severidad = await ask('Severidad (BAJA / MEDIA / ALTA / CRITICA): ') || 'MEDIA';
-            const descripcion = await ask('Descripción del incidente: ') || 'Alerta registrada por operador';
+            if (optIncidente === '0') {
+              salirIncidentes = true;
+            } else if (optIncidente === '1') {
+              const estado = (await ask(
+                `Estado (${ESTADOS_INCIDENTE.join('/')}, ENTER todos): `
+              )).trim() || null;
+              const tipo = (await ask(
+                `Tipo (${TIPOS_INCIDENTE.join('/')}, ENTER todos): `
+              )).trim() || null;
+              const id_envio = (await ask('ID Envío (opcional): ')).trim() || null;
+              const id_sensor = (await ask('ID Sensor (opcional): ')).trim() || null;
+              const id_contenedor = (await ask('ID Contenedor (opcional): ')).trim() || null;
+              const limite = (await ask('Cantidad máxima [100]: ')).trim() || '100';
 
-            const nuevo = await MongoTelemetryRepository.registrarIncidente({
-              id_incidente,
-              id_envio,
-              tipo,
-              severidad,
-              descripcion
-            });
-            console.log('\nIncidente registrado en MongoDB:', nuevo);
+              const incidentes = await IncidenteRepository.listarIncidentes({
+                estado,
+                tipo,
+                id_envio,
+                id_sensor,
+                id_contenedor,
+                limite
+              });
+              if (incidentes.length === 0) {
+                console.log('No se encontraron incidentes con esos filtros.');
+              } else {
+                console.table(incidentes.map(i => ({
+                  ID: i.id_incidente,
+                  Envio: i.id_envio || '-',
+                  Sensor: i.id_sensor || '-',
+                  Contenedor: i.id_contenedor || '-',
+                  Tipo: i.tipo,
+                  Severidad: i.severidad,
+                  Estado: i.estado,
+                  Descripcion: i.descripcion || '-',
+                  Fecha: i.fecha
+                })));
+              }
+            } else if (optIncidente === '2') {
+              const id_incidente = (await ask(
+                'ID Incidente (ENTER para generar automáticamente): '
+              )).trim() || undefined;
+              const id_envio = (await ask('ID Envío asociado (opcional): ')).trim() || null;
+              const id_sensor = (await ask('ID Sensor asociado (opcional): ')).trim() || null;
+              const id_contenedor = (await ask('ID Contenedor asociado (opcional): ')).trim() || null;
+              const tipo = (await ask(
+                `Tipo (${TIPOS_INCIDENTE.join('/')}) [OTRO]: `
+              )).trim() || 'OTRO';
+              const severidad = (await ask('Severidad (BAJA/MEDIA/ALTA/CRITICA) [MEDIA]: ')).trim() || 'MEDIA';
+              const descripcion = (await ask('Descripción del incidente: ')).trim() || 'Incidente registrado por operador';
+              const ubicacion = (await ask('Ubicación (opcional): ')).trim() || null;
+
+              const resultado = await LogisticsService.registrarIncidenteManual({
+                id_incidente,
+                id_envio,
+                id_sensor,
+                id_contenedor,
+                tipo,
+                severidad,
+                descripcion,
+                ubicacion
+              });
+              console.log('\nIncidente registrado:', resultado.incidente);
+              console.log(
+                resultado.alerta
+                  ? `Alerta ${resultado.alerta.id_alerta} generada para el incidente.`
+                  : 'El incidente no generó una alerta nueva (ya existía una alerta abierta).'
+              );
+            } else if (optIncidente === '3') {
+              const abiertos = await IncidenteRepository.listarIncidentes({
+                estado: 'ABIERTO',
+                limite: 100
+              });
+              if (abiertos.length > 0) {
+                console.table(abiertos.map(i => ({
+                  ID: i.id_incidente,
+                  Tipo: i.tipo,
+                  Severidad: i.severidad,
+                  Envio: i.id_envio || '-',
+                  Sensor: i.id_sensor || '-',
+                  Fecha: i.fecha
+                })));
+              }
+              const id_incidente = await ask('ID Incidente a cerrar: ');
+              const resultado = await LogisticsService.cerrarIncidente(id_incidente);
+              if (!resultado) {
+                console.log('Incidente no encontrado o ya estaba cerrado.');
+              } else {
+                console.log('\nIncidente cerrado:', resultado.incidente);
+                console.log(`Alertas cerradas: ${resultado.alertas_cerradas}`);
+              }
+            } else if (optIncidente === '4') {
+              const agrupados = await IncidenteRepository.obtenerIncidentesPorEnvio();
+              if (agrupados.length === 0) {
+                console.log('No hay incidentes registrados.');
+              } else {
+                console.table(agrupados.map(g => ({
+                  Envio: g._id || 'Sin envío',
+                  Total: g.total_incidentes,
+                  Criticos: g.criticos,
+                  Leves: g.leves,
+                  Abiertos: g.abiertos,
+                  Tipos: (g.tipos || []).join(', ')
+                })));
+              }
+            } else {
+              console.log('Opción inválida.');
+            }
           }
           break;
         }
@@ -1223,14 +1408,62 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
         }
 
         case '10': {
-          console.log('\n--- CONSULTA DE ÚLTIMA POSICIÓN EN TIEMPO REAL (Redis) ---');
-          const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
-          const pos = await RedisCacheRepository.obtenerUltimaPosicion(id_contenedor);
-          if (pos) {
-            console.log(`\nDatos en memoria caché para ${id_contenedor}:`);
-            console.log(pos);
+          console.log('\n--- CONSULTA DE POSICIONES GPS EN TIEMPO REAL (Redis) ---');
+          console.log('1. Última posición de un contenedor');
+          console.log('2. Listar todas las posiciones cacheadas');
+          console.log('3. Contenedores cercanos a una coordenada');
+          console.log('0. Volver');
+          const optGps = (await ask('Opción (0-3): ')).trim();
+
+          if (optGps === '0') {
+            break;
+          } else if (optGps === '1') {
+            const id_contenedor = await ask('ID Contenedor (ej: CONT-001): ') || 'CONT-001';
+            const pos = await RedisCacheRepository.obtenerUltimaPosicion(id_contenedor);
+            if (pos) {
+              console.log(`\nDatos en memoria caché para ${id_contenedor}:`);
+              console.log(pos);
+            } else {
+              console.log(`No hay información en caché de Redis para el contenedor ${id_contenedor}.`);
+            }
+          } else if (optGps === '2') {
+            const posiciones = await RedisCacheRepository.obtenerTodasPosiciones();
+            if (posiciones.length === 0) {
+              console.log('No hay posiciones de contenedores en caché.');
+            } else {
+              console.table(posiciones.map(p => ({
+                Contenedor: p.id_contenedor,
+                Latitud: p.latitud,
+                Longitud: p.longitud,
+                Envio: p.id_envio || '-',
+                Sensor: p.id_sensor || '-',
+                Actualizado: p.actualizado_en || '-'
+              })));
+            }
+          } else if (optGps === '3') {
+            const longitud = (await ask('Longitud de referencia (ej: -58.3816): ')).trim();
+            const latitud = (await ask('Latitud de referencia (ej: -34.6037): ')).trim();
+            const radioKm = (await ask('Radio en km [100]: ')).trim() || '100';
+            const cercanos = await RedisCacheRepository.obtenerPosicionesCercanas(
+              longitud,
+              latitud,
+              radioKm
+            );
+            if (cercanos.length === 0) {
+              console.log('No se encontraron contenedores dentro del radio indicado.');
+            } else {
+              console.log(`\nContenedores a menos de ${radioKm} km:`);
+              console.table(cercanos.map(p => ({
+                Contenedor: p.id_contenedor,
+                Latitud: p.latitud,
+                Longitud: p.longitud,
+                Envio: p.id_envio || '-',
+                Sensor: p.id_sensor || '-',
+                Actualizado: p.actualizado_en || '-'
+              })));
+            }
           } else {
-            console.log(`No hay información en caché de Redis para el contenedor ${id_contenedor}.`);
+            console.log('Opción inválida.');
           }
           break;
         }

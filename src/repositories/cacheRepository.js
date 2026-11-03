@@ -62,12 +62,17 @@ export class RedisCacheRepository {
   static async actualizarUltimaPosicion(id_contenedor, lat, lng, datosExtra = {}) {
     if (!redisClient.isOpen) return false;
     const key = `contenedor:posicion:${id_contenedor}`;
-    await redisClient.hSet(key, {
+    const campos = {
       latitud: String(lat),
       longitud: String(lng),
-      actualizado_en: new Date().toISOString(),
-      ...datosExtra
-    });
+      actualizado_en: new Date().toISOString()
+    };
+    for (const [campo, valor] of Object.entries(datosExtra || {})) {
+      if (valor !== undefined && valor !== null && valor !== '') {
+        campos[campo] = String(valor);
+      }
+    }
+    await redisClient.hSet(key, campos);
     // Agregar a índice espacial de Redis
     try {
       await redisClient.geoAdd('contenedores:geo', {
@@ -75,7 +80,9 @@ export class RedisCacheRepository {
         latitude: Number(lat),
         member: id_contenedor
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[Redis] No se pudo actualizar el índice geoespacial: ${e.message}`);
+    }
     return true;
   }
 
@@ -106,14 +113,21 @@ export class RedisCacheRepository {
   static async obtenerPosicionesCercanas(lng, lat, radioKm = 100) {
     if (!redisClient.isOpen) return [];
     try {
-      const result = await redisClient.geoRadius('contenedores:geo', {
-        longitude: Number(lng),
-        latitude: Number(lat),
-        radius: Number(radioKm),
-        unit: 'km'
-      });
-      return result;
+      const members = await redisClient.geoRadius(
+        'contenedores:geo',
+        { longitude: Number(lng), latitude: Number(lat) },
+        Number(radioKm),
+        'km'
+      );
+      const posiciones = [];
+      for (const member of members) {
+        const id_contenedor = typeof member === 'string' ? member : member.member;
+        const pos = await redisClient.hGetAll(`contenedor:posicion:${id_contenedor}`);
+        posiciones.push({ id_contenedor, ...pos });
+      }
+      return posiciones;
     } catch (e) {
+      console.warn(`[Redis] No se pudo consultar posiciones cercanas: ${e.message}`);
       return [];
     }
   }
