@@ -218,7 +218,7 @@ ON CONFLICT (cuit) DO NOTHING;
 
 INSERT INTO operadores (id_operador, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E', 'Argentina', 0.00)
-ON CONFLICT (cuit) DO NOTHING;
+ON CONFLICT (cuit) DO UPDATE SET razon_social = EXCLUDED.razon_social;
 
 INSERT INTO proveedores (id_proveedor, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Sensores del Sur Corp', '30-44332211-9', 'ventas@sensoresdelsur.com', '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina', 80000.00)
@@ -270,14 +270,22 @@ INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, est
 ('VEH-SHIP-01', 'Buque Portacontenedores', 'IMO-9481234', 'Maersk Line', 'OPERATIVO')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad) VALUES
-('ENV-1001', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA'),
-('ENV-1002', 2, 'Montevideo, Uruguay', 'Santiago, Chile', 'CREADO', 'MEDIA')
+INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad, fecha_creacion, fecha_entrega) VALUES
+('ENV-1001', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1002', 2, 'Montevideo, Uruguay', 'Santiago, Chile', 'CREADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
+('ENV-1003', 1, 'Buenos Aires, Argentina', 'Santiago, Chile', 'ENTREGADO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '7 days'),
+('ENV-1004', 2, 'San Pablo, Brasil', 'Montevideo, Uruguay', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
+('ENV-1005', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, fecha_salida, fecha_llegada_estimada) VALUES
-('TR-1001-1', 'ENV-1001', 'Terrestre', 'Buenos Aires', 'Puerto de Santos', CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '1 day'),
-('TR-1001-2', 'ENV-1001', 'Terrestre', 'Puerto de Santos', 'San Pablo', CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days')
+INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, costo, fecha_salida, fecha_llegada_estimada) VALUES
+('TR-1001-1', 'ENV-1001', 'Terrestre', 'Buenos Aires', 'Puerto de Santos', 45000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '1 day'),
+('TR-1001-2', 'ENV-1001', 'Terrestre', 'Puerto de Santos', 'San Pablo', 45000.00, CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days'),
+('TR-1003-1', 'ENV-1003', 'Terrestre', 'Buenos Aires', 'Mendoza', 38000.00, CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
+('TR-1003-2', 'ENV-1003', 'Terrestre', 'Mendoza', 'Santiago', 38000.00, CURRENT_TIMESTAMP - INTERVAL '9 days', CURRENT_TIMESTAMP - INTERVAL '6 days'),
+('TR-1004-1', 'ENV-1004', 'Marítimo', 'San Pablo', 'Puerto de Santos', 72000.00, CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '10 days'),
+('TR-1004-2', 'ENV-1004', 'Marítimo', 'Puerto de Santos', 'Montevideo', 72000.00, CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '10 days'),
+('TR-1005-1', 'ENV-1005', 'Terrestre', 'Buenos Aires', 'San Pablo', 52000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '2 days')
 ON CONFLICT DO NOTHING;
 
 -- Observar que los IDs 1 de CLIENTE, PROVEEDOR y OPERADOR son válidos porque

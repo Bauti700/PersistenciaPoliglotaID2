@@ -138,6 +138,8 @@ export class EnvioOrchestratorService {
       await Neo4jRouteRepository.crearEnvioConRuta({
         id_envio: datosBase.id_envio,
         id_cliente: cliente.id_actor,
+        cliente_nombre: cliente.razon_social,
+        cliente_pais: cliente.pais,
         origen: datosBase.origen,
         destino: datosBase.destino,
         operador: operadorNormalizado,

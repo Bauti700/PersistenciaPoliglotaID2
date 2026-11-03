@@ -239,7 +239,7 @@ Seleccione una opción:
   10. [Redis]      Consultar Última Posición GPS en Caché
   11. [Políglota]  ABM de Envíos (Alta, Modificación, Estado, Cancelación, Asignaciones)
   12. [Políglota]  Calcular / Consultar Predicción de Riesgo
-  13. [Reporte]    Ranking de Clientes por Volumen Facturado
+  13. [Reporte]    Ranking de Clientes por Volumen Transportado / Facturado
   14. [Reporte]    Reportes Comerciales Parametrizados (Filtros y Auditoría en MongoDB)
   15. [Analítica]  Ranking de Rutas con Mayor Cantidad de Incidentes (Mongo + PG + Redis)
   16. [Analítica]  Análisis Histórico de Desempeño (Tiempos Entrega, Puntualidad y Costos)
@@ -1976,7 +1976,7 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
         }
 
         case '13': {
-          console.log('\n--- RANKING DE CLIENTES POR VOLUMEN FACTURADO (PostgreSQL) ---');
+          console.log('\n--- RANKING DE CLIENTES POR VOLUMEN TRANSPORTADO / FACTURADO (PostgreSQL) ---');
           const ranking = await ReporteComercialRepository.rankingClientesPorVolumen();
           console.table(ranking);
           break;

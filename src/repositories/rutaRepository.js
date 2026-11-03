@@ -1,11 +1,28 @@
 import { neoDriver } from '../config/database.js';
 
 export class Neo4jRouteRepository {
-  static async crearEnvioConRuta({ id_envio, id_cliente, origen, destino, operador, vehiculo, tramos, prioridad = 'MEDIA' }) {
+  static async crearEnvioConRuta({
+    id_envio,
+    id_cliente,
+    cliente_nombre = null,
+    cliente_pais = null,
+    origen,
+    destino,
+    operador,
+    vehiculo,
+    tramos,
+    prioridad = 'MEDIA'
+  }) {
     const session = neoDriver.session();
     try {
       const cypher = `
         MERGE (c:Cliente {id_cliente: $id_cliente})
+        FOREACH (_ IN CASE WHEN $cliente_nombre IS NOT NULL THEN [1] ELSE [] END |
+          SET c.razon_social = $cliente_nombre
+        )
+        FOREACH (_ IN CASE WHEN $cliente_pais IS NOT NULL THEN [1] ELSE [] END |
+          SET c.pais = $cliente_pais
+        )
         MERGE (e:Envio {id_envio: $id_envio})
         SET e.estado = 'EN_TRANSITO', e.fecha_creacion = datetime(), e.prioridad = $prioridad
         MERGE (c)-[:SOLICITA]->(e)
@@ -25,7 +42,17 @@ export class Neo4jRouteRepository {
           MERGE (e)-[:TRANSPORTADO_POR]->(v)
         )
       `;
-      await session.run(cypher, { id_envio, id_cliente: Number(id_cliente), origen, destino, operador, vehiculo, prioridad });
+      await session.run(cypher, {
+        id_envio,
+        id_cliente: Number(id_cliente),
+        cliente_nombre,
+        cliente_pais,
+        origen,
+        destino,
+        operador,
+        vehiculo,
+        prioridad
+      });
 
       // Conectar tramos en secuencia si se proporcionaron
       if (tramos && tramos.length > 0) {
@@ -422,6 +449,33 @@ export class Neo4jRouteRepository {
       `;
       const result = await session.run(cypher);
       return result.records.map(r => r.toObject());
+    } finally {
+      await session.close();
+    }
+  }
+
+  // Asignaciones envío -> operador para el cálculo de confiabilidad operativa
+  static async obtenerEnviosPorOperador() {
+    const session = neoDriver.session();
+    try {
+      const cypher = `
+        MATCH (e:Envio)-[:ASIGNADO_A]->(op:Operador)
+        RETURN op.id_actor AS id_actor,
+               op.nombre AS operador,
+               collect(DISTINCT e.id_envio) AS envios
+        ORDER BY operador
+      `;
+      const result = await session.run(cypher);
+      return result.records.map(r => {
+        const fila = r.toObject();
+        const idActor = fila.id_actor;
+        return {
+          ...fila,
+          id_actor: idActor === null || idActor === undefined
+            ? null
+            : Number(typeof idActor.toNumber === 'function' ? idActor.toNumber() : idActor)
+        };
+      });
     } finally {
       await session.close();
     }

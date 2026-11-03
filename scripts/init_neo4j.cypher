@@ -26,7 +26,7 @@ CREATE (u3:Ubicacion {nombre: "San Pablo", pais: "Brasil"})
 CREATE (u4:Ubicacion {nombre: "Montevideo", pais: "Uruguay"})
 CREATE (u5:Ubicacion {nombre: "Santiago", pais: "Chile"})
 
-CREATE (op1:Operador {id_actor: 3, nombre: "Logística Express del Plata"})
+CREATE (op1:Operador {id_actor: 1, nombre: "Logística Express del Plata"})
 
 CREATE (v1:Vehiculo {id_vehiculo: "VEH-TRUCK-01", tipo: "Camión Semirremolque", identificacion: "AF-204-ZX"})
 

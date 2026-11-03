@@ -94,25 +94,32 @@ export class LecturaRepository {
 
     const limite = enteroPositivo(filtros.limite || 50, 'limite', { min: 1, max: 500 });
     const db = getDb();
-    const lecturas = await db.collection('lecturas_sensores')
-      .find(match)
-      .sort({ fecha_hora: -1 })
-      .limit(limite)
-      .toArray();
 
-    if (lecturas.length === 0) return [];
-
-    // Resolvemos los sensores en una segunda consulta para evitar $lookup sobre
-    // colecciones time-series y mantener el pipeline simple.
-    const idsSensor = [...new Set(lecturas.map(l => l.id_sensor).filter(Boolean))];
-    const sensores = idsSensor.length > 0
-      ? await db.collection('sensores').find({ id_sensor: { $in: idsSensor } }).toArray()
-      : [];
-    const mapaSensores = new Map(sensores.map(s => [s.id_sensor, s]));
+    // Aggregation Pipeline sobre la colección time-series. $lookup permite
+    // enriquecer cada lectura con los datos del sensor en una sola consulta.
+    const lecturas = await db.collection('lecturas_sensores').aggregate([
+      { $match: match },
+      { $sort: { fecha_hora: -1 } },
+      { $limit: limite },
+      {
+        $lookup: {
+          from: 'sensores',
+          localField: 'id_sensor',
+          foreignField: 'id_sensor',
+          as: 'sensor_info'
+        }
+      },
+      {
+        $unwind: {
+          path: '$sensor_info',
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ]).toArray();
 
     return lecturas.map(lectura => ({
       ...lectura,
-      sensor_info: mapaSensores.get(lectura.id_sensor) || null
+      sensor_info: lectura.sensor_info || null
     }));
   }
 }

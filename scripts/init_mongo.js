@@ -306,8 +306,8 @@ db.reportes.aggregate([
 ]).forEach(function (grupo) {
   grupo.ids.slice(1).forEach(function (id) { db.reportes.deleteOne({ _id: id }); });
 });
-db.reportes.createIndex({ id_reporte: 1 }, { unique: true, sparse: true });
-db.reportes.createIndex({ fecha_generacion: -1 });
-db.reportes.createIndex({ categoria: 1, tipo: 1 });
+db.reportes.createIndex({ id_reporte: 1 }, { unique: true, sparse: true, name: 'uq_reporte_id' });
+db.reportes.createIndex({ fecha_generacion: -1 }, { name: 'idx_reporte_fecha' });
+db.reportes.createIndex({ categoria: 1, tipo: 1 }, { name: 'idx_reporte_categoria_tipo' });
 
 print("MongoDB inicializado exitosamente para tpo_telemetria");

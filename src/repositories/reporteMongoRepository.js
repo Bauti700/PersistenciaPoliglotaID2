@@ -5,7 +5,7 @@ export class ReporteMongoRepository {
   static _indicesAsegurados = false;
 
   static async asegurarIndices() {
-    if (this._indicesAsegurados) return;
+    if (ReporteMongoRepository._indicesAsegurados) return;
     try {
       const col = getDb().collection('reportes');
 
@@ -32,7 +32,7 @@ export class ReporteMongoRepository {
     } catch (error) {
       console.warn(`[Reportes Mongo] No se pudieron asegurar los índices: ${error.message}`);
     } finally {
-      this._indicesAsegurados = true;
+      ReporteMongoRepository._indicesAsegurados = true;
     }
   }
 
@@ -46,7 +46,7 @@ export class ReporteMongoRepository {
     resumen = {},
     ...extra
   }) {
-    await this.asegurarIndices();
+    await ReporteMongoRepository.asegurarIndices();
     const col = getDb().collection('reportes');
     const doc = {
       id_reporte: id_reporte || `REP-${Date.now()}-${randomUUID().slice(0, 8)}`,
@@ -63,7 +63,7 @@ export class ReporteMongoRepository {
   }
 
   static async listarReportes(limite = 20) {
-    await this.asegurarIndices();
+    await ReporteMongoRepository.asegurarIndices();
     const maximo = Math.min(Math.max(Number(limite) || 20, 1), 200);
     return await getDb().collection('reportes')
       .find({})
@@ -73,7 +73,7 @@ export class ReporteMongoRepository {
   }
 
   static async obtenerReportePorId(id_reporte) {
-    await this.asegurarIndices();
+    await ReporteMongoRepository.asegurarIndices();
     return await getDb().collection('reportes').findOne({ id_reporte });
   }
 }

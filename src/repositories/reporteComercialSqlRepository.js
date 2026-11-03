@@ -156,21 +156,38 @@ export class ReporteComercialSqlRepository {
   }
 
   static async rankingClientesPorVolumen() {
+    // Los envíos y las facturas se agregan en subconsultas separadas para evitar
+    // el producto cartesiano que duplicaba los importes facturados.
     const query = `
       SELECT c.id_cliente AS id_actor, c.razon_social, c.pais,
-             COUNT(DISTINCT e.id_envio) AS total_envios,
-             COALESCE(SUM(f.importe_total), 0.00) AS volumen_facturado
+             COALESCE(env.total_envios, 0) AS total_envios,
+             COALESCE(fac.total_facturas, 0) AS total_facturas,
+             COALESCE(fac.volumen_facturado, 0.00) AS volumen_facturado
       FROM clientes c
-      LEFT JOIN envios e ON c.id_cliente = e.id_cliente
-      LEFT JOIN facturas f
-        ON c.id_cliente = f.id_cliente
-       AND f.tipo_factura = 'EMITIDA'
-       AND f.tipo_actor = 'CLIENTE'
-      GROUP BY c.id_cliente, c.razon_social, c.pais
-      ORDER BY total_envios DESC, volumen_facturado DESC;
+      LEFT JOIN (
+        SELECT id_cliente, COUNT(*) AS total_envios
+        FROM envios
+        GROUP BY id_cliente
+      ) env ON env.id_cliente = c.id_cliente
+      LEFT JOIN (
+        SELECT id_cliente,
+               COUNT(*) AS total_facturas,
+               SUM(importe_total) AS volumen_facturado
+        FROM facturas
+        WHERE tipo_factura = 'EMITIDA'
+          AND tipo_actor = 'CLIENTE'
+        GROUP BY id_cliente
+      ) fac ON fac.id_cliente = c.id_cliente
+      ORDER BY total_envios DESC, volumen_facturado DESC, c.razon_social ASC;
     `;
     const res = await pgPool.query(query);
-    return res.rows;
+    return res.rows.map(fila => ({
+      ...fila,
+      id_actor: Number(fila.id_actor),
+      total_envios: Number(fila.total_envios),
+      total_facturas: Number(fila.total_facturas),
+      volumen_facturado: Number(fila.volumen_facturado)
+    }));
   }
 
   static async reporteOperativoEnvios(filtros = {}) {

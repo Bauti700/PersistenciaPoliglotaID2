@@ -5,6 +5,14 @@ import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
 import { ReporteComercialRepository } from '../repositories/reporteComercialRepository.js';
 import { LogisticsService } from './logisticsService.js';
 
+function normalizarNombre(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 export class AnalyticsService {
   /**
    * 1. Ranking de rutas con mayor cantidad de incidentes (MongoDB + PostgreSQL + Redis)
@@ -134,7 +142,9 @@ export class AnalyticsService {
    * puntualidad (On-Time Delivery), desglose de costos por medio de transporte y confiabilidad de operadores.
    */
   static async analisisHistoricoDesempeno({ id_cliente = null, forzarRecalculo = false } = {}) {
-    const cacheKey = `desempeno_historico:${id_cliente || 'general'}`;
+    // La versión forma parte de la clave para no reutilizar cachés con el
+    // esquema anterior de métricas mientras conviven durante una actualización.
+    const cacheKey = `desempeno_historico:v2:${id_cliente || 'general'}`;
 
     if (!forzarRecalculo) {
       const cacheado = await RedisCacheRepository.obtenerAnaliticaCacheada(cacheKey);
@@ -187,9 +197,12 @@ export class AnalyticsService {
     const tiempoMinimoDias = duraciones.length > 0 ? Math.min(...duraciones) : 0;
     const tiempoMaximoDias = duraciones.length > 0 ? Math.max(...duraciones) : 0;
 
-    // Puntualidad (On-Time Delivery)
+    // Puntualidad (On-Time Delivery). Solo se evalúan entregas con fecha
+    // estimada; los envíos sin estimación se informan por separado y no inflan
+    // artificialmente la tasa.
     let aTiempo = 0;
     let conDemora = 0;
+    let sinEstimacion = 0;
 
     for (const e of entregados) {
       if (e.fecha_entrega && e.fecha_estimada_fin) {
@@ -199,12 +212,13 @@ export class AnalyticsService {
           conDemora += 1;
         }
       } else {
-        aTiempo += 1; // Por defecto si no hubo atraso registrado
+        sinEstimacion += 1;
       }
     }
 
-    const tasaPuntualidad = entregados.length > 0
-      ? `${((aTiempo / entregados.length) * 100).toFixed(1)}%`
+    const entregasEvaluadas = aTiempo + conDemora;
+    const tasaPuntualidad = entregasEvaluadas > 0
+      ? `${((aTiempo / entregasEvaluadas) * 100).toFixed(1)}%`
       : 'N/A';
 
     // B. Desempeño por Cliente (tiempos mín, máx y promedio por cliente)
@@ -248,49 +262,110 @@ export class AnalyticsService {
     });
 
     // C. Costos y Volúmenes por Medio de Transporte (Tramos)
+    // El filtro por cliente también aplica a los costos para que el informe sea
+    // coherente cuando la opción 16 se ejecuta para un cliente específico.
+    const paramsCostos = [];
+    let filtroCostos = '';
+    if (id_cliente) {
+      paramsCostos.push(Number(id_cliente));
+      filtroCostos = 'WHERE e.id_cliente = $1';
+    }
+
     const resTramos = await pgPool.query(`
       SELECT t.medio_transporte,
              COUNT(*) AS total_tramos,
              COALESCE(ROUND(AVG(t.costo), 2), 0) AS costo_promedio,
              COALESCE(ROUND(SUM(t.costo), 2), 0) AS costo_total
       FROM tramos t
+      JOIN envios e ON e.id_envio = t.id_envio
+      ${filtroCostos}
       GROUP BY t.medio_transporte
       ORDER BY total_tramos DESC;
-    `);
+    `, paramsCostos);
 
     // D. Confiabilidad Operativa por Operador Logístico
-    // (Cruza datos de envíos en PostgreSQL con incidentes de MongoDB)
+    // La relación envío -> operador vive en Neo4j (ASIGNADO_A). Se cruza esa
+    // asignación con los incidentes de MongoDB y se enriquece con los datos
+    // maestros de PostgreSQL.
     const incidentesMongo = await MongoTelemetryRepository.obtenerIncidentesPorEnvio();
     const mapIncidentes = new Map(incidentesMongo.map(i => [i._id, i.total_incidentes]));
 
     const resOperadores = await pgPool.query(`
       SELECT o.id_operador AS id_actor, o.razon_social AS operador, o.pais
-      FROM operadores o;
+      FROM operadores o
+      ORDER BY o.id_operador;
     `);
 
-    const confiabilidadOperadores = [];
-    for (const op of resOperadores.rows) {
-      // Tomar envíos asociados
-      const resEnvOp = await pgPool.query(`
-        SELECT id_envio FROM envios WHERE estado = 'ENTREGADO' OR estado = 'EN_TRANSITO';
-      `);
-      let incTotales = 0;
-      for (const e of resEnvOp.rows) {
-        incTotales += mapIncidentes.get(e.id_envio) || 0;
-      }
-      const totalViajes = resEnvOp.rows.length;
-      const tasaSinIncidentes = totalViajes > 0
-        ? `${Math.max(0, ((1 - (incTotales / (totalViajes * 2))) * 100)).toFixed(1)}%`
-        : '100.0%';
+    let asignaciones = [];
+    try {
+      asignaciones = await Neo4jRouteRepository.obtenerEnviosPorOperador();
+    } catch (error) {
+      console.warn(`[Analytics] No se pudieron leer las asignaciones de operadores desde Neo4j: ${error.message}`);
+    }
 
-      confiabilidadOperadores.push({
-        id_operador: op.id_actor,
+    const idsEnviosFiltrados = id_cliente
+      ? new Set(envios.map(e => e.id_envio))
+      : null;
+
+    const calcularConfiabilidad = ({ id_actor = null, operador, pais = null, enviosAsignados = [] }) => {
+      const viajes = enviosAsignados.filter(id => !idsEnviosFiltrados || idsEnviosFiltrados.has(id));
+      const viajesConIncidentes = viajes.filter(id => (mapIncidentes.get(id) || 0) > 0);
+      const incidentesRegistrados = viajes.reduce(
+        (total, id) => total + (mapIncidentes.get(id) || 0),
+        0
+      );
+      const indice = viajes.length > 0
+        ? `${(((viajes.length - viajesConIncidentes.length) / viajes.length) * 100).toFixed(1)}%`
+        : 'N/A';
+
+      return {
+        id_operador: id_actor,
+        operador,
+        pais,
+        viajes_operados: viajes.length,
+        viajes_con_incidentes: viajesConIncidentes.length,
+        incidentes_registrados: incidentesRegistrados,
+        indice_confiabilidad: indice
+      };
+    };
+
+    const operadoresPgPorId = new Map(
+      resOperadores.rows.map(op => [Number(op.id_actor), op])
+    );
+    const operadoresPgPorNombre = new Map(
+      resOperadores.rows.map(op => [normalizarNombre(op.operador), op])
+    );
+
+    const confiabilidadOperadores = [];
+    const operadoresProcesados = new Set();
+
+    for (const asignacion of asignaciones) {
+      const pg = (asignacion.id_actor !== null && asignacion.id_actor !== undefined
+        ? operadoresPgPorId.get(Number(asignacion.id_actor))
+        : null) || operadoresPgPorNombre.get(normalizarNombre(asignacion.operador));
+
+      const clave = pg ? `pg:${pg.id_actor}` : `neo4j:${normalizarNombre(asignacion.operador)}`;
+      if (operadoresProcesados.has(clave)) continue;
+      operadoresProcesados.add(clave);
+
+      confiabilidadOperadores.push(calcularConfiabilidad({
+        id_actor: pg?.id_actor ?? asignacion.id_actor ?? null,
+        operador: pg?.operador || asignacion.operador || 'Operador sin nombre',
+        pais: pg?.pais || null,
+        enviosAsignados: asignacion.envios || []
+      }));
+    }
+
+    // Operadores dados de alta en PostgreSQL que todavía no tienen envíos
+    // asignados en el grafo, para que el informe no los omita.
+    for (const op of resOperadores.rows) {
+      if (operadoresProcesados.has(`pg:${op.id_actor}`)) continue;
+      confiabilidadOperadores.push(calcularConfiabilidad({
+        id_actor: op.id_actor,
         operador: op.operador,
         pais: op.pais,
-        viajes_operados: totalViajes,
-        incidentes_registrados: incTotales,
-        indice_confiabilidad: tasaSinIncidentes
-      });
+        enviosAsignados: []
+      }));
     }
 
     const resultado = {
@@ -306,8 +381,10 @@ export class AnalyticsService {
         tiempo_minimo_dias: tiempoMinimoDias,
         tiempo_maximo_dias: tiempoMaximoDias,
         tasa_puntualidad_on_time: tasaPuntualidad,
+        entregas_evaluadas: entregasEvaluadas,
         entregados_a_tiempo: aTiempo,
-        entregados_con_demora: conDemora
+        entregados_con_demora: conDemora,
+        entregados_sin_estimacion: sinEstimacion
       },
       desempeno_por_cliente: desempenoPorCliente,
       costos_por_tipo_transporte: resTramos.rows.map(r => ({
