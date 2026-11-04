@@ -8,7 +8,7 @@
 // - PostgreSQL: aplica scripts/init_postgres.sql (idempotente, no borra datos).
 // - MongoDB:    ejecuta scripts/init_mongo.js (recrea las colecciones semilla).
 // - Neo4j:      ejecuta scripts/init_neo4j.cypher (borra el grafo y lo recrea).
-// - Redis:      no requiere datos semilla (es una caché).
+// - Redis:      carga las últimas posiciones GPS conocidas de los contenedores.
 //
 // MongoDB se ejecuta con mongosh local o, si no está instalado, dentro del
 // contenedor tpo_mongo vía docker exec.
@@ -22,8 +22,10 @@ import 'dotenv/config';
 import {
   pgPool,
   neoDriver,
+  redisClient,
   closeDatabaseConnections
 } from '../src/config/database.js';
+import { RedisCacheRepository } from '../src/repositories/cacheRepository.js';
 
 const SCRIPTS_DIR = fileURLToPath(new URL('.', import.meta.url));
 const RUTA_POSTGRES = fileURLToPath(new URL('./init_postgres.sql', import.meta.url));
@@ -235,6 +237,75 @@ async function seedNeo4j() {
 }
 
 // ---------------------------------------------------------------------------
+// Redis (últimas posiciones GPS conocidas)
+// ---------------------------------------------------------------------------
+const POSICIONES_SEED = [
+  {
+    id_contenedor: 'CONT-001',
+    lat: -34.1,
+    lng: -57.8,
+    datosExtra: { id_envio: 'ENV-1001', id_sensor: 'SENS-101', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-002',
+    lat: -34.9011,
+    lng: -56.1645,
+    datosExtra: { id_envio: 'ENV-1002', id_sensor: 'SENS-103', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-003',
+    lat: -33.4489,
+    lng: -70.6693,
+    datosExtra: { id_envio: 'ENV-1003', estado: 'DISPONIBLE' }
+  },
+  {
+    id_contenedor: 'CONT-004',
+    lat: -34.9011,
+    lng: -56.1645,
+    datosExtra: { id_envio: 'ENV-1004', estado: 'DISPONIBLE' }
+  },
+  {
+    id_contenedor: 'CONT-005',
+    lat: -31.6333,
+    lng: -60.7,
+    datosExtra: { id_envio: 'ENV-1005', estado: 'EN_TRANSITO' }
+  }
+];
+
+async function seedRedis() {
+  logSeccion('Redis');
+  if (!redisClient.isOpen) {
+    try {
+      await redisClient.connect();
+    } catch (err) {
+      throw new Error(
+        `No se pudo conectar a Redis: ${err.message}\n` +
+        'Verificá que los contenedores estén levantados con: docker compose up -d'
+      );
+    }
+  }
+
+  // Dejar el seed idempotente: se descartan las posiciones previas y se
+  // vuelven a cargar las posiciones semilla junto con el índice geoespacial.
+  const clavesPrevias = await redisClient.keys('contenedor:posicion:*');
+  if (clavesPrevias.length > 0) {
+    await redisClient.del(clavesPrevias);
+  }
+  await redisClient.del('contenedores:geo');
+
+  for (const posicion of POSICIONES_SEED) {
+    await RedisCacheRepository.actualizarUltimaPosicion(
+      posicion.id_contenedor,
+      posicion.lat,
+      posicion.lng,
+      posicion.datosExtra
+    );
+  }
+
+  console.log(`Posiciones GPS semilla cargadas para ${POSICIONES_SEED.length} contenedores.`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -244,9 +315,7 @@ async function main() {
   await seedPostgres();
   await seedMongo();
   await seedNeo4j();
-
-  logSeccion('Redis');
-  console.log('Sin datos semilla: Redis se utiliza como caché y se completa en tiempo de ejecución.');
+  await seedRedis();
 
   console.log('\nSeed finalizado correctamente. Ya podés ejecutar "npm start".');
 }

@@ -1,5 +1,14 @@
 import { neoDriver } from '../config/database.js';
 
+function ordenarTramos(tramos = []) {
+  const numero = valor => {
+    if (valor && typeof valor.toNumber === 'function') return valor.toNumber();
+    const convertido = Number(valor);
+    return Number.isFinite(convertido) ? convertido : 0;
+  };
+  return [...tramos].sort((a, b) => numero(a?.orden) - numero(b?.orden));
+}
+
 export class Neo4jRouteRepository {
   static async crearEnvioConRuta({
     id_envio,
@@ -448,7 +457,9 @@ export class Neo4jRouteRepository {
       `;
       const result = await session.run(cypher, { id_envio });
       if (result.records.length === 0) return null;
-      return result.records[0].toObject();
+      const fila = result.records[0].toObject();
+      fila.tramos = ordenarTramos(fila.tramos);
+      return fila;
     } finally {
       await session.close();
     }
@@ -529,7 +540,11 @@ export class Neo4jRouteRepository {
         ORDER BY envio_id
       `;
       const result = await session.run(cypher, { id_contenedor });
-      return result.records.map(r => r.toObject());
+      return result.records.map(r => {
+        const fila = r.toObject();
+        fila.tramos = ordenarTramos(fila.tramos);
+        return fila;
+      });
     } finally {
       await session.close();
     }

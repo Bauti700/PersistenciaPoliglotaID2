@@ -1341,34 +1341,96 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
         }
 
         case '7': {
-          console.log('\n--- MENSAJERÍA Y CHAT (MongoDB) ---');
-          const u1 = await ask('Remitente / Usuario 1 (ej: admin@logistica.com): ') || 'admin@logistica.com';
-          const u2 = await ask('Destinatario / Usuario 2 (ej: carlos@expressplata.com): ') || 'carlos@expressplata.com';
+          let volverMensajeria = false;
+          while (!volverMensajeria) {
+            console.log(`
+--- MENSAJERÍA Y CHAT (MongoDB) ---
+Usuario autenticado: ${currentUser.email}
+  1. Ver historial de conversación privada
+  2. Enviar mensaje privado
+  3. Ver grupos de trabajo disponibles
+  4. Ver historial de un grupo
+  5. Enviar mensaje a un grupo
+  0. Volver al menú principal
+`);
+            const optMensaje = (await ask('Opción (0-5): ')).trim();
 
-          const mensajes = await MongoTelemetryRepository.obtenerMensajes(u1, u2);
-          console.log(`\nHistorial de mensajes entre ${u1} y ${u2}:`);
-          if (mensajes.length === 0) {
-            console.log('No hay mensajes previos.');
-          } else {
-            console.table(mensajes.map(m => ({
-              De: m.remitente,
-              Para: m.destinatario,
-              Fecha: m.fecha,
-              Mensaje: m.contenido
-            })));
-          }
-
-          const enviar = (await ask('¿Desea enviar un mensaje? (s/n): ')).toLowerCase();
-          if (enviar === 's') {
-            const contenido = await ask('Mensaje a enviar: ');
-            if (contenido.trim()) {
-              const res = await MongoTelemetryRepository.enviarMensaje({
-                remitente: u1,
-                destinatario: u2,
-                contenido: contenido.trim(),
-                tipo: 'PRIVADO'
-              });
-              console.log('Mensaje enviado y persistido en MongoDB:', res);
+            try {
+              if (optMensaje === '0') {
+                volverMensajeria = true;
+              } else if (optMensaje === '1') {
+                const otro = (await ask('Email del otro participante: ')).trim();
+                const mensajes = await MensajeRepository.obtenerMensajes(currentUser.email, otro);
+                console.log(`\nHistorial de mensajes entre ${currentUser.email} y ${otro}:`);
+                if (mensajes.length === 0) {
+                  console.log('No hay mensajes previos.');
+                } else {
+                  console.table(mensajes.map(m => ({
+                    De: m.remitente,
+                    Para: m.destinatario,
+                    Fecha: m.fecha,
+                    Mensaje: m.contenido
+                  })));
+                }
+              } else if (optMensaje === '2') {
+                const destinatario = (await ask('Email del destinatario: ')).trim();
+                const contenido = await ask('Mensaje a enviar: ');
+                const res = await MensajeRepository.enviarMensajePrivado({
+                  remitente: currentUser.email,
+                  destinatario,
+                  contenido
+                });
+                console.log(`\nMensaje privado enviado y persistido en MongoDB (${res.id_mensaje}).`);
+              } else if (optMensaje === '3') {
+                const grupos = await MensajeRepository.listarGrupos(currentUser.email);
+                if (grupos.length === 0) {
+                  console.log('No pertenecés a ningún grupo de trabajo.');
+                } else {
+                  console.log('\nGrupos de trabajo disponibles:');
+                  console.table(grupos.map(g => ({
+                    ID: g.id_grupo,
+                    Nombre: g.nombre,
+                    Integrantes: (g.integrantes || []).join(', ')
+                  })));
+                }
+              } else if (optMensaje === '4') {
+                const id_grupo = (await ask('ID del grupo (ej: GRP-01): ')).trim();
+                const mensajes = await MensajeRepository.obtenerMensajesGrupales(id_grupo);
+                console.log(`\nHistorial del grupo ${id_grupo.toUpperCase()}:`);
+                if (mensajes.length === 0) {
+                  console.log('No hay mensajes previos en el grupo.');
+                } else {
+                  console.table(mensajes.map(m => ({
+                    De: m.remitente,
+                    Fecha: m.fecha,
+                    Mensaje: m.contenido
+                  })));
+                }
+              } else if (optMensaje === '5') {
+                const grupos = await MensajeRepository.listarGrupos(currentUser.email);
+                if (grupos.length === 0) {
+                  console.log('No pertenecés a ningún grupo de trabajo.');
+                } else {
+                  console.log('\nGrupos de trabajo disponibles:');
+                  console.table(grupos.map(g => ({
+                    ID: g.id_grupo,
+                    Nombre: g.nombre,
+                    Integrantes: (g.integrantes || []).join(', ')
+                  })));
+                  const id_grupo = (await ask('ID del grupo destinatario: ')).trim();
+                  const contenido = await ask('Mensaje a enviar: ');
+                  const res = await MensajeRepository.enviarMensajeGrupal({
+                    remitente: currentUser.email,
+                    id_grupo,
+                    contenido
+                  });
+                  console.log(`\nMensaje grupal enviado a ${res.id_grupo} y persistido en MongoDB (${res.id_mensaje}).`);
+                }
+              } else {
+                console.log('Opción inválida.');
+              }
+            } catch (error) {
+              console.error(`\n[Error de mensajería]: ${error.message}`);
             }
           }
           break;

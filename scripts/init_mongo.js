@@ -56,7 +56,10 @@ db.lecturas_sensores.createIndex({ posicion_gps: "2dsphere" });
 
 db.lecturas_sensores.insertMany([
   {
+    id_lectura: "LEC-001",
     id_sensor: "SENS-101",
+    id_contenedor: "CONT-001",
+    id_envio: "ENV-1001",
     fecha_hora: new Date(Date.now() - 3600000 * 3),
     temperatura: 4.1,
     humedad: 62.5,
@@ -65,7 +68,10 @@ db.lecturas_sensores.insertMany([
     nivel_bateria: 95
   },
   {
+    id_lectura: "LEC-002",
     id_sensor: "SENS-101",
+    id_contenedor: "CONT-001",
+    id_envio: "ENV-1001",
     fecha_hora: new Date(Date.now() - 3600000 * 2),
     temperatura: 8.9, // Anomalía leve de temperatura en contenedor refrigerado
     humedad: 68.0,
@@ -74,13 +80,40 @@ db.lecturas_sensores.insertMany([
     nivel_bateria: 94
   },
   {
+    id_lectura: "LEC-003",
     id_sensor: "SENS-101",
+    id_contenedor: "CONT-001",
+    id_envio: "ENV-1001",
     fecha_hora: new Date(Date.now() - 3600000),
     temperatura: 4.3,
     humedad: 61.2,
     vibracion: 0.09,
     posicion_gps: { type: "Point", coordinates: [-57.8000, -34.1000] },
     nivel_bateria: 93
+  },
+  {
+    id_lectura: "LEC-004",
+    id_sensor: "SENS-102",
+    id_contenedor: "CONT-001",
+    id_envio: "ENV-1001",
+    fecha_hora: new Date(Date.now() - 3600000 * 1.5),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.85, // Impacto registrado durante el transporte terrestre
+    posicion_gps: { type: "Point", coordinates: [-57.9500, -34.2500] },
+    nivel_bateria: 91
+  },
+  {
+    id_lectura: "LEC-005",
+    id_sensor: "SENS-103",
+    id_contenedor: "CONT-002",
+    id_envio: "ENV-1002",
+    fecha_hora: new Date(Date.now() - 3600000 * 5),
+    temperatura: 10.4, // Ruptura de cadena de frío en contenedor reefer
+    humedad: 71.0,
+    vibracion: 0.05,
+    posicion_gps: { type: "Point", coordinates: [-56.1645, -34.9011] }, // Montevideo
+    nivel_bateria: 88
   }
 ]);
 
@@ -259,23 +292,72 @@ db.alertas.insertMany([
 
 // Mensajes y Grupos de Trabajo (Comunicación)
 db.mensajes.drop();
+db.mensajes.createIndex({ id_mensaje: 1 }, { unique: true });
+db.mensajes.createIndex({ tipo: 1, fecha: 1 });
 db.mensajes.createIndex({ id_grupo: 1, fecha: 1 });
-db.mensajes.createIndex({ remitente: 1, destinatario: 1 });
+db.mensajes.createIndex({ remitente: 1, destinatario: 1, fecha: 1 });
 
 db.mensajes.insertMany([
   {
     id_mensaje: "MSG-1",
     remitente: "admin@logistica.com",
     destinatario: "carlos@expressplata.com",
+    id_grupo: null,
     contenido: "Carlos, por favor verificar el equipo de frío de CONT-001.",
     tipo: "PRIVADO",
     formato: "TEXTO",
     estado: "ENVIADO",
-    fecha: new Date()
+    fecha: new Date(Date.now() - 3600000 * 4)
+  },
+  {
+    id_mensaje: "MSG-2",
+    remitente: "carlos@expressplata.com",
+    destinatario: "admin@logistica.com",
+    id_grupo: null,
+    contenido: "Recibido. Ya solicité el diagnóstico del sensor SENS-101.",
+    tipo: "PRIVADO",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 3)
+  },
+  {
+    id_mensaje: "MSG-3",
+    remitente: "lucia@andina.com",
+    destinatario: "admin@logistica.com",
+    id_grupo: null,
+    contenido: "Adjunto el parte de novedades del tramo andino.",
+    tipo: "PRIVADO",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 2)
+  },
+  {
+    id_mensaje: "MSG-4",
+    remitente: "admin@logistica.com",
+    destinatario: null,
+    id_grupo: "GRP-01",
+    contenido: "Equipo, el envío ENV-1005 presenta una alerta crítica de cadena de frío.",
+    tipo: "GRUPAL",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000)
+  },
+  {
+    id_mensaje: "MSG-5",
+    remitente: "carlos@expressplata.com",
+    destinatario: null,
+    id_grupo: "GRP-01",
+    contenido: "Confirmado. Coordinamos la revisión del contenedor CONT-002 en la próxima escala.",
+    tipo: "GRUPAL",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 1800000)
   }
 ]);
 
 db.grupos_trabajo.drop();
+db.grupos_trabajo.createIndex({ id_grupo: 1 }, { unique: true });
+db.grupos_trabajo.createIndex({ integrantes: 1 });
 db.grupos_trabajo.insertOne({
   id_grupo: "GRP-01",
   nombre: "Comité de Monitoreo Mercosur",
@@ -309,5 +391,66 @@ db.reportes.aggregate([
 db.reportes.createIndex({ id_reporte: 1 }, { unique: true, sparse: true, name: 'uq_reporte_id' });
 db.reportes.createIndex({ fecha_generacion: -1 }, { name: 'idx_reporte_fecha' });
 db.reportes.createIndex({ categoria: 1, tipo: 1 }, { name: 'idx_reporte_categoria_tipo' });
+
+// Reportes históricos de demostración. Se usa upsert para que el seed sea
+// idempotente y no duplique documentos al ejecutarse más de una vez.
+[
+  {
+    id_reporte: "REP-SEED-COM-001",
+    usuario: "admin@logistica.com",
+    tipo: "REPORTE_COMERCIAL_PARAMETRIZADO",
+    categoria: "COMERCIAL",
+    parametros: {
+      tipo_actor: "TODOS",
+      tipo_factura: "TODAS",
+      estado_factura: "TODAS"
+    },
+    resumen: {
+      total_facturas: 4,
+      total_facturado: 222000.00,
+      total_pagado: 125000.00,
+      saldo_pendiente: 97000.00
+    },
+    fecha_generacion: new Date(Date.now() - 86400000 * 3)
+  },
+  {
+    id_reporte: "REP-SEED-OPE-001",
+    usuario: "admin@logistica.com",
+    tipo: "REPORTE_OPERATIVO_ENVIOS",
+    categoria: "OPERATIVO",
+    parametros: {
+      estado: "TODOS",
+      id_cliente: null
+    },
+    resumen: {
+      total_envios: 5,
+      entregados: 2,
+      en_transito: 3,
+      con_incidentes: 4
+    },
+    fecha_generacion: new Date(Date.now() - 86400000 * 2)
+  },
+  {
+    id_reporte: "REP-SEED-ANA-001",
+    usuario: "admin@logistica.com",
+    tipo: "RANKING_RUTAS_INCIDENTES",
+    categoria: "INTELIGENCIA_ANALITICA",
+    parametros: {
+      forzar_recalculo: false
+    },
+    resumen: {
+      total_rutas_evaluadas: 5,
+      ruta_mas_critica: "Buenos Aires, Argentina ➔ San Pablo, Brasil",
+      total_incidentes: 7
+    },
+    fecha_generacion: new Date(Date.now() - 86400000)
+  }
+].forEach(function (reporte) {
+  db.reportes.updateOne(
+    { id_reporte: reporte.id_reporte },
+    { $set: reporte },
+    { upsert: true }
+  );
+});
 
 print("MongoDB inicializado exitosamente para tpo_telemetria");

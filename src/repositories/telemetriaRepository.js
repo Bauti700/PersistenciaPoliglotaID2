@@ -59,8 +59,14 @@ export class MongoTelemetryRepository {
   static eliminarEventoLogistico = EventoLogisticoRepository.eliminarEventoLogistico;
 
   // --- MENSAJERÍA ---
+  static listarGrupos = MensajeRepository.listarGrupos;
+  static obtenerGrupo = MensajeRepository.obtenerGrupo;
+  static validarIntegranteGrupo = MensajeRepository.validarIntegranteGrupo;
   static enviarMensaje = MensajeRepository.enviarMensaje;
+  static enviarMensajePrivado = MensajeRepository.enviarMensajePrivado;
+  static enviarMensajeGrupal = MensajeRepository.enviarMensajeGrupal;
   static obtenerMensajes = MensajeRepository.obtenerMensajes;
+  static obtenerMensajesGrupales = MensajeRepository.obtenerMensajesGrupales;
   static listarMensajesPorGrupo = MensajeRepository.listarMensajesPorGrupo;
 
   // --- REPORTES ---

@@ -261,11 +261,38 @@ ON CONFLICT (email) DO NOTHING;
 --   CLIENTE 2:  -25.000 (saldo de arrastre sin movimientos semilla)
 --   OPERADOR 1:  35.000 (factura RECIBIDA pendiente)
 --   PROVEEDOR 1:      0 (factura RECIBIDA ya pagada)
-INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo) VALUES
-(1, 'CLIENTE', -62000.00),
-(2, 'CLIENTE', -25000.00),
-(1, 'OPERADOR', 35000.00),
-(1, 'PROVEEDOR', 0.00)
+-- Los actores se resuelven por CUIT para que el seed funcione también sobre
+-- volúmenes creados con versiones anteriores, donde los IDs pueden no ser 1.
+-- Se descartan cuentas huérfanas de seeds previos antes de recrear las válidas.
+DELETE FROM cuentas_corrientes cc
+WHERE NOT EXISTS (
+    SELECT 1 FROM clientes c
+    WHERE cc.tipo_actor = 'CLIENTE' AND c.id_cliente = cc.id_actor
+)
+AND NOT EXISTS (
+    SELECT 1 FROM proveedores p
+    WHERE cc.tipo_actor = 'PROVEEDOR' AND p.id_proveedor = cc.id_actor
+)
+AND NOT EXISTS (
+    SELECT 1 FROM operadores o
+    WHERE cc.tipo_actor = 'OPERADOR' AND o.id_operador = cc.id_actor
+);
+
+INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo)
+SELECT c.id_cliente, 'CLIENTE', v.saldo
+FROM (VALUES
+    ('30-71123456-8', -62000.00),
+    ('30-99887766-4', -25000.00)
+) AS v(cuit, saldo)
+JOIN clientes c ON c.cuit = v.cuit
+UNION ALL
+SELECT o.id_operador, 'OPERADOR', 35000.00
+FROM operadores o
+WHERE o.cuit = '30-55667788-1'
+UNION ALL
+SELECT p.id_proveedor, 'PROVEEDOR', 0.00
+FROM proveedores p
+WHERE p.cuit = '30-44332211-9'
 ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
 
 -- Completar la cuenta corriente de cualquier actor que no la tenga.
@@ -324,6 +351,7 @@ WHERE c.estado = 'DISPONIBLE'
 INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, costo, fecha_salida, fecha_llegada_estimada) VALUES
 ('TR-1001-1', 'ENV-1001', 'Terrestre', 'Buenos Aires', 'Puerto de Santos', 45000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '1 day'),
 ('TR-1001-2', 'ENV-1001', 'Terrestre', 'Puerto de Santos', 'San Pablo', 45000.00, CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days'),
+('TR-1002-1', 'ENV-1002', 'Terrestre', 'Montevideo', 'Santiago', 42000.00, CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '3 days'),
 ('TR-1003-1', 'ENV-1003', 'Terrestre', 'Buenos Aires', 'Mendoza', 38000.00, CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
 ('TR-1003-2', 'ENV-1003', 'Terrestre', 'Mendoza', 'Santiago', 38000.00, CURRENT_TIMESTAMP - INTERVAL '9 days', CURRENT_TIMESTAMP - INTERVAL '6 days'),
 ('TR-1004-1', 'ENV-1004', 'Marítimo', 'San Pablo', 'Puerto de Santos', 72000.00, CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '10 days'),
@@ -344,6 +372,52 @@ INSERT INTO pagos (id_pago, id_factura, tipo_pago, monto, medio_pago, referencia
 (1, 1, 'COBRO_CLIENTE', 45000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-SANT-11029'),
 (2, 4, 'PAGO_PROVEEDOR', 80000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BBVA-99412')
 ON CONFLICT DO NOTHING;
+
+-- Cierre histórico del mes anterior. Se mantiene separado del período actual
+-- para que la demo pueda mostrar el histórico y también ejecutar un cierre nuevo.
+-- Se resuelven los actores por CUIT para tolerar volúmenes con IDs previos y se
+-- descartan cierres huérfanos generados por seeds anteriores.
+DELETE FROM cierres_cuentas_corrientes cc
+WHERE NOT EXISTS (
+    SELECT 1 FROM clientes c
+    WHERE cc.tipo_actor = 'CLIENTE' AND c.id_cliente = cc.id_actor
+)
+AND NOT EXISTS (
+    SELECT 1 FROM proveedores p
+    WHERE cc.tipo_actor = 'PROVEEDOR' AND p.id_proveedor = cc.id_actor
+)
+AND NOT EXISTS (
+    SELECT 1 FROM operadores o
+    WHERE cc.tipo_actor = 'OPERADOR' AND o.id_operador = cc.id_actor
+);
+
+INSERT INTO cierres_cuentas_corrientes
+    (periodo, id_actor, tipo_actor, saldo_inicial, total_debe, total_haber,
+     saldo_final, fecha_cierre, estado)
+SELECT
+    to_char(CURRENT_DATE - INTERVAL '1 month', 'YYYY-MM'),
+    a.id_actor,
+    a.tipo_actor,
+    v.saldo_inicial,
+    v.total_debe,
+    v.total_haber,
+    v.saldo_final,
+    CURRENT_TIMESTAMP - INTERVAL '15 days',
+    'CERRADO'
+FROM (VALUES
+    ('30-71123456-8', 'CLIENTE',   0.00, 62000.00,     0.00, -62000.00),
+    ('30-99887766-4', 'CLIENTE',   0.00, 25000.00,     0.00, -25000.00),
+    ('30-55667788-1', 'OPERADOR',  0.00,     0.00, 35000.00,  35000.00),
+    ('30-44332211-9', 'PROVEEDOR', 0.00, 80000.00, 80000.00,      0.00)
+) AS v(cuit, tipo_actor, saldo_inicial, total_debe, total_haber, saldo_final)
+JOIN (
+    SELECT id_cliente AS id_actor, 'CLIENTE' AS tipo_actor, cuit FROM clientes
+    UNION ALL
+    SELECT id_proveedor AS id_actor, 'PROVEEDOR' AS tipo_actor, cuit FROM proveedores
+    UNION ALL
+    SELECT id_operador AS id_actor, 'OPERADOR' AS tipo_actor, cuit FROM operadores
+) a ON a.cuit = v.cuit AND a.tipo_actor = v.tipo_actor
+ON CONFLICT (periodo, tipo_actor, id_actor) DO NOTHING;
 
 -- Los datos semilla usan IDs explícitos: adelantar las secuencias para que las
 -- altas nuevas no choquen con la clave primaria.
