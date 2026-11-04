@@ -448,7 +448,94 @@ completa se ejecuta con `npm run seed` después de levantar Docker Compose.
 
 ---
 
-## 7. Entregables relacionados
+## 7. Anexo: definición física detallada
+
+Este anexo transcribe el modelo implementado en los scripts de inicialización.
+Los tipos y restricciones indicados corresponden a PostgreSQL; MongoDB y
+Neo4j utilizan esquemas flexibles, por lo que allí se documentan los campos
+observados en los documentos y nodos semilla, además de sus índices y
+restricciones.
+
+### 7.1 PostgreSQL: tablas, columnas y claves
+
+| Tabla | Columnas y tipos | Claves y restricciones |
+|---|---|---|
+| `clientes` | `id_cliente SERIAL`, `razon_social VARCHAR(150)`, `cuit VARCHAR(20)`, `email VARCHAR(100)`, `telefono VARCHAR(50)`, `direccion VARCHAR(255)`, `pais VARCHAR(100)`, `estado VARCHAR(50)`, `saldo NUMERIC(12,2)`, `fecha_registro TIMESTAMP` | PK `id_cliente`; `cuit` UNIQUE; `razon_social`, `cuit`, `email`, `pais` NOT NULL |
+| `proveedores` | `id_proveedor SERIAL`, `razon_social VARCHAR(150)`, `cuit VARCHAR(20)`, `email VARCHAR(100)`, `telefono VARCHAR(50)`, `direccion VARCHAR(255)`, `pais VARCHAR(100)`, `estado VARCHAR(50)`, `saldo NUMERIC(12,2)`, `fecha_registro TIMESTAMP` | PK `id_proveedor`; `cuit` UNIQUE |
+| `operadores` | `id_operador SERIAL`, `razon_social VARCHAR(150)`, `cuit VARCHAR(20)`, `email VARCHAR(100)`, `telefono VARCHAR(50)`, `direccion VARCHAR(255)`, `pais VARCHAR(100)`, `estado VARCHAR(50)`, `saldo NUMERIC(12,2)`, `fecha_registro TIMESTAMP` | PK `id_operador`; `cuit` UNIQUE |
+| `roles` | `id_rol SERIAL`, `descripcion VARCHAR(100)`, `nivel_permisos INT`, `estado VARCHAR(50)`, `permisos JSONB`, `fecha_creacion TIMESTAMP` | PK `id_rol`; valores por defecto para nivel, estado, permisos y fecha |
+| `usuarios` | `id_usuario SERIAL`, `id_cliente INT`, `nombre VARCHAR(100)`, `apellido VARCHAR(100)`, `id_rol INT`, `email VARCHAR(100)`, `password_hash VARCHAR(255)`, `estado VARCHAR(50)`, `fecha_ultimo_acceso TIMESTAMP`, `sesion_activa BOOLEAN` | PK `id_usuario`; `email` UNIQUE; FK `id_cliente` a `clientes` con `SET NULL`; FK `id_rol` a `roles` |
+| `historial_sesiones` | `id_sesion SERIAL`, `id_usuario INT`, `id_rol INT`, `token VARCHAR(64)`, `ip_origen VARCHAR(45)`, `fecha_inicio TIMESTAMP`, `fecha_fin TIMESTAMP`, `fecha_ultima_actividad TIMESTAMP`, `estado VARCHAR(50)` | PK `id_sesion`; FK `id_usuario` con `CASCADE`; FK `id_rol` con `SET NULL`; token UNIQUE parcial; índice `(id_usuario, estado)` |
+| `contenedores` | `id_contenedor VARCHAR(50)`, `codigo_internacional VARCHAR(100)`, `tipo VARCHAR(50)`, `capacidad NUMERIC(10,2)`, `estado VARCHAR(50)` | PK `id_contenedor`; `codigo_internacional` UNIQUE |
+| `vehiculos` | `id_vehiculo VARCHAR(50)`, `tipo VARCHAR(50)`, `identificacion VARCHAR(100)`, `empresa_operadora VARCHAR(150)`, `estado VARCHAR(50)` | PK `id_vehiculo`; `identificacion` UNIQUE |
+| `cuentas_corrientes` | `id_cuenta SERIAL`, `id_actor INT`, `tipo_actor VARCHAR(20)`, `saldo NUMERIC(12,2)`, `fecha_actualizacion TIMESTAMP` | PK `id_cuenta`; UNIQUE `(tipo_actor,id_actor)`; `tipo_actor` limitado a CLIENTE, PROVEEDOR u OPERADOR |
+| `facturas` | `id_factura SERIAL`, `id_cliente INT`, `tipo_factura VARCHAR(20)`, `tipo_actor VARCHAR(20)`, `numero_comprobante VARCHAR(50)`, `concepto VARCHAR(255)`, `id_envio VARCHAR(50)`, `fecha_emision TIMESTAMP`, `importe_total NUMERIC(12,2)`, `estado VARCHAR(50)` | PK `id_factura`; importe positivo; estados PENDIENTE/PAGADA/ANULADA; índices por actor, envío y fecha; comprobante UNIQUE parcial |
+| `pagos` | `id_pago SERIAL`, `id_factura INT`, `tipo_pago VARCHAR(20)`, `referencia_comprobante VARCHAR(100)`, `fecha TIMESTAMP`, `monto NUMERIC(12,2)`, `medio_pago VARCHAR(50)` | PK `id_pago`; FK `id_factura` con `CASCADE`; monto positivo; índice por factura y fecha |
+| `cierres_cuentas_corrientes` | `id_cierre SERIAL`, `periodo VARCHAR(7)`, `id_actor INT`, `tipo_actor VARCHAR(20)`, `saldo_inicial NUMERIC(12,2)`, `total_debe NUMERIC(12,2)`, `total_haber NUMERIC(12,2)`, `saldo_final NUMERIC(12,2)`, `fecha_cierre TIMESTAMP`, `estado VARCHAR(20)` | PK `id_cierre`; UNIQUE `(periodo,tipo_actor,id_actor)` |
+| `envios` | `id_envio VARCHAR(50)`, `id_cliente INT`, `fecha_creacion TIMESTAMP`, `fecha_entrega TIMESTAMP`, `origen VARCHAR(100)`, `destino VARCHAR(100)`, `estado VARCHAR(50)`, `prioridad VARCHAR(20)` | PK `id_envio`; FK `id_cliente` a `clientes`; origen y destino NOT NULL |
+| `envio_contenedores` | `id_envio VARCHAR(50)`, `id_contenedor VARCHAR(50)`, `fecha_asignacion TIMESTAMP`, `fecha_liberacion TIMESTAMP` | PK `(id_envio,id_contenedor)`; FKs a `envios` y `contenedores` con `CASCADE`; índice por envío; índice UNIQUE parcial por contenedor activo |
+| `tramos` | `id_tramo VARCHAR(50)`, `id_envio VARCHAR(50)`, `medio_transporte VARCHAR(50)`, `origen VARCHAR(100)`, `destino VARCHAR(100)`, `costo NUMERIC(12,2)`, `fecha_salida TIMESTAMP`, `fecha_llegada_estimada TIMESTAMP` | PK `id_tramo`; FK `id_envio` con `CASCADE` |
+
+### 7.2 MongoDB: colecciones y documentos
+
+MongoDB mantiene documentos BSON y no impone un esquema rígido. Los campos
+principales implementados son:
+
+| Colección | Campos del documento | Índices |
+|---|---|---|
+| `sensores` | `id_sensor`, `tipo`, `fabricante`, `fecha_instalacion`, `estado`, `id_contenedor` | UNIQUE `id_sensor`; `id_contenedor` |
+| `lecturas_sensores` | `id_lectura`, `id_sensor`, `id_contenedor`, `id_envio`, `fecha_hora`, `temperatura`, `humedad`, `vibracion`, `posicion_gps` GeoJSON, `nivel_bateria` | Time-series con `fecha_hora`, metaField `id_sensor`, granularidad `seconds`; índices sensor/fecha, contenedor/fecha y `2dsphere` |
+| `eventos_logisticos` | `id_evento`, `id_envio`, `fecha_hora`, `tipo_evento`, `ubicacion`, `descripcion` | UNIQUE `id_evento`; `(id_envio,fecha_hora)` |
+| `incidentes` | `id_incidente`, `id_envio`, `id_sensor`, `id_contenedor`, `tipo`, `severidad`, `estado`, `descripcion`, `fecha` | UNIQUE `id_incidente`; envío/estado; sensor/tipo/estado; fecha |
+| `reglas_alertas` | `id_regla`, `tipo`, `condicion`, `umbral`, `severidad`, `activa`, `descripcion`, `fecha_creacion` | UNIQUE `id_regla`; `(tipo,activa)` |
+| `alertas` | `id_alerta`, `id_sensor`, `id_contenedor`, `id_envio`, `tipo`, `severidad`, `estado`, `motivo`, `valor_detectado`, `umbral_aplicado`, `id_regla`, `mensaje`, `fecha` | UNIQUE `id_alerta`; sensor/tipo/estado; incidente/estado; contenedor/estado |
+| `mensajes` | `id_mensaje`, `remitente`, `destinatario`, `id_grupo`, `contenido`, `tipo`, `formato`, `estado`, `fecha` | UNIQUE `id_mensaje`; tipo/fecha; grupo/fecha; remitente/destinatario/fecha |
+| `grupos_trabajo` | `id_grupo`, `nombre`, `integrantes` | UNIQUE `id_grupo`; `integrantes` |
+| `predicciones_riesgo` | `id_prediccion`, `id_envio`, `riesgo_climatico`, `riesgo_operativo`, `probabilidad_demora`, `factores`, `fecha_calculo` | `id_envio` |
+| `reportes` | `id_reporte`, `usuario`, `tipo`, `categoria`, `parametros`, `datos`, `metricas`, `fecha_generacion` | UNIQUE disperso `id_reporte`; fecha de generación; categoría/tipo |
+
+Los campos `id_*` son referencias lógicas compartidas con PostgreSQL y
+Neo4j. No son claves foráneas MongoDB; la integridad entre motores se valida
+en los servicios de la aplicación.
+
+### 7.3 Neo4j: nodos, propiedades y relaciones
+
+| Etiqueta | Propiedades implementadas | Restricción |
+|---|---|---|
+| `Cliente` | `id_cliente`, `razon_social`, `pais` | UNIQUE `id_cliente` |
+| `Envio` | `id_envio`, `estado`, `prioridad` | UNIQUE `id_envio` |
+| `Ubicacion` | `nombre`, `pais` | UNIQUE `nombre` |
+| `Operador` | `id_actor`, `nombre` | UNIQUE `nombre` |
+| `Vehiculo` | `id_vehiculo`, `tipo`, `identificacion` | UNIQUE `identificacion` |
+| `Contenedor` | `id_contenedor`, `codigo_internacional`, `estado` | UNIQUE `id_contenedor` |
+| `Sensor` | `id_sensor`, `tipo` | UNIQUE `id_sensor` |
+| `Tramo` | `id_tramo`, `orden`, `medio` | Sin restricción propia |
+| `Lectura` | `id_lectura`, `timestamp`, `fecha_hora`, `temperatura`, `humedad`, `vibracion`, `nivel_bateria`, `latitud`, `longitud`, `evento`, `ubicacion`, `id_envio` | Sin restricción propia |
+
+Relaciones: `SOLICITA`, `TIENE_ORIGEN`, `TIENE_DESTINO`,
+`ASIGNADO_A`, `OPERA_VEHICULO`, `TRANSPORTADO_POR`, `COMPUESTO_POR`,
+`CONECTA_A`, `DESDE`, `HASTA`, `PERTENECE_A`, `MONITOREADO_POR` y
+`REGISTRA`. Neo4j no utiliza particionamiento en esta implementación.
+
+### 7.4 Redis: claves y estructuras
+
+| Patrón de clave | Tipo Redis | Campos o contenido | Expiración |
+|---|---|---|---|
+| `sesion:<token>` | String | JSON de sesión autenticada | TTL de sesión, normalmente 3600 s |
+| `sesiones:activas` | Set | Tokens activos | Sin TTL propio |
+| `sesiones:usuario:<id>` | Set | Tokens del usuario | Sin TTL propio |
+| `contenedor:posicion:<id>` | Hash | `latitud`, `longitud`, `id_envio`, `id_sensor`, `actualizado_en` | Sin TTL obligatorio |
+| `contenedores:geo` | GEO | Coordenadas de contenedores | Sin TTL propio |
+| `prediccion:riesgo:<id_envio>` | String JSON | Predicción y factores | 86400 s |
+| `analytics:<clave>` | String JSON | Resultado analítico serializado | Normalmente 3600 s |
+
+Redis no contiene claves foráneas ni restricciones relacionales; sus índices
+son provistos por Sets y por la estructura GEO. Las posiciones y cachés son
+proyecciones reconstruibles, no la fuente principal de información.
+
+---
+
+## 8. Entregables relacionados
 
 - Este informe: `resolucion_tecnica_y_modelado.md`.
 - Consignas: `trabajo_practico_consignas.md`.
