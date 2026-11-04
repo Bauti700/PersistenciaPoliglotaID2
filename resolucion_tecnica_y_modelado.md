@@ -1,272 +1,460 @@
-# PROPUESTA DE PERSISTENCIA POLÍGLOTA – GRUPO 12
+# Resolución técnica y modelado
 
-Para la plataforma de gestión logística internacional y monitoreo IoT, seleccionamos cuatro paradigmas de bases de datos especializados para cubrir los requisitos del sistema:
-1. Relacional (SQL) – PostgreSQL
-2. Documental (NoSQL) – MongoDB
-3. Grafos (NoSQL) – Neo4j
-4. Clave-Valor (NoSQL) – Redis
+## Trabajo Práctico: Persistencia Políglota – Grupo 12
 
----
+La solución implementa una aplicación interactiva de consola para gestionar
+envíos internacionales y cargas monitoreadas por sensores IoT. Se utilizan
+cuatro paradigmas de persistencia, cada uno seleccionado según el tipo de
+consulta y las garantías requeridas:
 
-## 1. Definición de las Distintas Bases de Datos
+1. **Relacional:** PostgreSQL.
+2. **Documental:** MongoDB.
+3. **Grafos:** Neo4j.
+4. **Clave-Valor:** Redis.
 
-### Base de Datos Relacional
-- **Tecnología utilizada:** PostgreSQL
-- **Casos de uso asignados:**
-  - Gestión transaccional y comercial (Cliente, Usuario, Rol, Factura, Pago, Cuenta Corriente).
-  - Administración de la flota y los activos (Contenedor, Vehículo).
-- **Ventajas:**
-  - Cumplimiento estricto de propiedades ACID (otorga consistencia financiera en facturación y pagos).
-  - Garantía de integridad referencial mediante claves foráneas y restricciones del esquema.
-  - Lenguaje de consulta estandarizado y amplio soporte de ORMs (Hibernate/JPA).
-- **Desventajas:**
-  - Escalabilidad horizontal más compleja y costosa en comparación con motores NoSQL.
-  - Esquema rígido que dificulta cambios estructurales dinámicos.
-- **Justificación técnica:** Las operaciones de facturación, registro de pagos y saldos en cuentas corrientes no admiten inconsistencias. El modelo relacional permite garantizar transaccionalidad ACID en el módulo financiero y contable.
-
-### Base de Datos Documental
-- **Tecnología utilizada:** MongoDB
-- **Casos de uso asignados:**
-  - Monitoreo IoT y telemetría (LecturaSensor: captura masiva de temperatura, humedad, GPS, vibración).
-  - Trazabilidad e historial operativo (EventoLogistico, Incidente, Alerta).
-  - Módulo de comunicación y reportes (Mensaje, GrupoDeTrabajo, Reporte).
-- **Ventajas:**
-  - Esquema flexible, ideal para adaptar lecturas de sensores IoT o mensajes.
-  - Alta velocidad de escritura e ingesta masiva de datos en tiempo real.
-  - Facilidad para almacenar estructuras complejas encajadas en un solo documento JSON/BSON.
-- **Desventajas:**
-  - Menor soporte nativo para transacciones complejas multidocumento.
-  - Duplicación potencial de datos para evitar JOINs.
-- **Justificación técnica:** Las lecturas IoT representan datos temporales de alta frecuencia y volumen que saturaría un motor relacional. MongoDB permite la absorción rápida, escalamiento horizontal mediante sharding y almacenamiento flexible.
-
-### Base de Datos de Grafos
-- **Tecnología utilizada:** Neo4j
-- **Casos de uso asignados:**
-  - Logística y trayectos (Envío, Tramo, Origen, Destino, Vehículo, Empresa Operadora).
-  - Análisis de redes y patrones (mapeo de relaciones entre Cliente, Operador Logístico, Proveedor, Ruta).
-  - Consultas avanzadas de trazabilidad (reconstrucción del recorrido completo).
-- **Ventajas:**
-  - Navegación eficiente entre nodos sin el costo computacional de JOINs relacionales.
-  - Lenguaje expresivo de consultas orientado a caminos y redes (Cypher).
-  - Ideal para detectar cuellos de botella, demoras recurrentes y análisis de impacto en la cadena de suministro.
-- **Desventajas:**
-  - Rendimiento subóptimo para agregaciones masivas simples o procesamiento transaccional financiero.
-- **Justificación técnica:** Representar la red de relaciones entre clientes, operadores y envíos mediante grafos resulta superior a realizar recursiones complejas o múltiples JOINs en SQL.
-
-### Base de Datos Clave-Valor
-- **Tecnología utilizada:** Redis
-- **Casos de uso asignados:**
-  - Control de acceso y seguridad (gestión de tokens y sesiones activas).
-  - Caché de última posición conocida (coordenada GPS reciente por contenedor o sensor).
-  - Almacenamiento temporal para cálculos analíticos y predicción de riesgo.
-- **Ventajas:**
-  - Operación en memoria RAM con tiempos de respuesta de milisegundos.
-  - Soporte nativo de Time-To-Live (TTL) para la expiración de sesiones e invalidación de caché.
-  - Estructuras de datos avanzadas (Hashes, Sets, Sorted Sets).
-- **Desventajas:**
-  - Capacidad dependiente de la memoria RAM disponible.
-  - Requiere configuración explícita (AOF/RDB) para evitar pérdida de datos en reinicios.
-- **Justificación técnica:** La gestión de sesiones y la consulta en tiempo real de la ubicación de miles de contenedores requiere respuestas inmediatas que se resuelven eficientemente en memoria RAM.
+La aplicación está desarrollada en Node.js con módulos ES y se ejecuta mediante
+una CLI. No es una API REST ni una aplicación web. Las conexiones a los cuatro
+motores se centralizan en `src/config/database.js`, y la infraestructura local
+se levanta con Docker Compose.
 
 ---
 
-## 2. Modelado Físico
+## 1. Persistencia políglota
 
-| Motor | Paradigma | Enfoque Principal |
-|---|---|---|
-| **PostgreSQL** | Relacional | Transacciones, datos maestros, facturación y contabilidad. |
-| **MongoDB** | Documental | Ingesta masiva de telemetría IoT, logs de eventos y reportes. |
-| **Neo4j** | Grafos | Topología de red logística, trazabilidad de rutas y relaciones. |
-| **Redis** | Clave-Valor | Caché en memoria de alto rendimiento, sesiones y geolocalización. |
+### 1.1 PostgreSQL: base relacional
 
-### 1. Modelo Físico Relacional (PostgreSQL)
+**Tipo:** relacional, orientada a transacciones y datos estructurados.
 
-```sql
-CREATE TABLE actores (
-    id_actor SERIAL PRIMARY KEY,
-    tipo_actor VARCHAR(20) CHECK (tipo_actor IN ('CLIENTE', 'PROVEEDOR', 'OPERADOR')),
-    razon_social VARCHAR(150) NOT NULL,
-    cuit VARCHAR(13) NOT NULL UNIQUE
-);
+**Información almacenada:**
 
-CREATE TABLE historial_sesiones (
-    id_sesion SERIAL PRIMARY KEY,
-    id_usuario INT NOT NULL,
-    ip_origen VARCHAR(45),
-    fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_fin TIMESTAMP
-);
+- Clientes, proveedores y operadores logísticos.
+- Usuarios, roles y permisos.
+- Historial de sesiones y auditoría de autenticación.
+- Contenedores y vehículos.
+- Envíos y tramos.
+- Relación envío-contenedor.
+- Facturas, pagos, cuentas corrientes y cierres mensuales.
 
-CREATE TABLE cuentas_corrientes (
-    id_cuenta SERIAL PRIMARY KEY,
-    id_actor INT NOT NULL REFERENCES actores(id_actor),
-    saldo NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+**Ventajas:**
 
-CREATE TABLE facturas (
-    id_factura SERIAL PRIMARY KEY,
-    id_cliente INT NOT NULL REFERENCES actores(id_actor),
-    tipo_factura VARCHAR(20) DEFAULT 'EMITIDA' CHECK (tipo_factura IN ('EMITIDA', 'RECIBIDA')),
-    numero_comprobante VARCHAR(50),
-    concepto VARCHAR(255),
-    id_envio VARCHAR(50),
-    fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    importe_total NUMERIC(12, 2) NOT NULL,
-    estado VARCHAR(50) DEFAULT 'PENDIENTE'
-);
+- Propiedades ACID para operaciones financieras y cambios de estado.
+- Claves primarias, claves foráneas, restricciones `CHECK` y `UNIQUE`.
+- Consultas SQL y agregaciones adecuadas para reportes operativos.
+- Integridad transaccional entre un envío, sus contenedores y sus tramos.
 
-CREATE TABLE pagos (
-    id_pago SERIAL PRIMARY KEY,
-    id_factura INT NOT NULL REFERENCES facturas(id_factura) ON DELETE CASCADE,
-    tipo_pago VARCHAR(20) DEFAULT 'COBRO_CLIENTE' CHECK (tipo_pago IN ('COBRO_CLIENTE', 'PAGO_PROVEEDOR', 'PAGO_OPERADOR')),
-    referencia_comprobante VARCHAR(100),
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    monto NUMERIC(12, 2) NOT NULL,
-    medio_pago VARCHAR(50) NOT NULL
-);
+**Desventajas:**
 
-CREATE TABLE cierres_cuentas_corrientes (
-    id_cierre SERIAL PRIMARY KEY,
-    periodo VARCHAR(7) NOT NULL,
-    id_actor INT NOT NULL REFERENCES actores(id_actor) ON DELETE CASCADE,
-    saldo_inicial NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    total_debe NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    total_haber NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    saldo_final NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    estado VARCHAR(20) DEFAULT 'CERRADO',
-    CONSTRAINT uq_cierre_actor_periodo UNIQUE (periodo, id_actor)
-);
+- Esquema más rígido que el de MongoDB.
+- La distribución horizontal requiere una estrategia adicional.
+- No es el motor más conveniente para telemetría de alta frecuencia ni
+  recorridos de grafos.
 
-CREATE TABLE envios (
-    id_envio VARCHAR(50) PRIMARY KEY,
-    id_cliente INT NOT NULL REFERENCES actores(id_actor),
-    estado VARCHAR(50) NOT NULL,
-    pais_origen VARCHAR(100),
-    pais_destino VARCHAR(100),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+**Justificación técnica:** los importes, saldos, facturas, pagos, usuarios y
+relaciones principales del negocio deben conservar consistencia fuerte. Por eso
+PostgreSQL funciona como fuente de verdad para el núcleo transaccional.
 
-CREATE TABLE tramos (
-    id_tramo VARCHAR(50) PRIMARY KEY,
-    id_envio VARCHAR(50) NOT NULL REFERENCES envios(id_envio),
-    medio_transporte VARCHAR(50),
-    fecha_salida TIMESTAMP
-);
-```
+### 1.2 MongoDB: base documental
 
-### 2. Modelo Físico Documental (MongoDB)
+**Tipo:** documental, con documentos BSON y esquema flexible.
 
-**Colección: sensores (Metadatos del sensor)**
+**Información almacenada:**
+
+- `sensores`: metadatos, estado y contenedor asociado.
+- `lecturas_sensores`: telemetría de temperatura, humedad, vibración, GPS y
+  batería.
+- `eventos_logisticos`: historial de eventos de cada envío.
+- `incidentes`: incidentes manuales y generados por reglas.
+- `reglas_alertas`: umbrales configurables.
+- `alertas`: alertas producidas por lecturas o reglas.
+- `mensajes` y `grupos_trabajo`: comunicación privada y grupal.
+- `predicciones_riesgo`: histórico de predicciones.
+- `reportes`: reportes comerciales, operativos y analíticos.
+
+**Ventajas:**
+
+- Modelo flexible para lecturas con campos opcionales.
+- Alta velocidad de escritura para telemetría.
+- Colecciones específicas para cada tipo de documento.
+- Soporte de colecciones `time-series` para `lecturas_sensores`.
+- Consultas e índices adecuados para históricos y filtros por envío, sensor o
+  fecha.
+
+**Desventajas:**
+
+- Las relaciones entre documentos no tienen la misma integridad referencial
+  que las claves foráneas de PostgreSQL.
+- Puede existir duplicación controlada de identificadores de envío, sensor o
+  contenedor.
+- Las operaciones que requieren consistencia entre varios motores deben ser
+  coordinadas desde la aplicación.
+
+**Justificación técnica:** la telemetría y los eventos tienen gran volumen,
+crecen continuamente y pueden incorporar atributos opcionales. MongoDB permite
+registrarlos sin modificar un esquema relacional ante cada variación.
+
+### 1.3 Neo4j: base de grafos
+
+**Tipo:** grafo de propiedades, consultado con Cypher.
+
+**Información almacenada:**
+
+- Nodos `Cliente`, `Envio`, `Ubicacion`, `Operador`, `Vehiculo`,
+  `Contenedor`, `Sensor`, `Tramo` y `Lectura`.
+- Relaciones de solicitud, asignación, transporte, composición de rutas,
+  conexión entre tramos, pertenencia de contenedores y registro de lecturas.
+
+**Ventajas:**
+
+- Recorridos de rutas y relaciones con navegación directa.
+- Consultas naturales para reconstruir el trayecto de un envío o contenedor.
+- Permite visualizar la red entre clientes, operadores, vehículos, envíos y
+  ubicaciones.
+- Las restricciones de unicidad evitan duplicar nodos identificables.
+
+**Desventajas:**
+
+- No reemplaza a PostgreSQL para saldos, facturación o reportes tabulares.
+- Algunas agregaciones masivas son más sencillas en SQL o MongoDB.
+- La proyección de datos desde los otros motores debe manejarse
+  explícitamente.
+
+**Justificación técnica:** la aplicación necesita consultas de caminos y de
+conectividad, como la ruta completa de un envío, la red de relaciones y el
+historial de movimientos de un contenedor. Estas operaciones se expresan de
+forma más directa en Neo4j.
+
+### 1.4 Redis: base clave-valor
+
+**Tipo:** clave-valor en memoria, con estructuras Hash, Set, String y GEO.
+
+**Información almacenada:**
+
+- Sesiones activas con expiración TTL.
+- Índice de sesiones activas y sesiones por usuario.
+- Última posición conocida de cada contenedor.
+- Índice geoespacial `contenedores:geo`.
+- Predicciones de riesgo cacheadas durante 24 horas.
+- Resultados de analítica cacheados durante una hora.
+
+**Ventajas:**
+
+- Baja latencia para sesiones, posiciones y consultas repetitivas.
+- TTL nativo para sesiones, predicciones y resultados temporales.
+- Comandos GEO para consultar posiciones cercanas.
+- Sets para administrar sesiones activas.
+
+**Desventajas:**
+
+- La información cacheada no debe ser la única fuente de verdad.
+- El consumo depende de la memoria disponible.
+- La pérdida de Redis afecta la disponibilidad de cachés, aunque los datos
+  principales permanezcan en PostgreSQL o MongoDB.
+
+**Justificación técnica:** Redis se utiliza para información temporal y de
+acceso frecuente. La sesión se audita además en PostgreSQL, mientras que las
+posiciones y resultados cacheados pueden reconstruirse desde las fuentes
+persistentes.
+
+No se incorporó una base orientada a objetos ni una base tabular adicional,
+porque los cuatro paradigmas seleccionados cubren los requisitos del
+enunciado sin duplicar responsabilidades.
+
+---
+
+## 2. Modelado físico
+
+Los scripts ejecutables se encuentran en `scripts/`:
+
+- `scripts/init_postgres.sql`
+- `scripts/init_mongo.js`
+- `scripts/init_neo4j.cypher`
+- `scripts/seed_all.js`
+
+### 2.1 Modelo físico relacional
+
+El esquema de PostgreSQL contiene las siguientes tablas principales:
+
+| Grupo | Tablas |
+|---|---|
+| Actores y seguridad | `clientes`, `proveedores`, `operadores`, `roles`, `usuarios`, `historial_sesiones` |
+| Operación | `contenedores`, `vehiculos`, `envios`, `tramos`, `envio_contenedores` |
+| Finanzas | `cuentas_corrientes`, `facturas`, `pagos`, `cierres_cuentas_corrientes` |
+
+Relaciones relevantes:
+
+- `usuarios.id_cliente` referencia a `clientes.id_cliente`.
+- `usuarios.id_rol` referencia a `roles.id_rol`.
+- `historial_sesiones.id_usuario` referencia a `usuarios.id_usuario`.
+- `envios.id_cliente` referencia a `clientes.id_cliente`.
+- `tramos.id_envio` referencia a `envios.id_envio`.
+- `envio_contenedores` relaciona muchos contenedores históricos con un envío.
+- `pagos.id_factura` referencia a `facturas.id_factura`.
+
+La identidad de una cuenta corriente o factura se representa por
+`(tipo_actor, id_actor)`, porque clientes, proveedores y operadores tienen
+secuencias independientes. La relación `envio_contenedores` conserva
+`fecha_asignacion` y `fecha_liberacion`, lo que permite mantener trazabilidad.
+
+Restricciones e índices principales:
+
+- Claves primarias en todas las entidades.
+- CUIT y email únicos.
+- Código internacional e identificación de vehículo únicos.
+- `CHECK` para estados, tipos de actor, importes y montos positivos.
+- Índices de facturas por actor, envío y fecha.
+- Índices de pagos por factura y fecha.
+- Índices de sesiones por usuario y estado.
+- Índice parcial único sobre `envio_contenedores(id_contenedor)` cuando
+  `fecha_liberacion IS NULL`, evitando que un contenedor activo pertenezca a
+  dos envíos simultáneamente.
+- Restricción única de cierre por período, actor y tipo.
+
+El script utiliza `CREATE TABLE IF NOT EXISTS`, índices `IF NOT EXISTS` y
+alteraciones compatibles con versiones anteriores. Actualmente no se aplica
+particionamiento físico en PostgreSQL; el volumen del trabajo práctico se
+resuelve con índices y con la colección time-series de MongoDB.
+
+### 2.2 Modelo físico documental
+
+Colecciones e índices configurados por `scripts/init_mongo.js`:
+
+| Colección | Índices y propósito |
+|---|---|
+| `sensores` | `id_sensor` único; `id_contenedor` para asociación |
+| `lecturas_sensores` | time-series con `fecha_hora`, `id_sensor` como `metaField`, índices por sensor/contenedor y `2dsphere` para GPS |
+| `eventos_logisticos` | `id_evento` único; `id_envio` y fecha |
+| `incidentes` | `id_incidente` único; envío/estado, sensor/tipo/estado y fecha |
+| `reglas_alertas` | `id_regla` único; tipo y activación |
+| `alertas` | `id_alerta` único; sensor/tipo/estado, incidente/estado y contenedor/estado |
+| `mensajes` | `id_mensaje` único; grupo/fecha y conversación privada |
+| `grupos_trabajo` | `id_grupo` único; integrantes |
+| `predicciones_riesgo` | índice por `id_envio` |
+| `reportes` | `id_reporte` único disperso; fecha y categoría/tipo |
+
+Ejemplo de lectura almacenada:
+
 ```json
 {
-  "_id": "ObjectId",
-  "id_sensor": "SENS-8812",
-  "tipo": "Temperatura/GPS",
-  "fabricante": "IoTCorp",
-  "estado": "Activo"
-}
-```
-
-**Colección: lecturas_sensores (Series temporales y telemetría)**
-```json
-{
-  "id_sensor": "SENS-8812",
-  "fecha_hora": "2024-03-29T10:30:00Z",
-  "telemetria": { 
-    "temperatura": 4.2, 
-    "humedad": 65.0 
+  "id_lectura": "LEC-001",
+  "id_sensor": "SENS-101",
+  "id_contenedor": "CONT-001",
+  "id_envio": "ENV-1001",
+  "fecha_hora": "2026-10-24T15:00:00Z",
+  "temperatura": 4.1,
+  "humedad": 62.5,
+  "vibracion": 0.08,
+  "posicion_gps": {
+    "type": "Point",
+    "coordinates": [-58.3816, -34.6037]
   },
-  "posicion_gps": { 
-    "type": "Point", 
-    "coordinates": [-58.38, -34.60] 
-  }
+  "nivel_bateria": 95
 }
 ```
 
-**Colección: predicciones_riesgo (Persistencia analítica)**
-```json
-{
-  "id_envio": "ENV-5510",
-  "fecha_calculo": "2024-03-29T10:30:00Z",
-  "riesgo_climatico": "Alto",
-  "factores": ["Tormenta en tránsito", "Demora en aduana"]
-}
-```
+La colección de lecturas está particionada lógicamente por `id_sensor` y
+ordenada temporalmente por `fecha_hora` mediante el modelo time-series. MongoDB
+administra internamente los buckets; no se crean particiones manuales.
 
-**Colección: reportes (Auditoría contable y reportes parametrizados)**
-```json
-{
-  "id_reporte": "REP-COM-1730000000",
-  "usuario": "admin@logistica.com",
-  "tipo": "REPORTE_COMERCIAL_PARAMETRIZADO",
-  "categoria": "FACTURACION_Y_COBROS",
-  "parametros": {
-    "fecha_desde": "2026-10-01",
-    "fecha_hasta": "2026-10-31",
-    "tipo_actor": "CLIENTE",
-    "estado": "PENDIENTE"
-  },
-  "resumen": {
-    "total_facturas": 12,
-    "importe_total_facturado": 540000.00,
-    "saldo_pendiente_total": 120000.00
-  },
-  "fecha_generacion": "2026-10-24T18:00:00Z"
-}
-```
+### 2.3 Modelo físico de grafos
 
-### 3. Modelo Físico de Grafos (Neo4j)
+Neo4j aplica restricciones de unicidad para:
 
 ```cypher
-CREATE CONSTRAINT FOR (e:Envio) REQUIRE e.id_envio IS UNIQUE;
-CREATE CONSTRAINT FOR (u:Ubicacion) REQUIRE u.nombre IS UNIQUE;
-
-CREATE 
-  (c1:Cliente {id_cliente: 101}),
-  (e1:Envio {id_envio: "ENV-5510"}),
-  (u1:Ubicacion {nombre: "Buenos Aires"}),
-  (u2:Ubicacion {nombre: "San Pablo"}),
-  (op1:Operador {nombre: "Logística Express"}),
-  
-  (c1)-[:SOLICITA]->(e1),
-  (e1)-[:TIENE_ORIGEN]->(u1),
-  (e1)-[:TIENE_DESTINO]->(u2),
-  (e1)-[:TRAMO]->(u2),
-  (e1)-[:ASIGNADO_A]->(op1);
+CREATE CONSTRAINT IF NOT EXISTS
+FOR (e:Envio) REQUIRE e.id_envio IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS
+FOR (cont:Contenedor) REQUIRE cont.id_contenedor IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS
+FOR (s:Sensor) REQUIRE s.id_sensor IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS
+FOR (u:Ubicacion) REQUIRE u.nombre IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS
+FOR (v:Vehiculo) REQUIRE v.identificacion IS UNIQUE;
 ```
 
-### 4. Modelo Físico Clave-Valor (Redis)
-- **Sesión Activa:** HASH en `sesion:<id_sesion>` (con expiración por TTL).
-- **Estado y Posición de Sensor:** HASH en `sensor:estado:<id_sensor>`.
-- **Predicción de Riesgo (Caché):** STRING en `prediccion:envio:<id_envio>` (TTL de 24 horas).
-- **Última Posición Contenedor:** GEO en `posiciones:contenedores`.
+Relaciones implementadas:
+
+- `(Cliente)-[:SOLICITA]->(Envio)`
+- `(Envio)-[:TIENE_ORIGEN|TIENE_DESTINO]->(Ubicacion)`
+- `(Envio)-[:COMPUESTO_POR]->(Tramo)`
+- `(Tramo)-[:CONECTA_A]->(Tramo)`
+- `(Tramo)-[:DESDE|HASTA]->(Ubicacion)`
+- `(Envio)-[:ASIGNADO_A]->(Operador)`
+- `(Envio)-[:TRANSPORTADO_POR]->(Vehiculo)`
+- `(Contenedor)-[:PERTENECE_A]->(Envio)`
+- `(Contenedor)-[:MONITOREADO_POR]->(Sensor)`
+- `(Sensor)-[:REGISTRA]->(Lectura)`
+
+Los identificadores compartidos (`id_envio`, `id_contenedor`, `id_sensor`) se
+utilizan para correlacionar el grafo con PostgreSQL y MongoDB.
+
+### 2.4 Modelo físico clave-valor
+
+Las claves utilizadas por los repositorios Redis son:
+
+| Clave | Estructura | TTL/uso |
+|---|---|---|
+| `sesion:<token>` | String JSON | TTL de la sesión, por defecto 3600 segundos |
+| `sesiones:activas` | Set | Índice de tokens activos |
+| `sesiones:usuario:<id>` | Set | Tokens del usuario |
+| `contenedor:posicion:<id>` | Hash | Última latitud, longitud y metadatos |
+| `contenedores:geo` | GEO | Búsqueda de contenedores cercanos |
+| `prediccion:riesgo:<id_envio>` | String JSON | TTL de 86400 segundos |
+| `analytics:<clave>` | String JSON | TTL analítico, por defecto 3600 segundos |
 
 ---
 
-## 3. Desafíos de Complejidad Adicional
+## 3. Arquitectura y desarrollo de la aplicación
 
-### 1. Distribución de la Información
-- **PostgreSQL:** Actores comerciales (Clientes, Proveedores, Operadores), facturación, pagos, cuentas corrientes, historial de sesiones y proyecciones de envíos/tramos para reportes tabulares por país o estado.
-- **MongoDB:** Administación de sensores, lecturas de telemetría IoT, eventos logísticos, historial de alertas/mensajes y almacenamiento persistente del histórico de predicciones de riesgo.
-- **Neo4j:** Topología del grafo, conexiones origen-destino y trazabilidad de los transbordos e interacciones logísticas.
-- **Redis:** Sesiones activas, predicción de riesgo cacheadas a 24 horas, última posición GPS de la flota e invalidación rápida de estados.
+La aplicación se ejecuta con `npm start` y presenta una CLI interactiva. La
+arquitectura está separada en capas:
 
-### 2. Disposición en la Aplicación
-Para el entorno de desarrollo y ejecución local, la infraestructura se organiza mediante **Docker Compose**.
-Cada base de datos se despliega en su propio contenedor aislado dentro de una red privada virtual (docker network). Esto previene conflictos de puertos en el sistema operativo anfitrión y permite la persistencia mediante volúmenes montados.
+- **Bootstrap:** `src/index.js`, inicialización y cierre de conexiones.
+- **CLI:** `src/cli/`, autenticación, menú principal y handlers por dominio.
+- **Services:** reglas de negocio y casos de uso.
+- **Repositories:** acceso a PostgreSQL, MongoDB, Neo4j y Redis.
+- **Configuración:** `src/config/database.js`.
+- **Validación:** `src/utils/validation.js`.
 
-### 3. Sincronización de Datos y Manejo de Consistencia
-Para mitigar el acoplamiento directo y prevenir fallos en cascada entre servicios, implementamos el patrón **Transactional Outbox** junto con una arquitectura orientada a eventos.
-- **Transaccionalidad Local:** Al registrar un Envio en PostgreSQL, dentro de la misma transacción SQL se inserta un evento en la tabla `outbox_events`.
-- **Publicación Asíncrona:** Un proceso worker en segundo plano lee la tabla `outbox_events` y publica el mensaje (`ENVIO_CREADO`) en el bróker (RabbitMQ).
-- **Consumo y Proyección:** Los suscriptores consumen el evento y actualizan de forma independiente:
-  - **Neo4j:** Crea nodos y relaciones utilizando cláusulas idempotentes (`MERGE`).
-  - **MongoDB:** Inicializa el documento de trazabilidad e historial.
-  - **Redis:** Invalida o actualiza las llaves de caché correspondientes.
+Las fachadas `LogisticsService` y `AnalyticsService` delegan en servicios
+especializados. Entre ellos se encuentran creación, consultas, asignaciones y
+estados de envíos; monitoreo, riesgo, analítica comercial, red logística,
+temperatura y desempeño. `ContenedorRepository` mantiene CRUD de PostgreSQL,
+`ShipmentContainerRepository` mantiene relaciones y
+`ContenedorAssignmentService` aplica las reglas de asignación y sincronización
+del grafo.
 
-### Resolución de Inconsistencias
-- **Consistencia Eventual:** Se acepta una latencia de milisegundos en la propagación de cambios desde PostgreSQL hacia los motores NoSQL, la cual se gestiona en la interfaz con estados asíncronos.
-- **Tolerancia a Fallos:** Si una base secundaria (ej. Neo4j) no está disponible, el bróker retiene los mensajes. Al restablecer el servicio, los eventos se procesan en orden sin pérdida de información.
-- **Manejo de Excepciones:** Se dispone de una cola de mensajes no procesados (Dead Letter Queue - DLQ) para aislar eventos con errores persistentes y permitir su inspección o reprocesamiento manual.
+Se aplican validaciones de entrada, errores explícitos, mensajes de consola y
+advertencias cuando una proyección o caché secundaria no está disponible. Las
+contraseñas se almacenan mediante `bcrypt` y las sesiones se auditan en
+PostgreSQL además de mantenerse activas en Redis.
+
+Funcionalidades implementadas:
+
+- CRUD de actores, contenedores, usuarios y roles.
+- Sesiones activas, cierre individual y cierre global.
+- Alta, modificación, estados, cancelación y eliminación de envíos.
+- Asignación y liberación de contenedores y sensores.
+- Registro e histórico de telemetría.
+- Reglas configurables, alertas e incidentes.
+- Mensajería privada y grupal.
+- Facturación, pagos, cuentas corrientes y cierres.
+- Reportes parametrizados.
+- Rankings de clientes y rutas.
+- Ruta completa e historial de movimientos en Neo4j.
+- Predicción de riesgo y detección de anomalías de temperatura.
+
+---
+
+## 4. Sincronización y consistencia entre motores
+
+La sincronización se realiza desde los servicios de
+aplicación mediante operaciones directas, con PostgreSQL como fuente de verdad
+para los datos transaccionales.
+
+### Alta y cambios de envíos
+
+1. Se valida el cliente, el envío y los contenedores en PostgreSQL.
+2. Se persiste el envío y sus relaciones en PostgreSQL.
+3. Se actualiza o proyecta la representación correspondiente en Neo4j.
+4. Se invalidan las claves Redis relacionadas con el envío o su riesgo.
+5. Si una proyección secundaria falla, el servicio registra una advertencia y
+   aplica compensaciones cuando corresponde.
+
+### Ingreso de telemetría
+
+1. Se valida que existan el sensor, el contenedor y, si se informa, el envío.
+2. La lectura se guarda en MongoDB.
+3. Se actualiza la última posición en Redis cuando hay coordenadas.
+4. Se intenta proyectar la lectura en Neo4j para el historial de movimientos.
+5. Se evalúan las reglas activas y se generan alertas o incidentes.
+
+MongoDB es la fuente de verdad de la telemetría; Redis y Neo4j son
+proyecciones derivadas para consultas rápidas y navegación.
+
+### Problemas de consistencia posibles
+
+- PostgreSQL puede confirmar una operación y Neo4j o Redis estar
+  momentáneamente indisponibles.
+- Un documento de MongoDB puede conservar un identificador de envío eliminado
+  o modificado si la aplicación no actualiza la referencia.
+- Redis puede perder cachés por expiración o reinicio.
+- La misma operación puede repetirse si el usuario reintenta después de un
+  error de red.
+
+### Estrategias aplicadas
+
+- PostgreSQL conserva la operación principal y las restricciones de negocio.
+- Se usan identificadores compartidos para correlacionar motores.
+- Las operaciones de actualización del grafo utilizan patrones idempotentes
+  como `MERGE` cuando corresponde.
+- Las cachés se invalidan ante cambios de estados, incidentes o envíos.
+- Se utilizan métodos de compensación para liberar asignaciones cuando falla
+  una etapa posterior.
+- Las proyecciones secundarias son best-effort y registran advertencias sin
+  presentar una proyección incompleta como fuente principal.
+- Las consultas que dependen de Redis verifican su disponibilidad y fallan de
+  forma explícita cuando la sesión requiere Redis.
+
+---
+
+## 5. Procesos y consultas requeridos
+
+La CLI expone los procesos solicitados por la consigna:
+
+- Envíos por país, estado y cliente.
+- Envíos demorados e incidentes abiertos.
+- Tiempos mínimos, máximos y promedio por cliente.
+- Promedio de incidentes y costos por medio de transporte.
+- Ranking de rutas con incidentes.
+- Ranking de clientes por volumen transportado o facturado.
+- Ruta completa de un envío.
+- Red de relaciones logísticas.
+- Historial de movimientos de un contenedor.
+- Facturación automática y registro de pagos.
+- Cierre mensual de cuentas corrientes.
+- Predicción de riesgos.
+- Detección de anomalías de temperatura.
+- Detección de sensores inactivos mediante reglas configurables.
+
+Los procesos periódicos se implementan como operaciones invocables desde la
+CLI o desde los servicios; el proyecto no contiene un scheduler persistente
+ejecutándose en segundo plano.
+
+---
+
+## 6. Casos de prueba y datos de prueba
+
+Los scripts de inicialización incluyen datos de prueba para los cuatro motores.
+Los casos mínimos a verificar son:
+
+1. Autenticación correcta, contraseña inválida y bloqueo por intentos.
+2. Creación, modificación, baja lógica y eliminación de un actor.
+3. Creación de un envío y asignación exclusiva de un contenedor.
+4. Rechazo de asignar un contenedor activo a dos envíos.
+5. Registro de una lectura válida y rechazo de sensor inactivo.
+6. Generación de alerta por temperatura fuera de umbral.
+7. Consulta histórica de lecturas por sensor y contenedor.
+8. Consulta de posición actual y posiciones cercanas mediante Redis GEO.
+9. Reconstrucción de una ruta y movimientos de un contenedor en Neo4j.
+10. Emisión de factura, pago y actualización de cuenta corriente.
+11. Cierre mensual único para un actor y período.
+12. Uso y expiración de caché de riesgo y analítica.
+13. Manejo de indisponibilidad de una base secundaria sin ocultar el error.
+
+La validación técnica del código se realiza con `node --check` sobre `src`,
+importación de los módulos de la CLI y `git diff --check`. La inicialización
+completa se ejecuta con `npm run seed` después de levantar Docker Compose.
+
+---
+
+## 7. Entregables relacionados
+
+- Este informe: `resolucion_tecnica_y_modelado.md`.
+- Consignas: `trabajo_practico_consignas.md`.
+- Código fuente: `src/`.
+- Esquema PostgreSQL: `scripts/init_postgres.sql`.
+- Inicialización MongoDB: `scripts/init_mongo.js`.
+- Inicialización Neo4j: `scripts/init_neo4j.cypher`.
+- Seed unificado: `scripts/seed_all.js`.
+- Infraestructura: `docker-compose.yml`.

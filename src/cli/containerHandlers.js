@@ -17,11 +17,12 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatNumber } from './cliFormatters.js';
 
 export async function handleOption2({ ask, currentUser }) {
   let salirCont = false;
   while (!salirCont) {
-    console.log('\n--- GESTIÓN DE CONTENEDORES (PostgreSQL) ---');
+    console.log('\n--- GESTIÓN DE CONTENEDORES ---');
     const contenedores = await ContenedorRepository.listarTodos();
     if (contenedores.length === 0) {
       console.log('No hay contenedores registrados.');
@@ -30,7 +31,7 @@ export async function handleOption2({ ask, currentUser }) {
         ID: c.id_contenedor,
         Codigo_Int: c.codigo_internacional,
         Tipo: c.tipo,
-        Capacidad: `${c.capacidad} kg`,
+        Capacidad: `${formatNumber(c.capacidad)} kg`,
         Estado: c.estado
       })));
     }
@@ -117,4 +118,3 @@ export async function handleOption2({ ask, currentUser }) {
     }
   }
 }
-

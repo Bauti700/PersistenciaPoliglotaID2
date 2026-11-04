@@ -17,6 +17,7 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate, formatMoney } from './cliFormatters.js';
 
 export async function handleOption14({ ask, currentUser }) {
   console.log('\n--- REPORTES OPERATIVOS Y ANALÍTICOS PARAMETRIZADOS ---');
@@ -63,17 +64,17 @@ export async function handleOption14({ ask, currentUser }) {
         Actor: f.razon_social,
         Tipo_Actor: f.tipo_actor,
         Concepto: f.concepto,
-        Total: `$ ${f.importe_total}`,
-        Pagado: `$ ${f.total_pagado}`,
+        Total: formatMoney(f.importe_total),
+        Pagado: formatMoney(f.total_pagado),
         Estado: f.estado,
-        Fecha: f.fecha_emision
+        Fecha: formatDate(f.fecha_emision)
       })));
     }
 
     console.log('\n=== RESUMEN MÉTRICO ===');
     console.table([rep.metricas]);
     if (rep.id_reporte_facturable) {
-      console.log(`Reporte facturable guardado en MongoDB: ${rep.id_reporte_facturable}`);
+      console.log(`Reporte facturable guardado correctamente. ID: ${rep.id_reporte_facturable}`);
     }
   } else if (opRep === '2') {
     console.log('\n--- REPORTE OPERATIVO DE ENVÍOS ---');
@@ -88,14 +89,14 @@ export async function handleOption14({ ask, currentUser }) {
     }, currentUser?.email || 'sistema');
     console.log(`\nRegistros encontrados: ${rep.datos.length}`);
     console.table(rep.datos);
-    if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
+    if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '3') {
     console.log('\n--- TIEMPOS MÁXIMOS Y MÍNIMOS DE ENVÍO POR CLIENTE ---');
     const rep = await ReporteComercialRepository.tiemposEnvioPorCliente(
       currentUser?.email || 'sistema'
     );
     console.table(rep.datos);
-    if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
+    if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '4') {
     console.log('\n--- PROMEDIO DE INCIDENTES POR PAÍS/ESTADO/CLIENTE ---');
     const pais = (await ask('País (opcional): ')).trim() || null;
@@ -105,21 +106,20 @@ export async function handleOption14({ ask, currentUser }) {
       pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null
     }, currentUser?.email || 'sistema');
     console.table(rep.datos);
-    if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
+    if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '5') {
     console.log('\n--- TIEMPOS PROMEDIO DE ENTREGA ---');
     const rep = await ReporteComercialRepository.tiemposPromedioEntrega(
       currentUser?.email || 'sistema'
     );
     console.table(rep.datos);
-    if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
+    if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '6') {
     console.log('\n--- COSTOS POR TIPO DE TRANSPORTE ---');
     const rep = await ReporteComercialRepository.costosPorTipoTransporte(
       currentUser?.email || 'sistema'
     );
     console.table(rep.datos);
-    if (rep.id_reporte_mongo) console.log(`Guardado en MongoDB: ${rep.id_reporte_mongo}`);
+    if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   }
 }
-

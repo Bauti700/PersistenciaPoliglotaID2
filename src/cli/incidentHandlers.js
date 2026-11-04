@@ -18,11 +18,12 @@ import { LogisticsService } from '../services/logisticsService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate } from './cliFormatters.js';
 
 export async function handleOption6({ ask, currentUser }) {
   let salirIncidentes = false;
   while (!salirIncidentes) {
-    console.log('\n--- GESTIÓN DE INCIDENTES (MongoDB) ---');
+    console.log('\n--- GESTIÓN DE INCIDENTES ---');
     console.log('1. Listar incidentes con filtros');
     console.log('2. Registrar incidente manual (genera alerta)');
     console.log('3. Cerrar incidente y sus alertas');
@@ -64,7 +65,7 @@ export async function handleOption6({ ask, currentUser }) {
           Severidad: i.severidad,
           Estado: i.estado,
           Descripcion: i.descripcion || '-',
-          Fecha: i.fecha
+          Fecha: formatDate(i.fecha)
         })));
       }
     } else if (optIncidente === '2') {
@@ -109,7 +110,7 @@ export async function handleOption6({ ask, currentUser }) {
           Severidad: i.severidad,
           Envio: i.id_envio || '-',
           Sensor: i.id_sensor || '-',
-          Fecha: i.fecha
+          Fecha: formatDate(i.fecha)
         })));
       }
       const id_incidente = await ask('ID Incidente a cerrar: ');

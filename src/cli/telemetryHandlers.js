@@ -18,11 +18,12 @@ import { LogisticsService } from '../services/logisticsService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate } from './cliFormatters.js';
 
 export async function handleOption4({ ask, currentUser }) {
   let salirIoT = false;
   while (!salirIoT) {
-    console.log('\n--- INGESTA DE TELEMETRÍA IOT (MongoDB + Redis) ---');
+    console.log('\n--- INGESTA DE TELEMETRÍA IOT ---');
     console.log('1. Registrar lectura de sensor');
     console.log('2. ABM Sensores (Alta/Listado/Editar/Baja/Activar/Eliminar)');
     console.log('3. Asignar sensor a contenedor/envío');
@@ -64,7 +65,7 @@ export async function handleOption4({ ask, currentUser }) {
         longitud,
         nivel_bateria
       });
-      console.log('\nTelemetría guardada en MongoDB, posición actualizada en Redis y lectura proyectada en Neo4j.');
+      console.log('\nTelemetría registrada correctamente.');
       console.log(
         `Alertas generadas: ${res.alertas_generadas} | Incidentes generados: ${res.incidentes_generados}`
       );
@@ -99,7 +100,7 @@ export async function handleOption4({ ask, currentUser }) {
             Fabricante: s.fabricante || '-',
             Contenedor: s.id_contenedor || 'Sin asignar',
             Estado: s.estado,
-            Instalacion: s.fecha_instalacion
+            Instalacion: formatDate(s.fecha_instalacion)
           })));
         }
         console.log('1. Alta de sensor');
@@ -347,7 +348,7 @@ export async function handleOption4({ ask, currentUser }) {
               Severidad: a.severidad,
               Estado: a.estado,
               Mensaje: a.mensaje,
-              Fecha: a.fecha
+              Fecha: formatDate(a.fecha)
             })));
           }
         } else if (rOpt === '9') {

@@ -20,7 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 
 export async function handleOption16({ ask, currentUser }) {
-  console.log('\n--- ANÁLISIS HISTÓRICO DE DESEMPEÑO LOGÍSTICO (PostgreSQL + MongoDB + Redis) ---');
+  console.log('\n--- ANÁLISIS HISTÓRICO DE DESEMPEÑO LOGÍSTICO ---');
   const id_cliente = (await ask('Filtrar por ID Cliente específico (opcional, ENTER para global): ')).trim() || null;
   console.log('\nProcesando análisis de tiempos, puntualidad y costos...');
   const res = await AnalyticsService.analisisHistoricoDesempeno({ id_cliente });
@@ -50,5 +50,5 @@ export async function handleOption16({ ask, currentUser }) {
   console.log('\n=== CONFIABILIDAD OPERATIVA POR OPERADOR LOGÍSTICO ===');
   console.table(res.confiabilidad_operadores);
 
-  console.log('\nInforme analítico histórico persistido en MongoDB (Colección: reportes, Categoría: INTELIGENCIA_ANALITICA)');
+  console.log('\nInforme analítico histórico guardado correctamente.');
 }

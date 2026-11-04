@@ -9,6 +9,20 @@ function ordenarTramos(tramos = []) {
   return [...tramos].sort((a, b) => numero(a?.orden) - numero(b?.orden));
 }
 
+function normalizarValorNeo4j(valor) {
+  if (valor && typeof valor.toNumber === 'function') return valor.toNumber();
+  if (Array.isArray(valor)) return valor.map(normalizarValorNeo4j);
+  if (valor && typeof valor === 'object') {
+    return Object.fromEntries(
+      Object.entries(valor).map(([clave, contenido]) => [
+        clave,
+        normalizarValorNeo4j(contenido)
+      ])
+    );
+  }
+  return valor;
+}
+
 export class Neo4jRouteRepository {
   static async crearEnvioConRuta({
     id_envio,
@@ -422,7 +436,7 @@ export class Neo4jRouteRepository {
         OPTIONAL MATCH (c)-[:MONITOREADO_POR]->(s:Sensor)
         RETURN c.id_contenedor AS contenedor, collect(s.id_sensor) AS sensores
       `, { id_envio });
-      return result.records.map(r => r.toObject());
+      return result.records.map(r => normalizarValorNeo4j(r.toObject()));
     } finally {
       await session.close();
     }
@@ -457,7 +471,7 @@ export class Neo4jRouteRepository {
       `;
       const result = await session.run(cypher, { id_envio });
       if (result.records.length === 0) return null;
-      const fila = result.records[0].toObject();
+      const fila = normalizarValorNeo4j(result.records[0].toObject());
       fila.tramos = ordenarTramos(fila.tramos);
       return fila;
     } finally {
@@ -482,7 +496,7 @@ export class Neo4jRouteRepository {
         LIMIT 50
       `;
       const result = await session.run(cypher);
-      return result.records.map(r => r.toObject());
+      return result.records.map(r => normalizarValorNeo4j(r.toObject()));
     } finally {
       await session.close();
     }
@@ -501,7 +515,7 @@ export class Neo4jRouteRepository {
       `;
       const result = await session.run(cypher);
       return result.records.map(r => {
-        const fila = r.toObject();
+        const fila = normalizarValorNeo4j(r.toObject());
         const idActor = fila.id_actor;
         return {
           ...fila,
@@ -541,7 +555,7 @@ export class Neo4jRouteRepository {
       `;
       const result = await session.run(cypher, { id_contenedor });
       return result.records.map(r => {
-        const fila = r.toObject();
+        const fila = normalizarValorNeo4j(r.toObject());
         fila.tramos = ordenarTramos(fila.tramos);
         return fila;
       });
@@ -566,7 +580,7 @@ export class Neo4jRouteRepository {
         ORDER BY sensor
       `;
       const result = await session.run(cypher, { id_contenedor });
-      return result.records.map(r => r.toObject());
+      return result.records.map(r => normalizarValorNeo4j(r.toObject()));
     } finally {
       await session.close();
     }

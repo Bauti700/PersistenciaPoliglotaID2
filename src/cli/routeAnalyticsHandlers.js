@@ -20,8 +20,8 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 
 export async function handleOption15({ ask, currentUser }) {
-  console.log('\n--- RANKING DE RUTAS CON MAYOR CANTIDAD DE INCIDENTES (MongoDB + PostgreSQL + Redis) ---');
-  const forzar = (await ask('¿Desea forzar recálculo omitiendo la caché de Redis? (s/n) [n]: ')).toLowerCase() === 's';
+  console.log('\n--- RANKING DE RUTAS CON MAYOR CANTIDAD DE INCIDENTES ---');
+  const forzar = (await ask('¿Desea forzar el recálculo? (s/n) [n]: ')).toLowerCase() === 's';
   console.log('\nCalculando correlación políglota de rutas e incidentes...');
   const res = await AnalyticsService.rankingRutasConMasIncidentes({ forzarRecalculo: forzar });
   console.log(`[Origen de datos: ${res.origen_datos}] | Rutas evaluadas: ${res.total_rutas_evaluadas}`);

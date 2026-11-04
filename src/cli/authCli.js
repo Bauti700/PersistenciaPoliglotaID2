@@ -55,7 +55,7 @@ export async function login(context) {
         });
         context.currentUser = { ...user, token: sesion.token };
       } catch (e) {
-        console.warn(`[Aviso] No se pudo registrar la sesión en Redis/PostgreSQL: ${e.message}`);
+        console.warn(`[Aviso] No se pudo registrar la sesión: ${e.message}`);
       }
       
       console.log(`\nBienvenido/a: ${user.nombre} ${user.apellido} | Rol: ${user.rol_descripcion || 'N/A'} | Estado: ${user.estado}`);

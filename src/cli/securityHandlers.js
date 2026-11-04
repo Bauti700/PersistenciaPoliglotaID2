@@ -18,6 +18,7 @@ import { AuthenticationService } from '../services/authenticationService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate } from './cliFormatters.js';
 
 export async function handleOption17({ ask, currentUser }) {
   if (!AuthenticationService.esAdministrador(currentUser)) {
@@ -155,7 +156,7 @@ export async function handleOption17({ ask, currentUser }) {
             Nivel: u.nivel_permisos,
             Estado: u.estado,
             Sesion_Activa: u.sesion_activa ? 'SI' : 'NO',
-            Ultimo_Acceso: u.fecha_ultimo_acceso || '-'
+            Ultimo_Acceso: formatDate(u.fecha_ultimo_acceso)
           })));
         } else if (usrOpt === '3') {
           const id_usuario = await ask('ID Usuario a editar: ');
@@ -226,11 +227,11 @@ export async function handleOption17({ ask, currentUser }) {
       let salirSesiones = false;
       while (!salirSesiones) {
         console.log('\n--- SESIONES E HISTORIAL ---');
-        console.log('1. Listar sesiones activas (Redis con TTL)');
+        console.log('1. Listar sesiones activas');
         console.log('2. Cerrar sesión específica');
         console.log('3. Cerrar todas las sesiones de un usuario');
         console.log('4. Cerrar todas las sesiones activas');
-        console.log('5. Consultar historial de sesiones (PostgreSQL)');
+        console.log('5. Consultar historial de sesiones');
         console.log('0. Volver');
         const sesOpt = (await ask('Opción (0-5): ')).trim();
 
@@ -246,7 +247,7 @@ export async function handleOption17({ ask, currentUser }) {
               Email: s.email,
               ID_Rol: s.id_rol,
               IP: s.ip || '-',
-              Inicio: s.fecha_inicio,
+              Inicio: formatDate(s.fecha_inicio),
               Ultimo_Acceso: s.ultimo_acceso,
               TTL_seg: s.ttl_segundos
             })));
@@ -295,9 +296,9 @@ export async function handleOption17({ ask, currentUser }) {
               Email: h.email,
               Rol: h.rol_descripcion || '-',
               Token: h.token ? h.token.substring(0, 8) + '...' : '-',
-              Inicio: h.fecha_inicio,
-              Fin: h.fecha_fin || '-',
-              Ultima_Actividad: h.fecha_ultima_actividad,
+              Inicio: formatDate(h.fecha_inicio),
+              Fin: formatDate(h.fecha_fin),
+              Ultima_Actividad: formatDate(h.fecha_ultima_actividad),
               Estado: h.estado
             })));
           }

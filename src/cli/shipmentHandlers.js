@@ -18,11 +18,12 @@ import { LogisticsService } from '../services/logisticsService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate, formatNumber } from './cliFormatters.js';
 
 export async function handleOption11({ ask, currentUser }) {
   let salirEnvios = false;
   while (!salirEnvios) {
-    console.log('\n--- ABM DE ENVÍOS (PostgreSQL + Neo4j + MongoDB + Redis) ---');
+    console.log('\n--- ABM DE ENVÍOS ---');
     console.log('1. Listar envíos (con filtros)');
     console.log('2. Consultar envío por ID');
     console.log('3. Crear envío políglota');
@@ -32,7 +33,7 @@ export async function handleOption11({ ask, currentUser }) {
     console.log('7. Eliminar envío definitivamente');
     console.log('8. Asignar contenedor a envío');
     console.log('9. Asignar sensor a contenedor/envío');
-    console.log('10. Ver eventos logísticos del envío (MongoDB)');
+    console.log('10. Ver eventos logísticos del envío');
     console.log('0. Volver');
     const opEnv = (await ask('Opción (0-10): ')).trim();
 
@@ -59,8 +60,8 @@ export async function handleOption11({ ask, currentUser }) {
           Prioridad: e.prioridad,
           Tramos: e.cantidad_tramos,
           Contenedores: `${e.cantidad_contenedores} (${e.contenedores_activos} activos)`,
-          Creacion: e.fecha_creacion,
-          Entrega: e.fecha_entrega || '-'
+          Creacion: formatDate(e.fecha_creacion),
+          Entrega: formatDate(e.fecha_entrega)
         })));
       }
     } else if (opEnv === '2') {
@@ -77,8 +78,8 @@ export async function handleOption11({ ask, currentUser }) {
           Destino: envio.destino,
           Estado: envio.estado,
           Prioridad: envio.prioridad,
-          Creacion: envio.fecha_creacion,
-          Entrega: envio.fecha_entrega || '-'
+          Creacion: formatDate(envio.fecha_creacion),
+          Entrega: formatDate(envio.fecha_entrega)
         }]);
         if (envio.tramos.length > 0) {
           console.log('\nTramos:');
@@ -90,8 +91,8 @@ export async function handleOption11({ ask, currentUser }) {
             ID: c.id_contenedor,
             Tipo: c.tipo,
             Estado: c.estado,
-            Asignado: c.fecha_asignacion,
-            Liberado: c.fecha_liberacion || '-'
+            Asignado: formatDate(c.fecha_asignacion),
+            Liberado: formatDate(c.fecha_liberacion)
           })));
         } else {
           console.log('\n[AVISO] El envío no tiene contenedores asociados.');
@@ -118,7 +119,7 @@ export async function handleOption11({ ask, currentUser }) {
       console.table(contenedoresElegibles.map(c => ({
         ID: c.id_contenedor,
         Tipo: c.tipo,
-        Capacidad: c.capacidad,
+        Capacidad: `${formatNumber(c.capacidad)} kg`,
         Estado: c.estado
       })));
       const contenedores = parsearIdsContenedores(
@@ -229,7 +230,7 @@ export async function handleOption11({ ask, currentUser }) {
       console.table(contenedoresElegibles.map(c => ({
         ID: c.id_contenedor,
         Tipo: c.tipo,
-        Capacidad: c.capacidad
+        Capacidad: `${formatNumber(c.capacidad)} kg`
       })));
       const id_contenedor = await ask('ID Contenedor: ');
       try {
@@ -260,7 +261,7 @@ export async function handleOption11({ ask, currentUser }) {
       } else {
         console.table(eventos.map(e => ({
           ID: e.id_evento,
-          Fecha: e.fecha_hora,
+          Fecha: formatDate(e.fecha_hora),
           Tipo: e.tipo_evento,
           Ubicacion: e.ubicacion || '-',
           Descripcion: e.descripcion || '-'

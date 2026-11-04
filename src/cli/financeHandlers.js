@@ -17,6 +17,7 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate, formatMoney } from './cliFormatters.js';
 
 export async function handleOption3({ ask, currentUser }) {
             let salirCom = false;
@@ -26,14 +27,13 @@ export async function handleOption3({ ask, currentUser }) {
   ========================================================================
                MÓDULO DE GESTIÓN COMERCIAL Y FINANCIERA
   ========================================================================
-  1. [Clientes]           Emitir Factura de Venta y Registrar Cobro
-  2. [Proveedores/Oper.]  Registrar Factura Recibida y Realizar Pago
-                          (Recepción de facturas ya confeccionadas externamente)
-  3. [Cuentas Corrientes] Consultar Saldos y Estado de Cuenta por Actor
-  4. [Cuentas Corrientes] Listar Todas las Cuentas Corrientes (Saldos Generales)
-  5. [Automatización]     Facturación Automática de Envíos (Cierre / Entrega)
-  6. [Contabilidad]       Cierre Mensual de Cuentas Corrientes (Ejecutar / Histórico)
-  7. [Reportes]           Solicitar Reporte Comercial Parametrizado (Guardado en MongoDB)
+  1. Emitir Factura de Venta y Registrar Cobro
+  2. Registrar Factura Recibida y Realizar Pago
+  3. Consultar Saldos y Estado de Cuenta por Actor
+  4. Listar Todas las Cuentas Corrientes
+  5. Facturación Automática de Envíos
+  6. Cierre Mensual de Cuentas Corrientes
+  7. Solicitar Reporte Comercial Parametrizado
   0. Volver al menú principal
   `);
             const subCom = (await ask('Seleccione operación comercial (0-7) > ')).trim();
@@ -51,7 +51,7 @@ export async function handleOption3({ ask, currentUser }) {
                 Razon_Social: c.razon_social,
                 CUIT: c.cuit,
                 Pais: c.pais,
-                Saldo_CC: `$ ${c.saldo}`
+                Saldo_CC: formatMoney(c.saldo)
               })));
 
               const id_cliente = await ask('ID del Cliente: ');
@@ -99,7 +99,7 @@ export async function handleOption3({ ask, currentUser }) {
                   Tipo: a.tipo_actor,
                   Razon_Social: a.razon_social,
                   CUIT: a.cuit,
-                  Saldo_CC: `$ ${a.saldo}`
+                  Saldo_CC: formatMoney(a.saldo)
                 })));
 
                 const tipo_actor = (await ask('Tipo de Actor (PROVEEDOR / OPERADOR): ')).trim().toUpperCase();
@@ -138,7 +138,7 @@ export async function handleOption3({ ask, currentUser }) {
                     Concepto: f.concepto,
                     Total: `$ ${f.importe_total}`,
                     Pagado: `$ ${f.total_pagado}`,
-                    Saldo_Pendiente: `$ ${Number(f.importe_total) - Number(f.total_pagado)}`,
+                    Saldo_Pendiente: formatMoney(Number(f.importe_total) - Number(f.total_pagado)),
                     Envio: f.id_envio || 'N/A'
                   })));
 
@@ -167,7 +167,7 @@ export async function handleOption3({ ask, currentUser }) {
                 Tipo: a.tipo_actor,
                 Razon_Social: a.razon_social,
                 CUIT: a.cuit,
-                Saldo_CC: `$ ${a.saldo}`
+                Saldo_CC: formatMoney(a.saldo)
               })));
 
               const tipo_actor = (await ask('Tipo de Actor (CLIENTE / PROVEEDOR / OPERADOR, ENTER para autodetectar): ')).trim().toUpperCase() || null;
@@ -175,7 +175,7 @@ export async function handleOption3({ ask, currentUser }) {
               const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(Number(id_actor), tipo_actor);
               console.log(`\n=== ESTADO DE CUENTA CORRIENTE: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
               console.log(`Saldo Actual: $ ${estado.cuenta_corriente.saldo}`);
-              console.log(`Última Actualización: ${estado.cuenta_corriente.fecha_actualizacion}`);
+              console.log(`Última Actualización: ${formatDate(estado.cuenta_corriente.fecha_actualizacion)}`);
 
               console.log('\nFacturas Registradas (Emitidas / Recibidas):');
               if (estado.facturas.length === 0) {
@@ -201,10 +201,10 @@ export async function handleOption3({ ask, currentUser }) {
                   ID_Pago: p.id_pago,
                   Factura: p.id_factura,
                   Tipo: p.tipo_pago,
-                  Monto: `$ ${p.monto}`,
+                  Monto: formatMoney(p.monto),
                   Medio: p.medio_pago,
                   Referencia: p.referencia_comprobante,
-                  Fecha: p.fecha
+                  Fecha: formatDate(p.fecha)
                 })));
               }
 
@@ -225,7 +225,7 @@ export async function handleOption3({ ask, currentUser }) {
                 Razon_Social: a.razon_social,
                 CUIT: a.cuit,
                 Pais: a.pais,
-                Saldo_CC: `$ ${a.saldo}`,
+                Saldo_CC: formatMoney(a.saldo),
                 Estado_Saldo: Number(a.saldo) < 0 ? 'DEUDOR' : (Number(a.saldo) > 0 ? 'A FAVOR' : 'EQUILIBRADO'),
                 Ultima_Actualizacion: a.cc_actualizacion
               })));
@@ -249,7 +249,7 @@ export async function handleOption3({ ask, currentUser }) {
                   console.log(`- Tramos de recorrido: ${resAuto.calculo.tramos} tramo(s) ($${resAuto.calculo.costo_tramos})`);
                   console.log(`- Factor por prioridad: x${resAuto.calculo.factor_prioridad}`);
                   console.log(`- Importe total calculado: $${resAuto.calculo.total}`);
-                  console.log('El envío fue actualizado a estado ENTREGADO y se registró auditoría en MongoDB.');
+                  console.log('El envío fue actualizado a estado ENTREGADO y se registró la auditoría.');
                 }
               } else if (autoOpt === '2') {
                 console.log('\nEjecutando proceso de facturación automática por lote...');
@@ -261,7 +261,7 @@ export async function handleOption3({ ask, currentUser }) {
                     Envio: r.id_envio,
                     Estado: r.exito ? 'FACTURADO' : 'ERROR',
                     Factura_ID: r.factura?.id_factura || '-',
-                    Importe: r.factura ? `$ ${r.factura.importe_total}` : '-',
+                    Importe: r.factura ? formatMoney(r.factura.importe_total) : '-',
                     Detalle: r.exito ? 'Factura emitida y registrada en CC' : r.error
                   })));
                 }
@@ -297,12 +297,12 @@ export async function handleOption3({ ask, currentUser }) {
                   ID: c.id_actor,
                   Tipo: c.tipo_actor,
                   Actor: c.razon_social,
-                  Saldo_Inicial: `$ ${c.saldo_inicial}`,
+                  Saldo_Inicial: formatMoney(c.saldo_inicial),
                   Facturado_Mes: `$ ${c.total_facturado}`,
                   Pagado_Mes: `$ ${c.total_pagado}`,
-                  Saldo_Cierre: `$ ${c.saldo_final}`
+                  Saldo_Cierre: formatMoney(c.saldo_final)
                 })));
-                console.log('Auditoría contable registrada en colección documental MongoDB (db.reportes).');
+                console.log('Auditoría contable registrada correctamente.');
 
               } else if (cOpt === '2') {
                 const per = (await ask('Período a consultar (YYYY-MM o ENTER para todos): ')).trim() || null;
@@ -314,11 +314,11 @@ export async function handleOption3({ ask, currentUser }) {
                     Periodo: h.periodo,
                     Actor: h.razon_social,
                     Tipo: h.tipo_actor,
-                    Saldo_Inicial: `$ ${h.saldo_inicial}`,
+                    Saldo_Inicial: formatMoney(h.saldo_inicial),
                     Total_Debe: `$ ${h.total_debe}`,
                     Total_Haber: `$ ${h.total_haber}`,
-                    Saldo_Final: `$ ${h.saldo_final}`,
-                    Fecha_Cierre: h.fecha_cierre,
+                    Saldo_Final: formatMoney(h.saldo_final),
+                    Fecha_Cierre: formatDate(h.fecha_cierre),
                     Estado: h.estado
                   })));
                 }
@@ -362,14 +362,14 @@ export async function handleOption3({ ask, currentUser }) {
                   Total: `$ ${f.importe_total}`,
                   Pagado: `$ ${f.total_pagado}`,
                   Estado: f.estado,
-                  Fecha: f.fecha_emision
+                  Fecha: formatDate(f.fecha_emision)
                 })));
               }
 
               console.log('\n=== MÉTRICAS CONSOLIDADAS DEL REPORTE ===');
               console.table([rep.metricas]);
               if (rep.id_reporte_mongo) {
-                console.log(`Documento de reporte persistido en MongoDB (Colección: reportes, ID: ${rep.id_reporte_mongo})`);
+                console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
               }
             } else {
               console.log('Opción inválida.');

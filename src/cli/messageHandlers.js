@@ -17,12 +17,13 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatDate } from './cliFormatters.js';
 
 export async function handleOption7({ ask, currentUser }) {
             let volverMensajeria = false;
             while (!volverMensajeria) {
               console.log(`
-  --- MENSAJERÍA Y CHAT (MongoDB) ---
+  --- MENSAJERÍA Y CHAT ---
   Usuario autenticado: ${currentUser.email}
     1. Ver historial de conversación privada
     2. Enviar mensaje privado
@@ -46,7 +47,7 @@ export async function handleOption7({ ask, currentUser }) {
                     console.table(mensajes.map(m => ({
                       De: m.remitente,
                       Para: m.destinatario,
-                      Fecha: m.fecha,
+                      Fecha: formatDate(m.fecha),
                       Mensaje: m.contenido
                     })));
                   }
@@ -58,7 +59,7 @@ export async function handleOption7({ ask, currentUser }) {
                     destinatario,
                     contenido
                   });
-                  console.log(`\nMensaje privado enviado y persistido en MongoDB (${res.id_mensaje}).`);
+                  console.log(`\nMensaje privado enviado correctamente. ID: ${res.id_mensaje}`);
                 } else if (optMensaje === '3') {
                   const grupos = await MensajeRepository.listarGrupos(currentUser.email);
                   if (grupos.length === 0) {
@@ -80,7 +81,7 @@ export async function handleOption7({ ask, currentUser }) {
                   } else {
                     console.table(mensajes.map(m => ({
                       De: m.remitente,
-                      Fecha: m.fecha,
+                      Fecha: formatDate(m.fecha),
                       Mensaje: m.contenido
                     })));
                   }
@@ -102,7 +103,7 @@ export async function handleOption7({ ask, currentUser }) {
                       id_grupo,
                       contenido
                     });
-                    console.log(`\nMensaje grupal enviado a ${res.id_grupo} y persistido en MongoDB (${res.id_mensaje}).`);
+                    console.log(`\nMensaje grupal enviado al grupo ${res.id_grupo}. ID: ${res.id_mensaje}`);
                   }
                 } else {
                   console.log('Opción inválida.');
@@ -112,4 +113,3 @@ export async function handleOption7({ ask, currentUser }) {
               }
             }
 }
-

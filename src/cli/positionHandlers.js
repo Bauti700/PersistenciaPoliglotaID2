@@ -20,7 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 
 export async function handleOption10({ ask, currentUser }) {
-  console.log('\n--- CONSULTA DE POSICIONES GPS EN TIEMPO REAL (Redis) ---');
+  console.log('\n--- CONSULTA DE POSICIONES GPS EN TIEMPO REAL ---');
   console.log('1. Última posición de un contenedor');
   console.log('2. Listar todas las posiciones cacheadas');
   console.log('3. Contenedores cercanos a una coordenada');
@@ -36,7 +36,7 @@ export async function handleOption10({ ask, currentUser }) {
       console.log(`\nDatos en memoria caché para ${id_contenedor}:`);
       console.log(pos);
     } else {
-      console.log(`No hay información en caché de Redis para el contenedor ${id_contenedor}.`);
+      console.log(`No hay información de posición para el contenedor ${id_contenedor}.`);
     }
   } else if (optGps === '2') {
     const posiciones = await RedisCacheRepository.obtenerTodasPosiciones();

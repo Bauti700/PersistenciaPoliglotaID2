@@ -18,9 +18,10 @@ import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatTableRows } from './cliFormatters.js';
 
 export async function handleOption8({ ask, currentUser }) {
-  console.log('\n--- CONSULTA DE RUTA EN GRAFO (Neo4j) ---');
+  console.log('\n--- CONSULTA DE RUTA ---');
   console.log('1. Ruta completa de un envío');
   console.log('2. Reconstrucción del recorrido de un contenedor');
   console.log('3. Historial completo de movimientos de un contenedor');
@@ -35,7 +36,7 @@ export async function handleOption8({ ask, currentUser }) {
       console.log(`Origen: ${ruta.origen} ===> Destino: ${ruta.destino}`);
       console.log(`Operador Asignado: ${ruta.operador || 'Sin asignar'} | Vehículo: ${ruta.vehiculo || 'Sin asignar'}`);
       console.log('\nTramos del recorrido:');
-      console.table(ruta.tramos);
+      console.table(formatTableRows(ruta.tramos));
     } else {
       console.log(`No se encontró el envío ${id_envio} en la base de datos de grafos.`);
     }
@@ -43,10 +44,10 @@ export async function handleOption8({ ask, currentUser }) {
     const id_contenedor = await ask('ID Contenedor: ');
     const recorrido = await Neo4jRouteRepository.reconstruirRecorridoContenedor(id_contenedor);
     console.log('\nRecorrido reconstruido:');
-    console.table(recorrido);
+    console.table(formatTableRows(recorrido));
   } else if (subRuta === '3') {
     const id_contenedor = await ask('ID Contenedor: ');
     const movimientos = await Neo4jRouteRepository.historialMovimientosContenedor(id_contenedor);
-    console.table(movimientos);
+    console.table(formatTableRows(movimientos));
   }
 }

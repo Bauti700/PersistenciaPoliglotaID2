@@ -18,9 +18,10 @@ import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatTableRows } from './cliFormatters.js';
 
 export async function handleOption9({ ask, currentUser }) {
-  console.log('\n--- RED LOGÍSTICA COMPLETA (Neo4j) ---');
+  console.log('\n--- RED LOGÍSTICA COMPLETA ---');
   const red = await Neo4jRouteRepository.obtenerRedRelaciones();
-  console.table(red);
+  console.table(formatTableRows(red));
 }

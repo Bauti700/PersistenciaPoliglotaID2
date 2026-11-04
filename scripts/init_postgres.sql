@@ -261,7 +261,12 @@ UNION ALL
 SELECT NULL, 'María',   'González',  (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'maria.gonzalez@logistica.com', '$2a$10$GO0cJCxVTIYoHsflS5eUfOQVojQA/TxzsA5vLLUX3Ok1X6MlvyoOm', 'ACTIVO'
 UNION ALL
 SELECT NULL, 'Carlos',  'López',     (SELECT id_rol FROM roles WHERE descripcion = 'USUARIO' LIMIT 1),  'carlos.lopez@logistica.com',   '$2a$10$Emh9.PoIl59Din8sywPp1.CEclhzFXUMw45htSxHcU.t4ZRqKdepa', 'ACTIVO'
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    apellido = EXCLUDED.apellido,
+    id_rol = EXCLUDED.id_rol,
+    password_hash = EXCLUDED.password_hash,
+    estado = EXCLUDED.estado;
 
 -- Saldos de arrastre coherentes con las facturas y pagos semilla:
 --   CLIENTE 1:  -62.000 (factura EMITIDA pendiente)

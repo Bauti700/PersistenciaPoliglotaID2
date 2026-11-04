@@ -1,7 +1,7 @@
 export async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField, ask) {
   let salir = false;
   while (!salir) {
-    console.log(`\n--- LISTADO DE ${nombrePlural.toUpperCase()} (PostgreSQL) ---`);
+    console.log(`\n--- LISTADO DE ${nombrePlural.toUpperCase()} ---`);
     const items = await repo.listarTodos();
     if (items.length === 0) {
       console.log(`No hay ${nombrePlural.toLowerCase()} registrados.\n`);
@@ -15,7 +15,7 @@ export async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField
         Direccion: it.direccion || '-',
         Pais: it.pais,
         Estado: it.estado,
-        Saldo_CC: `$ ${it.saldo || 0}`
+        Saldo_CC: formatMoney(it.saldo)
       })));
     }
 
@@ -111,4 +111,4 @@ export async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField
   }
 }
 
-
+import { formatMoney } from './cliFormatters.js';

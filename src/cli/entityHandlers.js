@@ -23,11 +23,11 @@ export async function handleOption1({ ask, currentUser }) {
             while (!volverSub) {
               console.log(`
   ========================================================================
-     GESTIÓN SEPARADA DE ENTIDADES LOGÍSTICAS (PostgreSQL)
+     GESTIÓN DE ENTIDADES LOGÍSTICAS
   ========================================================================
-    1. ABM Clientes (Listado, Alta, Modificación, Baja, Eliminación)
-    2. ABM Proveedores (Listado, Alta, Modificación, Baja, Eliminación)
-    3. ABM Operadores Logísticos (Listado, Alta, Modificación, Baja, Eliminación)
+    1. ABM Clientes
+    2. ABM Proveedores
+    3. ABM Operadores Logísticos
     4. Consultar Estado de Cuenta Corriente por Entidad
     0. Volver al menú principal
   `);
@@ -62,4 +62,3 @@ export async function handleOption1({ ask, currentUser }) {
               }
             }
 }
-
