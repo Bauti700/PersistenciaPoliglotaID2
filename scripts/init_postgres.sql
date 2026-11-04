@@ -215,13 +215,20 @@ INSERT INTO roles (descripcion, nivel_permisos, estado, permisos)
 SELECT v.descripcion, v.nivel_permisos, v.estado, v.permisos::jsonb
 FROM (VALUES
   ('ADMIN',    10, 'ACTIVO', '{"admin":true,"seguridad":true,"usuarios":true,"roles":true,"sesiones":true,"envios":true,"alertas":true,"finanzas":true}'),
-  ('OPERADOR',  5, 'ACTIVO', '{"envios":true,"alertas":true}'),
-  ('CLIENTE',   1, 'ACTIVO', '{}'),
   ('USUARIO',   1, 'ACTIVO', '{}')
 ) AS v(descripcion, nivel_permisos, estado, permisos)
 WHERE NOT EXISTS (
   SELECT 1 FROM roles r WHERE r.descripcion = v.descripcion
 );
+
+-- Solo se admiten los roles administrativos y de usuario. Se eliminan los
+-- roles restantes que no tengan usuarios asignados (si los tuvieran, la FK
+-- impediría el borrado y se conservan para no romper usuarios existentes).
+DELETE FROM roles r
+WHERE UPPER(r.descripcion) NOT IN ('ADMIN', 'ADMINISTRADOR', 'USUARIO')
+  AND NOT EXISTS (
+    SELECT 1 FROM usuarios u WHERE u.id_rol = r.id_rol
+  );
 
 -- Garantiza que el rol ADMIN conserve todos los permisos aunque ya existiera.
 UPDATE roles
