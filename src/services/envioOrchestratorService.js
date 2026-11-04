@@ -1,5 +1,7 @@
 import { ActorRepository } from '../repositories/actorRepository.js';
 import { ContenedorRepository } from '../repositories/contenedorRepository.js';
+import { ShipmentContainerRepository } from '../repositories/shipmentContainerRepository.js';
+import { ContenedorAssignmentService } from './contenedorAssignmentService.js';
 import { SensorRepository } from '../repositories/sensorRepository.js';
 import { EnvioRepository } from '../repositories/envioRepository.js';
 import { FacturaRepository } from '../repositories/facturaRepository.js';
@@ -44,7 +46,7 @@ async function revertirEstadoYContenedores(id_envio, estadoAnterior, contenedore
     await client.query('BEGIN');
     await EnvioRepository.cambiarEstado(id_envio, estadoAnterior, client);
     if (contenedoresLiberados.length > 0) {
-      await ContenedorRepository.reactivarContenedoresDeEnvio(
+      await ShipmentContainerRepository.reactivar(
         id_envio,
         contenedoresLiberados,
         client
@@ -190,7 +192,7 @@ export class EnvioOrchestratorService {
       );
 
       // El envío y sus contenedores se persisten en la misma transacción.
-      const contenedoresAsignados = await ContenedorRepository.asignarContenedoresAEnvio(
+      const contenedoresAsignados = await ShipmentContainerRepository.asignar(
         datosBase.id_envio,
         contenedoresNormalizados,
         client
@@ -312,65 +314,7 @@ export class EnvioOrchestratorService {
   }
 
   static async asignarContenedorAEnvio({ id_envio, id_contenedor }) {
-    const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
-    const idContenedor = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
-
-    const envio = await EnvioRepository.obtenerPorId(idEnvio);
-    if (!envio) throw errorValidacion(`El envío ${idEnvio} no existe.`, 404);
-    if (['ENTREGADO', 'CANCELADO'].includes(envio.estado)) {
-      throw errorValidacion(`El envío ${idEnvio} está ${envio.estado} y no admite asignaciones.`, 409);
-    }
-
-    const contenedor = await ContenedorRepository.obtenerPorId(idContenedor);
-    if (!contenedor) throw errorValidacion(`El contenedor ${idContenedor} no existe.`, 404);
-    if (contenedor.estado === 'FUERA_SERVICIO') {
-      throw errorValidacion(`El contenedor ${idContenedor} está fuera de servicio.`, 409);
-    }
-
-    const client = await pgPool.connect();
-    let neo4jOk = false;
-    try {
-      await client.query('BEGIN');
-      await ContenedorRepository.asignarContenedoresAEnvio(
-        idEnvio,
-        [idContenedor],
-        client
-      );
-      await Neo4jRouteRepository.asignarContenedorAEnvio(idEnvio, idContenedor);
-      neo4jOk = true;
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => {});
-      if (neo4jOk) {
-        try {
-          await Neo4jRouteRepository.desasignarContenedorDeEnvio(idEnvio, idContenedor);
-        } catch (errorNeo4j) {
-          console.warn(
-            `[EnvioOrchestrator] No se pudo compensar Neo4j para ${idContenedor}: ${errorNeo4j.message}`
-          );
-        }
-      }
-      if (error.statusCode) throw error;
-      throw new Error(
-        `No se pudo asignar el contenedor ${idContenedor} al envío ${idEnvio}: ${error.message}.`
-      );
-    } finally {
-      client.release();
-    }
-
-    await registrarEventoTrazabilidad({
-      id_envio: idEnvio,
-      tipo_evento: 'CONTENEDOR_ASIGNADO',
-      descripcion: `Contenedor ${idContenedor} asignado al envío.`,
-      ubicacion: envio.origen
-    });
-
-    return {
-      envio: idEnvio,
-      contenedor: idContenedor,
-      estado_contenedor: 'EN_TRANSITO',
-      grafo: 'OK'
-    };
+    return ContenedorAssignmentService.asignarContenedorAEnvio({ id_envio, id_contenedor });
   }
 
   static async asignarSensorAContenedorEnvio({ id_envio, id_contenedor, id_sensor }) {
@@ -389,7 +333,7 @@ export class EnvioOrchestratorService {
     if (contenedor.estado === 'FUERA_SERVICIO') {
       throw errorValidacion(`El contenedor ${idContenedor} está fuera de servicio.`, 409);
     }
-    if (!(await ContenedorRepository.estaAsignadoAEnvio(idEnvio, idContenedor))) {
+    if (!(await ShipmentContainerRepository.estaAsignadoAEnvio(idEnvio, idContenedor))) {
       throw errorValidacion(
         `El contenedor ${idContenedor} no pertenece al envío ${idEnvio}. ` +
         'Asigne primero el contenedor al envío desde la opción 8.',
@@ -411,7 +355,7 @@ export class EnvioOrchestratorService {
 
     try {
       if (contenedor.estado === 'DISPONIBLE') {
-        await ContenedorRepository.marcarEnTransito(idContenedor);
+        await ContenedorAssignmentService.marcarEnTransito(idContenedor);
         contenedorActualizado = true;
       }
 
@@ -430,7 +374,7 @@ export class EnvioOrchestratorService {
       if (contenedorActualizado) {
         compensaciones.push({
           nombre: 'postgresql',
-          run: () => ContenedorRepository.restaurarEstado(idContenedor, estadoAnteriorContenedor)
+          run: () => ContenedorAssignmentService.restaurarEstado(idContenedor, estadoAnteriorContenedor)
         });
       }
       compensaciones.push({
@@ -556,7 +500,7 @@ export class EnvioOrchestratorService {
       await client.query('BEGIN');
       actualizado = await EnvioRepository.cambiarEstado(idEnvio, estado, client);
       if (['ENTREGADO', 'CANCELADO'].includes(actualizado.estado)) {
-        contenedoresLiberados = await ContenedorRepository.liberarContenedoresDeEnvio(
+        contenedoresLiberados = await ShipmentContainerRepository.liberar(
           idEnvio,
           client
         );
@@ -654,7 +598,7 @@ export class EnvioOrchestratorService {
     try {
       await client.query('BEGIN');
       cancelado = await EnvioRepository.cambiarEstado(idEnvio, 'CANCELADO', client);
-      contenedoresLiberados = await ContenedorRepository.liberarContenedoresDeEnvio(
+      contenedoresLiberados = await ShipmentContainerRepository.liberar(
         idEnvio,
         client
       );

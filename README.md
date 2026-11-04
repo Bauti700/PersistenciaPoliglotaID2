@@ -97,3 +97,8 @@ npm start
     │   └── analyticsService.js  # Inteligencia Analítica (Rankings, Desempeño, Incidentes por Ruta)
     └── index.js                 # Aplicación interactiva por consola (Menú Principal)
 ```
+
+Las fachadas públicas de logística y analítica delegan cada caso de uso en
+módulos especializados. Las cachés Redis también se exponen por contexto
+(sesiones, posiciones, riesgo y analítica), mientras que se mantienen los
+repositories históricos como adaptadores de compatibilidad.

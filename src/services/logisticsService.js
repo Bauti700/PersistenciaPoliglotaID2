@@ -1,14 +1,17 @@
-import { EnvioOrchestratorService } from './envioOrchestratorService.js';
+import { EnvioCreationService } from './envioCreationService.js';
+import { EnvioAssignmentService } from './envioAssignmentService.js';
+import { EnvioStateService } from './envioStateService.js';
+import { EnvioQueryService } from './envioQueryService.js';
 import { MonitoreoService } from './monitoreoService.js';
 import { RiesgoService } from './riesgoService.js';
 
 export class LogisticsService {
   static async crearEnvioPoliglota(params) {
-    return EnvioOrchestratorService.crearEnvioPoliglota(params);
+    return EnvioCreationService.crearEnvioPoliglota(params);
   }
 
   static async crearEnvioSincronizado(params) {
-    return EnvioOrchestratorService.crearEnvioSincronizado(params);
+    return EnvioCreationService.crearEnvioSincronizado(params);
   }
 
   static async procesarLecturaSensor(params) {
@@ -32,30 +35,30 @@ export class LogisticsService {
   }
 
   static async listarEnvios(filtro = {}) {
-    return EnvioOrchestratorService.listarEnvios(filtro);
+    return EnvioQueryService.listarEnvios(filtro);
   }
 
   static async actualizarEnvio(id_envio, cambios) {
-    return EnvioOrchestratorService.actualizarEnvio(id_envio, cambios);
+    return EnvioStateService.actualizarEnvio(id_envio, cambios);
   }
 
   static async cambiarEstadoEnvio(id_envio, estado) {
-    return EnvioOrchestratorService.cambiarEstadoEnvio(id_envio, estado);
+    return EnvioStateService.cambiarEstadoEnvio(id_envio, estado);
   }
 
   static async cancelarEnvio(id_envio) {
-    return EnvioOrchestratorService.cancelarEnvio(id_envio);
+    return EnvioStateService.cancelarEnvio(id_envio);
   }
 
   static async eliminarEnvio(id_envio) {
-    return EnvioOrchestratorService.eliminarEnvio(id_envio);
+    return EnvioStateService.eliminarEnvio(id_envio);
   }
 
   static async asignarContenedorAEnvio(params) {
-    return EnvioOrchestratorService.asignarContenedorAEnvio(params);
+    return EnvioAssignmentService.asignarContenedorAEnvio(params);
   }
 
   static async asignarSensorAContenedorEnvio(params) {
-    return EnvioOrchestratorService.asignarSensorAContenedorEnvio(params);
+    return EnvioAssignmentService.asignarSensorAContenedorEnvio(params);
   }
 }

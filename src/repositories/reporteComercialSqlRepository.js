@@ -1,5 +1,5 @@
 import { pgPool } from '../config/database.js';
-import { IncidenteRepository } from './incidenteRepository.js';
+import { IncidentAnalyticsRepository } from './incidentAnalyticsRepository.js';
 import { ESTADOS_ENVIO } from './envioRepository.js';
 import {
   fechaValida,
@@ -16,7 +16,7 @@ export class ReporteComercialSqlRepository {
   // mapa id_envio -> agregados para combinarlos con las filas relacionales.
   static async _mapaIncidentesPorEnvio() {
     try {
-      const agrupados = await IncidenteRepository.obtenerIncidentesPorEnvio();
+      const agrupados = await IncidentAnalyticsRepository.obtenerIncidentesPorEnvio();
       return new Map(agrupados.map(a => [a._id, a]));
     } catch (err) {
       console.warn(`[Reporte SQL] No se pudieron leer incidentes desde MongoDB: ${err.message}`);

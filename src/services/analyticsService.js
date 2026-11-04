@@ -1,9 +1,11 @@
 import { pgPool } from '../config/database.js';
 import { MongoTelemetryRepository } from '../repositories/telemetriaRepository.js';
-import { RedisCacheRepository } from '../repositories/cacheRepository.js';
+import { AnalyticsCacheRepository } from '../repositories/analyticsCacheRepository.js';
 import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
-import { ReporteComercialRepository } from '../repositories/reporteComercialRepository.js';
-import { LogisticsService } from './logisticsService.js';
+import { CommercialAnalyticsService } from './commercialAnalyticsService.js';
+import { NetworkAnalyticsService } from './networkAnalyticsService.js';
+import { TemperatureAnalyticsService } from './temperatureAnalyticsService.js';
+import { RiskAnalyticsService } from './riskAnalyticsService.js';
 
 function normalizarNombre(valor) {
   return String(valor || '')
@@ -24,7 +26,7 @@ export class AnalyticsService {
 
     // 1. Verificar si existe en caché de Redis
     if (!forzarRecalculo) {
-      const cacheado = await RedisCacheRepository.obtenerAnaliticaCacheada(cacheKey);
+      const cacheado = await AnalyticsCacheRepository.obtenerAnaliticaCacheada(cacheKey);
       if (cacheado) {
         return { origen_datos: 'REDIS_CACHE', ...cacheado };
       }
@@ -131,7 +133,7 @@ export class AnalyticsService {
     };
 
     // 7. Guardar en memoria de Redis con TTL de 1 hora
-    await RedisCacheRepository.cachearAnalitica(cacheKey, resultado, 3600);
+    await AnalyticsCacheRepository.cachearAnalitica(cacheKey, resultado, 3600);
 
     return { origen_datos: 'CALCULADO_NUEVO', ...resultado };
   }
@@ -147,7 +149,7 @@ export class AnalyticsService {
     const cacheKey = `desempeno_historico:v2:${id_cliente || 'general'}`;
 
     if (!forzarRecalculo) {
-      const cacheado = await RedisCacheRepository.obtenerAnaliticaCacheada(cacheKey);
+      const cacheado = await AnalyticsCacheRepository.obtenerAnaliticaCacheada(cacheKey);
       if (cacheado) {
         return { origen_datos: 'REDIS_CACHE', ...cacheado };
       }
@@ -397,7 +399,7 @@ export class AnalyticsService {
     };
 
     // Guardar en Redis
-    await RedisCacheRepository.cachearAnalitica(cacheKey, resultado, 3600);
+    await AnalyticsCacheRepository.cachearAnalitica(cacheKey, resultado, 3600);
 
     // Auditar en MongoDB (Colección reportes)
     try {
@@ -421,27 +423,27 @@ export class AnalyticsService {
    * 3. Ranking de clientes por volumen transportado
    */
   static async rankingClientesPorVolumen() {
-    return ReporteComercialRepository.rankingClientesPorVolumen();
+    return CommercialAnalyticsService.rankingClientesPorVolumen();
   }
 
   /**
    * 4. Predicción de atrasos / riesgos (con caché Redis 24h)
    */
   static async predecirRiesgo(id_envio, usuario = 'sistema') {
-    return LogisticsService.obtenerOPredicirRiesgo(id_envio, usuario);
+    return RiskAnalyticsService.predecirRiesgo(id_envio, usuario);
   }
 
   /**
    * 5. Red de relaciones entre clientes, operadores y envíos (Neo4j)
    */
   static async obtenerRedRelaciones() {
-    return Neo4jRouteRepository.obtenerRedRelaciones();
+    return NetworkAnalyticsService.obtenerRedRelaciones();
   }
 
   /**
    * 6. Detección de anomalías de temperatura (MongoDB)
    */
   static async detectarAnomaliasTemperatura(umbral = 8.0) {
-    return MongoTelemetryRepository.detectarAnomaliasTemperatura(umbral);
+    return TemperatureAnalyticsService.detectarAnomaliasTemperatura(umbral);
   }
 }

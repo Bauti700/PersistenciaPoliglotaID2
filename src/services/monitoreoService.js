@@ -1,11 +1,12 @@
 import { MongoTelemetryRepository } from '../repositories/telemetriaRepository.js';
-import { RedisCacheRepository } from '../repositories/cacheRepository.js';
+import { PositionCacheRepository } from '../repositories/positionCacheRepository.js';
 import { AlertaRepository } from '../repositories/alertaRepository.js';
 import { IncidenteRepository } from '../repositories/incidenteRepository.js';
 import { SensorRepository } from '../repositories/sensorRepository.js';
 import { ContenedorRepository } from '../repositories/contenedorRepository.js';
 import { EnvioRepository } from '../repositories/envioRepository.js';
 import { Neo4jRouteRepository } from '../repositories/rutaRepository.js';
+import { AlertRuleRepository } from '../repositories/alertRuleRepository.js';
 import {
   textoRequerido,
   numeroPositivo,
@@ -140,7 +141,7 @@ export class MonitoreoService {
     // 2. Actualizar última posición GPS en Redis (Clave-Valor)
     if (lecturaValidada.latitud !== null && lecturaValidada.longitud !== null) {
       try {
-        await RedisCacheRepository.actualizarUltimaPosicion(
+        await PositionCacheRepository.actualizarUltimaPosicion(
           lecturaValidada.id_contenedor,
           lecturaValidada.latitud,
           lecturaValidada.longitud,
@@ -164,7 +165,7 @@ export class MonitoreoService {
     }
 
     // 4. Evaluar reglas configurables contra la lectura recién ingresada
-    const reglas = await AlertaRepository.obtenerReglasActivas();
+    const reglas = await AlertRuleRepository.obtenerActivas();
     const disparos = AlertaRepository.evaluarLectura(lecturaValidada, reglas);
     const alertas = [];
     const incidentes = [];

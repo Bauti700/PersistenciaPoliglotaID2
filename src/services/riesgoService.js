@@ -1,16 +1,19 @@
 import { pgPool } from '../config/database.js';
-import { RedisCacheRepository } from '../repositories/cacheRepository.js';
+import { RiskCacheRepository } from '../repositories/riskCacheRepository.js';
 import { IncidenteRepository } from '../repositories/incidenteRepository.js';
 import { ReporteMongoRepository } from '../repositories/reporteMongoRepository.js';
+import { calcularRiesgoEnvio } from './riskCalculator.js';
 
 export class RiesgoService {
   static async obtenerOPredicirRiesgo(id_envio, usuario = 'sistema') {
     try {
-      const cached = await RedisCacheRepository.obtenerPrediccionRiesgo(id_envio);
+      const cached = await RiskCacheRepository.obtenerPrediccionRiesgo(id_envio);
       if (cached) {
         return { ...cached, origen: 'REDIS_CACHE', ttl_restante: '24h' };
       }
-    } catch (e) {}
+    } catch (error) {
+      console.warn(`[Riesgo] No se pudo consultar la caché: ${error.message}`);
+    }
 
     // Histórico relacional: estado/prioridad del envío y fecha estimada del
     // último tramo planificado. Los incidentes se consultan en MongoDB.
@@ -33,42 +36,20 @@ export class RiesgoService {
       console.warn(`[Riesgo] No se pudieron leer incidentes desde MongoDB: ${e.message}`);
     }
 
-    const totalIncidentes = incidentes.length;
-    const incidentesCriticos = incidentes.filter(i => ['ALTA', 'CRITICA'].includes(i.severidad)).length;
-    const fechaEstimada = envio.fecha_entrega_estimada ? new Date(envio.fecha_entrega_estimada) : null;
-    const demoraEstimada = Boolean(
-      fechaEstimada &&
-      !envio.fecha_entrega &&
-      envio.estado !== 'ENTREGADO' &&
-      fechaEstimada < new Date()
-    );
-
-    let probabilidad = 10;
-    if (totalIncidentes > 0) probabilidad += totalIncidentes * 15;
-    if (incidentesCriticos > 0) probabilidad += incidentesCriticos * 20;
-    if (envio.prioridad === 'ALTA') probabilidad += 10;
-    if (envio.estado === 'EN_TRANSITO') probabilidad += 5;
-    if (demoraEstimada) probabilidad += 15;
-    if (probabilidad > 95) probabilidad = 95;
-
-    const riesgo = {
+    const riesgo = calcularRiesgoEnvio({
       id_envio,
-      probabilidad_demora: `${probabilidad}%`,
-      nivel_riesgo: probabilidad > 70 ? 'ALTO' : probabilidad > 40 ? 'MEDIO' : 'BAJO',
-      factores: {
-        incidentes_totales: totalIncidentes,
-        incidentes_criticos: incidentesCriticos,
-        prioridad: envio.prioridad,
-        estado: envio.estado,
-        demora_estimada: demoraEstimada ? 'SI' : 'NO'
-      },
-      fecha_calculo: new Date().toISOString(),
-      origen: 'CALCULADO'
-    };
+      estado: envio.estado,
+      prioridad: envio.prioridad,
+      fecha_entrega: envio.fecha_entrega,
+      fecha_entrega_estimada: envio.fecha_entrega_estimada,
+      incidentes
+    });
 
     try {
-      await RedisCacheRepository.cachearPrediccionRiesgo(id_envio, riesgo, 86400); // 24 horas
-    } catch (e) {}
+      await RiskCacheRepository.cachearPrediccionRiesgo(id_envio, riesgo, 86400); // 24 horas
+    } catch (error) {
+      console.warn(`[Riesgo] No se pudo guardar la predicción en caché: ${error.message}`);
+    }
 
     // Dejar trazabilidad del análisis predictivo en la colección documental de
     // reportes. Es best-effort: la predicción se devuelve aunque Mongo falle.
