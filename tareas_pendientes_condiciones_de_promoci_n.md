@@ -9,7 +9,7 @@ A continuación se listan todos los puntos que deben estar presentes y operativo
 - [x] ABM Sesiones activas (Redis con TTL, listado/cierre por sesión/usuario y cierre masivo).
 - [x] ABM Proveedores.
 - [x] ABM Operadores Logísticos.
-- [x] ABM Envíos -> contenedores -> sensores (Alta políglota de envíos con asignación explícita en CLI).
+- [x] ABM Envíos -> contenedores -> sensores (Alta políglota de envíos compuestos por al menos un contenedor entero, con asignación explícita en CLI).
 - [x] ABM de contenedores (PostgreSQL - CRUD completo con baja lógica y menú CLI).
 - [x] ABM de sensores de un contenedor (Listado, registro, edición, baja, activación y asignación a contenedor/envío).
 - [x] ABM Reglas y Alertas (Detección de umbral >8°C, batería baja, inactividad y gestión de alertas).

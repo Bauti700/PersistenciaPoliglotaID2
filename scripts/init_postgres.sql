@@ -179,6 +179,23 @@ CREATE TABLE IF NOT EXISTS envios (
     prioridad VARCHAR(20) DEFAULT 'MEDIA'
 );
 
+-- Composición del envío: todo envío se compone de contenedores enteros.
+-- La fecha_liberacion permite conservar el histórico y, a la vez, garantizar
+-- con un índice parcial que un contenedor no esté activo en dos envíos.
+CREATE TABLE IF NOT EXISTS envio_contenedores (
+    id_envio VARCHAR(50) NOT NULL REFERENCES envios(id_envio) ON DELETE CASCADE,
+    id_contenedor VARCHAR(50) NOT NULL REFERENCES contenedores(id_contenedor) ON DELETE CASCADE,
+    fecha_asignacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_liberacion TIMESTAMP,
+    PRIMARY KEY (id_envio, id_contenedor)
+);
+
+CREATE INDEX IF NOT EXISTS idx_envio_contenedores_envio
+    ON envio_contenedores (id_envio);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_envio_contenedor_activo
+    ON envio_contenedores (id_contenedor)
+    WHERE fecha_liberacion IS NULL;
+
 CREATE TABLE IF NOT EXISTS tramos (
     id_tramo VARCHAR(50) PRIMARY KEY,
     id_envio VARCHAR(50) NOT NULL REFERENCES envios(id_envio) ON DELETE CASCADE,
@@ -262,7 +279,10 @@ ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
 
 INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, estado) VALUES
 ('CONT-001', 'MSCU-908123-1', 'Reefer (Refrigerado)', 28000.00, 'EN_TRANSITO'),
-('CONT-002', 'CMAU-554129-4', 'Dry (Carga Seca)', 30480.00, 'DISPONIBLE')
+('CONT-002', 'CMAU-554129-4', 'Dry (Carga Seca)', 30480.00, 'EN_TRANSITO'),
+('CONT-003', 'TCNU-771204-9', 'Dry (Carga Seca)', 28000.00, 'DISPONIBLE'),
+('CONT-004', 'HLXU-332087-2', 'Open Top', 27500.00, 'DISPONIBLE'),
+('CONT-005', 'SUDU-118452-0', 'Reefer (Refrigerado)', 26000.00, 'EN_TRANSITO')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, estado) VALUES
@@ -277,6 +297,29 @@ INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad, fe
 ('ENV-1004', 2, 'San Pablo, Brasil', 'Montevideo, Uruguay', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
 ('ENV-1005', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL)
 ON CONFLICT DO NOTHING;
+
+-- Cada envío semilla queda compuesto por al menos un contenedor entero.
+-- Los envíos entregados conservan la relación como histórico, pero con fecha de
+-- liberación para que el contenedor pueda volver a utilizarse.
+INSERT INTO envio_contenedores (id_envio, id_contenedor, fecha_asignacion, fecha_liberacion) VALUES
+('ENV-1001', 'CONT-001', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1002', 'CONT-002', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
+('ENV-1003', 'CONT-003', CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '7 days'),
+('ENV-1004', 'CONT-004', CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
+('ENV-1005', 'CONT-005', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL)
+ON CONFLICT DO NOTHING;
+
+-- Mantiene coherente el estado del contenedor con su composición activa incluso
+-- si el seed se vuelve a ejecutar sobre una base existente.
+UPDATE contenedores c
+SET estado = 'EN_TRANSITO'
+WHERE c.estado = 'DISPONIBLE'
+  AND EXISTS (
+    SELECT 1
+    FROM envio_contenedores ec
+    WHERE ec.id_contenedor = c.id_contenedor
+      AND ec.fecha_liberacion IS NULL
+  );
 
 INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, costo, fecha_salida, fecha_llegada_estimada) VALUES
 ('TR-1001-1', 'ENV-1001', 'Terrestre', 'Buenos Aires', 'Puerto de Santos', 45000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '1 day'),

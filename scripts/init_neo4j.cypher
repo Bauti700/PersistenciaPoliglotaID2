@@ -78,13 +78,22 @@ CREATE (e5)-[:ASIGNADO_A]->(op1)
 
 // Contenedores y sensores IoT (alineados con PostgreSQL y MongoDB)
 CREATE (cont1:Contenedor {id_contenedor: "CONT-001", codigo_internacional: "MSCU-908123-1", estado: "EN_TRANSITO"})
-CREATE (cont2:Contenedor {id_contenedor: "CONT-002", codigo_internacional: "CMAU-554129-4", estado: "DISPONIBLE"})
+CREATE (cont2:Contenedor {id_contenedor: "CONT-002", codigo_internacional: "CMAU-554129-4", estado: "EN_TRANSITO"})
+CREATE (cont3:Contenedor {id_contenedor: "CONT-003", codigo_internacional: "TCNU-771204-9", estado: "DISPONIBLE"})
+CREATE (cont4:Contenedor {id_contenedor: "CONT-004", codigo_internacional: "HLXU-332087-2", estado: "DISPONIBLE"})
+CREATE (cont5:Contenedor {id_contenedor: "CONT-005", codigo_internacional: "SUDU-118452-0", estado: "EN_TRANSITO"})
 
 CREATE (s1:Sensor {id_sensor: "SENS-101", tipo: "Temperatura/Humedad/GPS"})
 CREATE (s2:Sensor {id_sensor: "SENS-102", tipo: "Vibración/Impacto/GPS"})
 CREATE (s3:Sensor {id_sensor: "SENS-103", tipo: "Temperatura/GPS"})
 
+// Todo envío semilla queda compuesto por al menos un contenedor entero.
 CREATE (cont1)-[:PERTENECE_A]->(e1)
+CREATE (cont2)-[:PERTENECE_A]->(e2)
+CREATE (cont3)-[:PERTENECE_A]->(e3)
+CREATE (cont4)-[:PERTENECE_A]->(e4)
+CREATE (cont5)-[:PERTENECE_A]->(e5)
+
 CREATE (cont1)-[:MONITOREADO_POR]->(s1)
 CREATE (cont1)-[:MONITOREADO_POR]->(s2)
 CREATE (cont2)-[:MONITOREADO_POR]->(s3)

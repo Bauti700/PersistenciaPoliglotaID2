@@ -91,6 +91,13 @@ const ask = (query) => new Promise((resolve) => {
   });
 });
 
+function parsearIdsContenedores(texto) {
+  return (texto || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+}
+
 function banner() {
   console.log(`
 ========================================================================
@@ -1800,6 +1807,7 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                   Estado: e.estado,
                   Prioridad: e.prioridad,
                   Tramos: e.cantidad_tramos,
+                  Contenedores: `${e.cantidad_contenedores} (${e.contenedores_activos} activos)`,
                   Creacion: e.fecha_creacion,
                   Entrega: e.fecha_entrega || '-'
                 })));
@@ -1825,6 +1833,18 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                   console.log('\nTramos:');
                   console.table(envio.tramos);
                 }
+                if (envio.contenedores.length > 0) {
+                  console.log('\nContenedores del envío:');
+                  console.table(envio.contenedores.map(c => ({
+                    ID: c.id_contenedor,
+                    Tipo: c.tipo,
+                    Estado: c.estado,
+                    Asignado: c.fecha_asignacion,
+                    Liberado: c.fecha_liberacion || '-'
+                  })));
+                } else {
+                  console.log('\n[AVISO] El envío no tiene contenedores asociados.');
+                }
               }
             } else if (opEnv === '3') {
               const id_envio = await ask('Código Envío (ej: ENV-2005): ') || `ENV-${Date.now().toString().slice(-6)}`;
@@ -1836,6 +1856,28 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
               const vehiculo = (await ask('Vehículo Patente (opcional): ')).trim() || null;
               const medio = (await ask('Medio de transporte del tramo principal [Terrestre]: ')).trim() || 'Terrestre';
 
+              const contenedoresRegistrados = await ContenedorRepository.listarTodos();
+              const contenedoresElegibles = contenedoresRegistrados
+                .filter(c => c.estado === 'DISPONIBLE');
+              if (contenedoresElegibles.length === 0) {
+                console.log('\n[No se pudo crear el envío] No hay contenedores disponibles.');
+                continue;
+              }
+              console.log('\nContenedores elegibles (el envío requiere al menos uno):');
+              console.table(contenedoresElegibles.map(c => ({
+                ID: c.id_contenedor,
+                Tipo: c.tipo,
+                Capacidad: c.capacidad,
+                Estado: c.estado
+              })));
+              const contenedores = parsearIdsContenedores(
+                await ask('IDs de contenedores separados por coma: ')
+              );
+              if (contenedores.length === 0) {
+                console.log('\n[No se pudo crear el envío] Debe indicar al menos un contenedor.');
+                continue;
+              }
+
               try {
                 const res = await LogisticsService.crearEnvioPoliglota({
                   id_envio,
@@ -1845,6 +1887,7 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
                   prioridad,
                   operador,
                   vehiculo,
+                  contenedores,
                   tramos: [{ desde: origen, hasta: destino, medio }]
                 });
                 console.log('\nEnvío creado y propagado exitosamente:');
@@ -1924,6 +1967,19 @@ ${UsuarioRepository.esAdministrador(currentUser) ? '  17. [Seguridad]   ABM Usua
               }
             } else if (opEnv === '8') {
               const id_envio = await ask('ID Envío: ');
+              const contenedoresRegistrados = await ContenedorRepository.listarTodos();
+              const contenedoresElegibles = contenedoresRegistrados
+                .filter(c => c.estado === 'DISPONIBLE');
+              if (contenedoresElegibles.length === 0) {
+                console.log('\nNo hay contenedores DISPONIBLES para asignar.');
+                continue;
+              }
+              console.log('\nContenedores elegibles:');
+              console.table(contenedoresElegibles.map(c => ({
+                ID: c.id_contenedor,
+                Tipo: c.tipo,
+                Capacidad: c.capacidad
+              })));
               const id_contenedor = await ask('ID Contenedor: ');
               try {
                 const res = await LogisticsService.asignarContenedorAEnvio({ id_envio, id_contenedor });

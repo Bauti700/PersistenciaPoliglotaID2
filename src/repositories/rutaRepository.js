@@ -11,6 +11,7 @@ export class Neo4jRouteRepository {
     operador,
     vehiculo,
     tramos,
+    contenedores = [],
     prioridad = 'MEDIA'
   }) {
     const session = neoDriver.session();
@@ -41,6 +42,11 @@ export class Neo4jRouteRepository {
           MERGE (v:Vehiculo {identificacion: $vehiculo})
           MERGE (e)-[:TRANSPORTADO_POR]->(v)
         )
+
+        FOREACH (id_contenedor IN $contenedores |
+          MERGE (cont:Contenedor {id_contenedor: id_contenedor})
+          MERGE (cont)-[:PERTENECE_A]->(e)
+        )
       `;
       await session.run(cypher, {
         id_envio,
@@ -51,6 +57,7 @@ export class Neo4jRouteRepository {
         destino,
         operador,
         vehiculo,
+        contenedores,
         prioridad
       });
 
@@ -132,15 +139,31 @@ export class Neo4jRouteRepository {
     }
   }
 
-  static async actualizarEstadoEnvio(id_envio, estado) {
+  // Actualiza el estado del envío y, si el envío se cierra, elimina en la misma
+  // transacción las relaciones de composición activas del grafo. La tabla
+  // envio_contenedores de PostgreSQL conserva el histórico con fecha_liberacion.
+  static async actualizarEstadoEnvio(id_envio, estado, { liberarContenedores = false } = {}) {
     const session = neoDriver.session();
+    const tx = session.beginTransaction();
     try {
-      const result = await session.run(`
+      const result = await tx.run(`
         MATCH (e:Envio {id_envio: $id_envio})
         SET e.estado = $estado
         RETURN e.id_envio AS envio
       `, { id_envio, estado });
+
+      if (liberarContenedores) {
+        await tx.run(`
+          MATCH (:Contenedor)-[r:PERTENECE_A]->(e:Envio {id_envio: $id_envio})
+          DELETE r
+        `, { id_envio });
+      }
+
+      await tx.commit();
       return result.records.length > 0;
+    } catch (error) {
+      await tx.rollback().catch(() => {});
+      throw error;
     } finally {
       await session.close();
     }

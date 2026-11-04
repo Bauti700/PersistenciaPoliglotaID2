@@ -159,7 +159,14 @@ export class EnvioRepository {
 
     const res = await pgPool.query(`
       SELECT e.*, c.razon_social AS cliente,
-             (SELECT COUNT(*)::int FROM tramos t WHERE t.id_envio = e.id_envio) AS cantidad_tramos
+             (SELECT COUNT(*)::int FROM tramos t WHERE t.id_envio = e.id_envio) AS cantidad_tramos,
+             (SELECT COUNT(*)::int
+                FROM envio_contenedores ec
+               WHERE ec.id_envio = e.id_envio) AS cantidad_contenedores,
+             (SELECT COUNT(*)::int
+                FROM envio_contenedores ec
+               WHERE ec.id_envio = e.id_envio
+                 AND ec.fecha_liberacion IS NULL) AS contenedores_activos
       FROM envios e
       JOIN clientes c ON c.id_cliente = e.id_cliente
       ${where}
@@ -182,7 +189,14 @@ export class EnvioRepository {
       'SELECT * FROM tramos WHERE id_envio = $1 ORDER BY fecha_salida NULLS LAST, id_tramo ASC',
       [id]
     );
-    return { ...res.rows[0], tramos: tramos.rows };
+    const contenedores = await pgPool.query(`
+      SELECT c.*, ec.fecha_asignacion, ec.fecha_liberacion
+      FROM envio_contenedores ec
+      JOIN contenedores c ON c.id_contenedor = ec.id_contenedor
+      WHERE ec.id_envio = $1
+      ORDER BY ec.fecha_asignacion ASC, c.id_contenedor ASC
+    `, [id]);
+    return { ...res.rows[0], tramos: tramos.rows, contenedores: contenedores.rows };
   }
 
   static async existeEnvio(id_envio) {
@@ -262,12 +276,12 @@ export class EnvioRepository {
     return tramos.rows.length;
   }
 
-  static async cambiarEstado(id_envio, estado) {
+  static async cambiarEstado(id_envio, estado, client = pgPool) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const estadoNormalizado = unoDe(estado, ESTADOS_ENVIO, 'estado');
     const fechaEntrega = estadoNormalizado === 'ENTREGADO' ? 'CURRENT_TIMESTAMP' : 'fecha_entrega';
 
-    const res = await pgPool.query(`
+    const res = await client.query(`
       UPDATE envios
       SET estado = $2, fecha_entrega = ${fechaEntrega}
       WHERE id_envio = $1
@@ -302,10 +316,28 @@ export class EnvioRepository {
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');
+      const activos = await client.query(`
+        SELECT id_contenedor
+        FROM envio_contenedores
+        WHERE id_envio = $1 AND fecha_liberacion IS NULL
+      `, [id]);
+      const contenedoresLiberados = activos.rows.map(fila => fila.id_contenedor);
+      if (contenedoresLiberados.length > 0) {
+        await client.query(`
+          UPDATE contenedores
+          SET estado = 'DISPONIBLE'
+          WHERE id_contenedor = ANY($1::varchar[]) AND estado = 'EN_TRANSITO'
+        `, [contenedoresLiberados]);
+      }
       await client.query('DELETE FROM tramos WHERE id_envio = $1', [id]);
       const res = await client.query('DELETE FROM envios WHERE id_envio = $1 RETURNING *', [id]);
       await client.query('COMMIT');
-      return { ...res.rows[0], tramos: existente.tramos };
+      return {
+        ...res.rows[0],
+        tramos: existente.tramos,
+        contenedores: existente.contenedores,
+        contenedores_liberados: contenedoresLiberados
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
