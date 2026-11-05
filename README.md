@@ -1,104 +1,159 @@
 # TPO Persistencia Políglota - Grupo 12
+
 **Ingeniería de Datos II - UADE**
 
-Plataforma integral de gestión logística internacional y monitoreo de cargas inteligentes con dispositivos IoT utilizando cuatro paradigmas de bases de datos:
-1. **Relacional:** PostgreSQL (Clientes, Contenedores, Facturación, Pagos, Cuentas Corrientes).
-2. **Documental:** MongoDB (Telemetría de Sensores IoT, Eventos, Incidentes, Alertas, Chat, Reportes).
-3. **Grafos:** Neo4j (Rutas, Envíos, Tramos, Redes entre Clientes y Operadores).
-4. **Clave-Valor:** Redis (Caché de última ubicación GPS, Sesiones con TTL, Predicción de Riesgo, Analítica Cacheada).
+Aplicación de consola para la gestión de logística internacional, envíos y
+monitoreo de cargas con sensores IoT. El sistema combina cuatro paradigmas de
+persistencia:
 
----
+- **PostgreSQL:** actores (clientes, proveedores y operadores), usuarios,
+  roles, sesiones, contenedores, envíos, facturación, pagos y cuentas
+  corrientes.
+- **MongoDB:** sensores, lecturas de telemetría, eventos, incidentes, alertas,
+  mensajes y reportes.
+- **Neo4j:** rutas, tramos, relaciones entre actores y consultas sobre la red
+  logística.
+- **Redis:** sesiones con TTL, últimas posiciones GPS, predicciones de riesgo
+  y cachés analíticas.
 
-## 🚀 Requisitos Previos
+## Requisitos
 
-1. **Docker Desktop** (para levantar los 4 motores de bases de datos).
-2. **Node.js** (v18 o superior).
+- Docker Desktop y Docker Compose.
+- Node.js 18 o superior.
 
----
+## Instalación y puesta en marcha
 
-## 🛠️ Instalación y Puesta en Marcha
+Ejecutá los siguientes comandos desde la raíz del proyecto:
 
-### 1. Iniciar los contenedores de las bases de datos
-Abre una terminal en la raíz del proyecto y ejecuta:
 ```bash
 docker compose up -d
-```
-Esto descargará y levantará:
-- PostgreSQL en el puerto `5432`
-- MongoDB en el puerto `27017`
-- Neo4j en los puertos `7474` (HTTP) y `7687` (Bolt)
-- Redis en el puerto `6379`
-
-> Si la base PostgreSQL fue creada con un esquema anterior, recreá el volumen para
-> reinicializarla desde cero (se pierden los datos):
-> ```bash
-> docker compose down -v
-> docker compose up -d
-> ```
-
-### 2. Instalar dependencias del proyecto
-```bash
 npm install
-```
-
-### 3. Poblar datos iniciales
-Con los contenedores levantados, ejecutá:
-```bash
 npm run seed
-```
-El script `scripts/seed_all.js` inicializa de forma unificada:
-- **PostgreSQL:** aplica `scripts/init_postgres.sql` (esquema y datos semilla; es idempotente y no borra datos existentes).
-- **MongoDB:** ejecuta `scripts/init_mongo.js` (recrea las colecciones semilla).
-- **Neo4j:** ejecuta `scripts/init_neo4j.cypher` (borra el grafo actual y lo recrea).
-- **Redis:** no requiere datos semilla, ya que funciona como caché.
-
-> El seed de MongoDB usa `mongosh` si está instalado; si no, lo ejecuta dentro
-> del contenedor `tpo_mongo` mediante Docker. El seed de Neo4j usa el driver de
-> Node, por lo que no necesita `cypher-shell`.
->
-> Si los contenedores recién arrancaron, el seed espera y reintenta la conexión
-> con PostgreSQL y Neo4j (hasta ~30 segundos). Es normal que Neo4j tarde más que
-> el resto en quedar listo.
-
-### 4. Iniciar la Aplicación por Consola (Menú Interactivo CLI)
-```bash
 npm start
 ```
 
----
+`npm start` verifica las conexiones, solicita autenticación y abre el menú
+principal de la aplicación.
 
-## 📂 Estructura del Proyecto
+### Reinicializar las bases de datos
 
-```text
-├── docker-compose.yml           # Definición de PostgreSQL, Mongo, Neo4j y Redis
-├── package.json                 # Dependencias (pg, mongodb, neo4j-driver, redis)
-├── .env                         # Variables de entorno y cadenas de conexión
-├── scripts/
-│   ├── init_postgres.sql        # Esquema DDL y datos de prueba SQL
-│   ├── init_mongo.js            # Colecciones e índices para MongoDB
-│   ├── init_neo4j.cypher        # Creación de grafos y relaciones en Neo4j
-│   └── seed_all.js              # Inicialización unificada de datos
-└── src/
-    ├── config/
-    │   └── database.js          # Conexiones centralizadas a los 4 motores
-    ├── repositories/
-    │   ├── actorRepository.js   # Gestión de Actores (Clientes, Proveedores, Operadores)
-    │   ├── clienteRepository   # Fachada para Clientes (delegado a ActorRepository)
-    │   ├── contenedorRepository.js # Gestión de Contenedores con validaciones
-    │   ├── facturaRepository.js # Emisión/Recepción de Facturas y Facturación Automática
-    │   ├── pagoRepository.js    # Registro de Pagos y Cobros
-    │   ├── cuentaCorrienteRepository.js # Estado de Cuenta y Cierres Mensuales
-    │   ├── reporteComercialRepository.js # Reportes Comerciales Parametrizados y Rankings
-    │   ├── telemetriaRepository.js # MongoDB: Sensores, Lecturas IoT, Incidentes, Eventos, Mensajes, Reportes
-    │   ├── rutaRepository.js    # Neo4j: Creación de Rutas, Tramos y Consultas de Grafos
-    │   └── cacheRepository.js   # Redis: Sesiones, GPS, Predicción de Riesgo, Caché Analítica
-    ├── services/
-    │   ├── logisticsService.js  # Sincronización Políglota (Envíos, Telemetría, Predicción de Riesgo)
-    │   └── analyticsService.js  # Inteligencia Analítica (Rankings, Desempeño, Incidentes por Ruta)
-    └── index.js                 # Aplicación interactiva por consola (Menú Principal)
+Si PostgreSQL fue creado con un esquema incompatible, recreá los volúmenes y
+volvé a ejecutar la puesta en marcha. Esta operación elimina los datos
+persistidos:
+
+```bash
+docker compose down -v
+docker compose up -d
+npm run seed
 ```
 
-Las fachadas públicas de logística y analítica delegan cada caso de uso en
-módulos especializados. Las cachés Redis también se exponen por contexto
-(sesiones, posiciones, riesgo y analítica), mientras que se mantienen los
-repositories históricos como adaptadores de compatibilidad.
+El seed unificado:
+
+- aplica el esquema y los datos base de PostgreSQL;
+- recrea las colecciones y los datos base de MongoDB;
+- borra y recrea el grafo de Neo4j;
+- carga en Redis las últimas posiciones GPS iniciales.
+
+Para MongoDB, `npm run seed` usa `mongosh` instalado en el equipo o, si no está
+disponible, lo ejecuta dentro del contenedor `tpo_mongo`. Neo4j se inicializa
+con el driver de Node.js. Ambos servicios pueden tardar unos segundos en estar
+listos; el script reintenta las conexiones automáticamente.
+
+## Acceso inicial
+
+El seed de PostgreSQL crea el usuario administrador:
+
+```text
+Email: admin@logistica.com
+Contraseña: admin123
+```
+
+El usuario administrador puede acceder al módulo de usuarios, roles y
+sesiones. La aplicación permite tres intentos de autenticación y registra la
+sesión con un TTL de una hora en Redis. Desde el menú también se puede cerrar
+la sesión actual y volver a autenticarse.
+
+## Menú principal
+
+Luego de iniciar sesión, están disponibles:
+
+1. Gestión de clientes, proveedores y operadores.
+2. ABM de contenedores.
+3. Gestión comercial y financiera: facturas, pagos, cuentas corrientes,
+   cierres mensuales y facturación automática.
+4. Telemetría IoT: sensores, lecturas y consultas de telemetría.
+5. Histórico de lecturas y detección de anomalías.
+6. Gestión de incidentes y alertas.
+7. Mensajería y chat.
+8. Consulta de la ruta completa de un envío.
+9. Consulta de la red de relaciones.
+10. Consulta de la última posición GPS en caché.
+11. ABM y gestión de estados de envíos.
+12. Cálculo y consulta de predicciones de riesgo.
+13. Ranking de clientes.
+14. Reportes operativos y analíticos.
+15. Ranking de rutas con mayor cantidad de incidentes.
+16. Análisis histórico de desempeño.
+17. ABM de usuarios, roles y sesiones (solo para administradores).
+18. Cierre de sesión y nueva autenticación.
+
+## Configuración
+
+La aplicación carga variables opcionales desde `.env`. Si no se especifican,
+usa los valores locales definidos en `src/config/database.js`:
+
+| Variable | Valor predeterminado |
+| --- | --- |
+| `PG_HOST` | `localhost` |
+| `PG_PORT` | `5432` |
+| `PG_USER` | `admin` |
+| `PG_PASSWORD` | `password123` |
+| `PG_DATABASE` | `tpo_logistica` |
+| `MONGO_DB_NAME` | `tpo_telemetria` |
+| `NEO4J_URI` | `bolt://localhost:7687` |
+| `NEO4J_USER` | `neo4j` |
+| `NEO4J_PASSWORD` | `password123` |
+| `REDIS_URL` | `redis://localhost:6379` |
+
+Las credenciales anteriores coinciden con `docker-compose.yml`. Para un
+entorno distinto, definí las variables correspondientes antes de ejecutar la
+aplicación o el seed.
+
+## Scripts disponibles
+
+| Comando | Descripción |
+| --- | --- |
+| `npm start` | Inicia la aplicación interactiva. |
+| `npm run cli` | Alias de `npm start`. |
+| `npm run seed` | Inicializa o actualiza los datos semilla de las bases. |
+
+## Estructura del proyecto
+
+```text
+.
+├── docker-compose.yml
+├── package.json
+├── scripts/
+│   ├── init_postgres.sql
+│   ├── init_mongo.js
+│   ├── init_neo4j.cypher
+│   └── seed_all.js
+└── src/
+    ├── index.js
+    ├── config/
+    │   └── database.js
+    ├── cli/
+    │   ├── mainMenu.js
+    │   ├── authCli.js
+    │   └── *Handlers.js
+    ├── repositories/
+    │   └── Repositorios para PostgreSQL, MongoDB, Neo4j y Redis
+    ├── services/
+    │   └── Servicios de negocio, asignación, analítica y riesgo
+    └── utils/
+        └── validation.js
+```
+
+Las conexiones se inicializan en `src/config/database.js`; `src/index.js`
+coordina el arranque, la autenticación, el menú y el cierre ordenado de los
+recursos.
