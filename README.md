@@ -157,3 +157,10 @@ aplicación o el seed.
 Las conexiones se inicializan en `src/config/database.js`; `src/index.js`
 coordina el arranque, la autenticación, el menú y el cierre ordenado de los
 recursos.
+
+Mails y contraseñas de usuarios:
+
+admin@logistica.com   -> admin123
+juan.perez@logistica.com  -> juan123
+maria.gonzalez@logistica.com -> maria123
+carlos.lopez@logistica.com   -> carlos123
