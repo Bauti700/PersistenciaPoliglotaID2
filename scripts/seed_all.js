@@ -269,6 +269,24 @@ const POSICIONES_SEED = [
     lat: -31.6333,
     lng: -60.7,
     datosExtra: { id_envio: 'ENV-1005', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-006',
+    lat: -31.95,
+    lng: -68.7,
+    datosExtra: { id_envio: 'ENV-1006', id_sensor: 'SENS-104', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-007',
+    lat: -12.0464,
+    lng: -77.0428,
+    datosExtra: { id_envio: 'ENV-1007', id_sensor: 'SENS-105', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-008',
+    lat: -33.0472,
+    lng: -71.6127,
+    datosExtra: { id_envio: 'ENV-1008', id_sensor: 'SENS-106', estado: 'DISPONIBLE' }
   }
 ];
 

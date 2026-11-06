@@ -35,6 +35,30 @@ db.sensores.insertMany([
     fecha_instalacion: new Date("2024-03-01T12:00:00Z"),
     estado: "INACTIVO",
     id_contenedor: "CONT-002"
+  },
+  {
+    id_sensor: "SENS-104",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "ColdChain Pro",
+    fecha_instalacion: new Date("2024-04-12T09:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-006"
+  },
+  {
+    id_sensor: "SENS-105",
+    tipo: "GPS/Vibración",
+    fabricante: "SafeCargo Sensors",
+    fecha_instalacion: new Date("2024-05-20T11:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-007"
+  },
+  {
+    id_sensor: "SENS-106",
+    tipo: "Temperatura/GPS",
+    fabricante: "IoTCorp Tech",
+    fecha_instalacion: new Date("2024-06-08T14:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-008"
   }
 ]);
 
@@ -114,6 +138,54 @@ db.lecturas_sensores.insertMany([
     vibracion: 0.05,
     posicion_gps: { type: "Point", coordinates: [-56.1645, -34.9011] }, // Montevideo
     nivel_bateria: 88
+  },
+  {
+    id_lectura: "LEC-006",
+    id_sensor: "SENS-104",
+    id_contenedor: "CONT-006",
+    id_envio: "ENV-1006",
+    fecha_hora: new Date(Date.now() - 3600000 * 6),
+    temperatura: 3.8,
+    humedad: 58.2,
+    vibracion: 0.06,
+    posicion_gps: { type: "Point", coordinates: [-68.8458, -32.8895] },
+    nivel_bateria: 87
+  },
+  {
+    id_lectura: "LEC-007",
+    id_sensor: "SENS-104",
+    id_contenedor: "CONT-006",
+    id_envio: "ENV-1006",
+    fecha_hora: new Date(Date.now() - 3600000 * 4),
+    temperatura: 4.2,
+    humedad: 60.1,
+    vibracion: 0.07,
+    posicion_gps: { type: "Point", coordinates: [-68.7000, -31.9500] },
+    nivel_bateria: 86
+  },
+  {
+    id_lectura: "LEC-008",
+    id_sensor: "SENS-105",
+    id_contenedor: "CONT-007",
+    id_envio: "ENV-1007",
+    fecha_hora: new Date(Date.now() - 3600000 * 2),
+    temperatura: 6.1,
+    humedad: 64.0,
+    vibracion: 0.11,
+    posicion_gps: { type: "Point", coordinates: [-77.0428, -12.0464] },
+    nivel_bateria: 92
+  },
+  {
+    id_lectura: "LEC-009",
+    id_sensor: "SENS-106",
+    id_contenedor: "CONT-008",
+    id_envio: "ENV-1008",
+    fecha_hora: new Date(Date.now() - 3600000 * 8),
+    temperatura: 5.0,
+    humedad: 55.0,
+    vibracion: 0.04,
+    posicion_gps: { type: "Point", coordinates: [-71.6127, -33.0472] },
+    nivel_bateria: 89
   }
 ]);
 
@@ -138,6 +210,22 @@ db.eventos_logisticos.insertMany([
     tipo_evento: "En tránsito",
     ubicacion: "Ruta Nacional 14",
     descripcion: "Transporte en marcha sin anomalías mecánicas."
+  },
+  {
+    id_evento: "EVT-003",
+    id_envio: "ENV-1006",
+    fecha_hora: new Date(Date.now() - 86400000 * 2),
+    tipo_evento: "Control fronterizo",
+    ubicacion: "Paso Internacional",
+    descripcion: "Documentación validada y carga liberada para continuar hacia Lima."
+  },
+  {
+    id_evento: "EVT-004",
+    id_envio: "ENV-1008",
+    fecha_hora: new Date(Date.now() - 86400000 * 15),
+    tipo_evento: "Entrega confirmada",
+    ubicacion: "Asunción",
+    descripcion: "Contenedor descargado y recepción firmada por el cliente."
   }
 ]);
 
@@ -225,6 +313,28 @@ db.incidentes.insertMany([
     estado: "ABIERTO",
     descripcion: "Alarma de temperatura 10.4°C en contenedor reefer durante escala.",
     fecha: new Date(Date.now() - 3600000 * 5)
+  },
+  {
+    id_incidente: "INC-208",
+    id_envio: "ENV-1006",
+    id_sensor: "SENS-104",
+    id_contenedor: "CONT-006",
+    tipo: "DEMORA",
+    severidad: "MEDIA",
+    estado: "ABIERTO",
+    descripcion: "Demora preventiva en control fronterizo del corredor andino.",
+    fecha: new Date(Date.now() - 3600000 * 3)
+  },
+  {
+    id_incidente: "INC-209",
+    id_envio: "ENV-1007",
+    id_sensor: "SENS-105",
+    id_contenedor: "CONT-007",
+    tipo: "VIBRACION_EXCESIVA",
+    severidad: "BAJA",
+    estado: "CERRADO",
+    descripcion: "Vibración elevada durante maniobra de carga portuaria.",
+    fecha: new Date(Date.now() - 86400000)
   }
 ]);
 
@@ -263,6 +373,16 @@ db.reglas_alertas.insertMany([
     activa: true,
     descripcion: "Horas máximas sin lecturas antes de generar una alerta.",
     fecha_creacion: new Date()
+  },
+  {
+    id_regla: "REG-VIB-01",
+    tipo: "VIBRACION",
+    condicion: "MAYOR_QUE",
+    umbral: 0.1,
+    severidad: "BAJA",
+    activa: true,
+    descripcion: "Nivel de vibración que requiere revisar una maniobra de carga.",
+    fecha_creacion: new Date()
   }
 ]);
 
@@ -287,6 +407,36 @@ db.alertas.insertMany([
     id_regla: "REG-TEMP-01",
     mensaje: "Temperatura 8.9°C superior a 8°C",
     fecha: new Date(Date.now() - 3600000 * 2)
+  },
+  {
+    id_alerta: "ALT-502",
+    id_sensor: "SENS-104",
+    id_contenedor: "CONT-006",
+    id_envio: "ENV-1006",
+    tipo: "INACTIVIDAD",
+    severidad: "ALTA",
+    estado: "ABIERTA",
+    motivo: "SIN_LECTURAS_RECIENTES",
+    valor_detectado: 3.5,
+    umbral_aplicado: 2,
+    id_regla: "REG-INACT-01",
+    mensaje: "Más de dos horas sin una lectura confirmada en el corredor andino.",
+    fecha: new Date(Date.now() - 3600000 * 3)
+  },
+  {
+    id_alerta: "ALT-503",
+    id_sensor: "SENS-105",
+    id_contenedor: "CONT-007",
+    id_envio: "ENV-1007",
+    tipo: "VIBRACION",
+    severidad: "BAJA",
+    estado: "CERRADA",
+    motivo: "UMBRAL_VIBRACION",
+    valor_detectado: 0.11,
+    umbral_aplicado: 0.1,
+    id_regla: "REG-VIB-01",
+    mensaje: "Vibración registrada durante la carga portuaria.",
+    fecha: new Date(Date.now() - 86400000)
   }
 ]);
 
@@ -352,6 +502,28 @@ db.mensajes.insertMany([
     formato: "TEXTO",
     estado: "ENVIADO",
     fecha: new Date(Date.now() - 1800000)
+  },
+  {
+    id_mensaje: "MSG-6",
+    remitente: "admin@logistica.com",
+    destinatario: "lucia@andina.com",
+    id_grupo: null,
+    contenido: "ENV-1006 quedó demorado en el control fronterizo; revisar ETA.",
+    tipo: "PRIVADO",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 2)
+  },
+  {
+    id_mensaje: "MSG-7",
+    remitente: "admin@logistica.com",
+    destinatario: null,
+    id_grupo: "GRP-01",
+    contenido: "La entrega ENV-1008 fue confirmada en Asunción.",
+    tipo: "GRUPAL",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000)
   }
 ]);
 
@@ -377,6 +549,26 @@ db.predicciones_riesgo.insertOne({
   factores: ["Lluvia leve en paso fronterizo", "Tráfico normal en aduana"],
   fecha_calculo: new Date()
 });
+db.predicciones_riesgo.insertMany([
+  {
+    id_prediccion: "PRED-1006",
+    id_envio: "ENV-1006",
+    riesgo_climatico: "ALTO",
+    riesgo_operativo: "MODERADO",
+    probabilidad_demora: 0.61,
+    factores: ["Paso fronterizo congestionado", "Pronóstico de nieve en altura"],
+    fecha_calculo: new Date()
+  },
+  {
+    id_prediccion: "PRED-1008",
+    id_envio: "ENV-1008",
+    riesgo_climatico: "BAJO",
+    riesgo_operativo: "BAJO",
+    probabilidad_demora: 0.08,
+    factores: ["Ruta despejada", "Entrega ya confirmada"],
+    fecha_calculo: new Date(Date.now() - 86400000 * 2)
+  }
+]);
 
 // Reportes comerciales / contables / analíticos (histórico documental)
 db.reportes.drop();
@@ -444,6 +636,20 @@ db.reportes.createIndex({ categoria: 1, tipo: 1 }, { name: 'idx_reporte_categori
       total_incidentes: 7
     },
     fecha_generacion: new Date(Date.now() - 86400000)
+  },
+  {
+    id_reporte: "REP-SEED-OPE-002",
+    usuario: "admin@logistica.com",
+    tipo: "REPORTE_OPERATIVO_ENVIOS",
+    categoria: "OPERATIVO",
+    parametros: { estado: "EN_TRANSITO", id_cliente: 3 },
+    resumen: {
+      total_envios: 1,
+      entregados: 0,
+      en_transito: 1,
+      con_incidentes: 1
+    },
+    fecha_generacion: new Date(Date.now() - 3600000 * 6)
   }
 ].forEach(function (reporte) {
   db.reportes.updateOne(

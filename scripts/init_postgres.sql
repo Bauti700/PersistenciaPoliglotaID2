@@ -237,7 +237,9 @@ WHERE UPPER(descripcion) IN ('ADMIN', 'ADMINISTRADOR');
 
 INSERT INTO clientes (id_cliente, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Importadora Andina S.A.', '30-71123456-8', 'contacto@andina.com', '+54 11 4321-8765', 'Av. Córdoba 1234', 'Argentina', 150000.00),
-(2, 'Global Traders Ltd', '30-99887766-4', 'ops@globaltraders.com', '+55 11 9876-5432', 'Rua das Flores 45', 'Brasil', -25000.00)
+(2, 'Global Traders Ltd', '30-99887766-4', 'ops@globaltraders.com', '+55 11 9876-5432', 'Rua das Flores 45', 'Brasil', -25000.00),
+(3, 'Andes Pharma S.A.', '30-66778899-5', 'logistica@andespharma.com', '+54 261 445-8899', 'Av. San Martín 850', 'Argentina', 0.00),
+(4, 'Pacific Imports SpA', '76-12345678-9', 'operaciones@pacificimports.cl', '+56 2 2345-6789', 'Av. Providencia 2200', 'Chile', 0.00)
 ON CONFLICT (cuit) DO NOTHING;
 
 INSERT INTO operadores (id_operador, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
@@ -321,7 +323,10 @@ INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, 
 ('CONT-002', 'CMAU-554129-4', 'Dry (Carga Seca)', 30480.00, 'EN_TRANSITO'),
 ('CONT-003', 'TCNU-771204-9', 'Dry (Carga Seca)', 28000.00, 'DISPONIBLE'),
 ('CONT-004', 'HLXU-332087-2', 'Open Top', 27500.00, 'DISPONIBLE'),
-('CONT-005', 'SUDU-118452-0', 'Reefer (Refrigerado)', 26000.00, 'EN_TRANSITO')
+('CONT-005', 'SUDU-118452-0', 'Reefer (Refrigerado)', 26000.00, 'EN_TRANSITO'),
+('CONT-006', 'OOLU-445566-7', 'Reefer (Refrigerado)', 27000.00, 'EN_TRANSITO'),
+('CONT-007', 'MSCU-778899-3', 'Dry (Carga Seca)', 30000.00, 'EN_TRANSITO'),
+('CONT-008', 'TGHU-112233-5', 'Open Top', 25000.00, 'DISPONIBLE')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, estado) VALUES
@@ -334,7 +339,10 @@ INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad, fe
 ('ENV-1002', 2, 'Montevideo, Uruguay', 'Santiago, Chile', 'CREADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
 ('ENV-1003', 1, 'Buenos Aires, Argentina', 'Santiago, Chile', 'ENTREGADO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '7 days'),
 ('ENV-1004', 2, 'San Pablo, Brasil', 'Montevideo, Uruguay', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
-('ENV-1005', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL)
+('ENV-1005', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1006', 3, 'Mendoza, Argentina', 'Lima, Perú', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
+('ENV-1007', 4, 'Valparaíso, Chile', 'Buenos Aires, Argentina', 'CREADO', 'BAJA', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
+('ENV-1008', 2, 'San Pablo, Brasil', 'Asunción, Paraguay', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days')
 ON CONFLICT DO NOTHING;
 
 -- Cada envío semilla queda compuesto por al menos un contenedor entero.
@@ -345,7 +353,10 @@ INSERT INTO envio_contenedores (id_envio, id_contenedor, fecha_asignacion, fecha
 ('ENV-1002', 'CONT-002', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
 ('ENV-1003', 'CONT-003', CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '7 days'),
 ('ENV-1004', 'CONT-004', CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '9 days'),
-('ENV-1005', 'CONT-005', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL)
+('ENV-1005', 'CONT-005', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1006', 'CONT-006', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
+('ENV-1007', 'CONT-007', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
+('ENV-1008', 'CONT-008', CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days')
 ON CONFLICT DO NOTHING;
 
 -- Mantiene coherente el estado del contenedor con su composición activa incluso
@@ -368,7 +379,11 @@ INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, costo
 ('TR-1003-2', 'ENV-1003', 'Terrestre', 'Mendoza', 'Santiago', 38000.00, CURRENT_TIMESTAMP - INTERVAL '9 days', CURRENT_TIMESTAMP - INTERVAL '6 days'),
 ('TR-1004-1', 'ENV-1004', 'Marítimo', 'San Pablo', 'Puerto de Santos', 72000.00, CURRENT_TIMESTAMP - INTERVAL '12 days', CURRENT_TIMESTAMP - INTERVAL '10 days'),
 ('TR-1004-2', 'ENV-1004', 'Marítimo', 'Puerto de Santos', 'Montevideo', 72000.00, CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '10 days'),
-('TR-1005-1', 'ENV-1005', 'Terrestre', 'Buenos Aires', 'San Pablo', 52000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '2 days')
+('TR-1005-1', 'ENV-1005', 'Terrestre', 'Buenos Aires', 'San Pablo', 52000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '2 days'),
+('TR-1006-1', 'ENV-1006', 'Terrestre', 'Mendoza', 'Paso Internacional', 36000.00, CURRENT_TIMESTAMP - INTERVAL '3 days', CURRENT_TIMESTAMP - INTERVAL '1 day'),
+('TR-1006-2', 'ENV-1006', 'Terrestre', 'Paso Internacional', 'Lima', 58000.00, CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days'),
+('TR-1007-1', 'ENV-1007', 'Marítimo', 'Valparaíso', 'Buenos Aires', 68000.00, CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '8 days'),
+('TR-1008-1', 'ENV-1008', 'Terrestre', 'San Pablo', 'Asunción', 47000.00, CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days')
 ON CONFLICT DO NOTHING;
 
 -- Observar que los IDs 1 de CLIENTE, PROVEEDOR y OPERADOR son válidos porque
