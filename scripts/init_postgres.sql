@@ -250,6 +250,16 @@ INSERT INTO proveedores (id_proveedor, razon_social, cuit, email, telefono, dire
 (1, 'Sensores del Sur Corp', '30-44332211-9', 'ventas@sensoresdelsur.com', '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina', 80000.00)
 ON CONFLICT (cuit) DO NOTHING;
 
+INSERT INTO proveedores (razon_social, cuit, email, telefono, direccion, pais, estado, saldo, fecha_registro) VALUES
+('Naviera del Atlántico Sur S.A.', '30-71234567-1', 'operaciones@atlanticosur.com', '+54 11 5278-4100', 'Av. Alicia Moreau de Justo 550, Buenos Aires', 'Argentina', 'ACTIVO', 125000.00, CURRENT_TIMESTAMP - INTERVAL '11 months'),
+('Brasil Cargo Aéreo Ltda.', '30-76543210-9', 'cargas@brasilcargo.com.br', '+55 11 2445-7800', 'Rodovia Hélio Smidt, s/n, Guarulhos, São Paulo', 'Brasil', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '9 months'),
+('Agencia Aduanera Pacífico SpA', '30-90123456-2', 'contacto@aduanaspacifico.cl', '+56 32 221-6400', 'Av. Errázuriz 1054, Valparaíso', 'Chile', 'ACTIVO', 48750.00, CURRENT_TIMESTAMP - INTERVAL '7 months'),
+('Transportes Terrestres del Uruguay S.A.', '30-45678901-9', 'trafico@tturuguay.com.uy', '+598 2 601-4820', 'Camino Bajo de la Petisa 4890, Montevideo', 'Uruguay', 'ACTIVO', 215000.00, CURRENT_TIMESTAMP - INTERVAL '5 months'),
+('Shanghai East Gate Logistics Co.', '30-34567890-1', 'warehouse@eastgatelogistics.cn', '+86 21 5868 2470', 'No. 88 Waigaoqiao Free Trade Zone, Pudong, Shanghai', 'China', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '3 months'),
+('Miami Gateway Port Services LLC', '30-23456789-2', 'service@miamigatewayport.com', '+1 305 555 0186', '1015 North America Way, Miami, Florida', 'Estados Unidos', 'ACTIVO', 390000.00, CURRENT_TIMESTAMP - INTERVAL '2 months'),
+('Almacenes y Carga Ibérica S.L.', '30-87654321-0', 'logistica@cargaiberica.es', '+34 96 367 4280', 'Calle del Muelle de la Aduana 7, Valencia', 'España', 'ACTIVO', 67250.00, CURRENT_TIMESTAMP - INTERVAL '1 month')
+ON CONFLICT (cuit) DO NOTHING;
+
 -- Contraseñas hasheadas con bcrypt (cost=10) y distintas para cada usuario:
 --   admin@logistica.com          -> admin123  (Rol: ADMIN)
 --   juan.perez@logistica.com     -> juan123   (Rol: USUARIO)
