@@ -1,3 +1,5 @@
+import { formatTableRows } from './cliFormatters.js';
+
 export async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField, ask) {
   let salir = false;
   while (!salir) {
@@ -103,7 +105,7 @@ export async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField
       if (!item) {
         console.log(`âš  ${nombreSingular} no encontrado.`);
       } else {
-        console.table([item]);
+        console.table(formatTableRows([item]));
       }
     } else if (accion === '0') {
       salir = true;

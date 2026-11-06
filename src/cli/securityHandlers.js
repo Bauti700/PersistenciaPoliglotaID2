@@ -18,7 +18,7 @@ import { AuthenticationService } from '../services/authenticationService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
-import { formatDate } from './cliFormatters.js';
+import { formatDate, formatTableRows } from './cliFormatters.js';
 
 export async function handleOption17({ ask, currentUser }) {
   if (!AuthenticationService.esAdministrador(currentUser)) {
@@ -132,7 +132,7 @@ export async function handleOption17({ ask, currentUser }) {
           salirUsuarios = true;
         } else if (usrOpt === '1') {
           const roles = await UsuarioRepository.listarRoles({ soloActivos: true });
-          console.table(roles);
+          console.table(formatTableRows(roles));
           const nombre = await ask('Nombre: ');
           const apellido = await ask('Apellido: ');
           const email = await ask('Email: ');
@@ -189,7 +189,7 @@ export async function handleOption17({ ask, currentUser }) {
         } else if (usrOpt === '4') {
           const id_usuario = await ask('ID Usuario: ');
           const roles = await UsuarioRepository.listarRoles({ soloActivos: true });
-          console.table(roles);
+          console.table(formatTableRows(roles));
           const id_rol = await ask('Nuevo ID Rol: ');
           const user = await UsuarioRepository.cambiarRol(Number(id_usuario), Number(id_rol));
           console.log(user ? '\nRol actualizado:' : '\nUsuario no encontrado', user || '');

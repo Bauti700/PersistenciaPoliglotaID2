@@ -36,7 +36,14 @@ export async function handleOption8({ ask, currentUser }) {
       console.log(`Origen: ${ruta.origen} ===> Destino: ${ruta.destino}`);
       console.log(`Operador Asignado: ${ruta.operador || 'Sin asignar'} | Vehículo: ${ruta.vehiculo || 'Sin asignar'}`);
       console.log('\nTramos del recorrido:');
-      console.table(formatTableRows(ruta.tramos));
+      console.table(formatTableRows(ruta.tramos.map(tramo => ({
+        envio: ruta.envio,
+        tramo: tramo.tramo_id || '-',
+        orden: tramo.orden,
+        desde: tramo.desde,
+        hasta: tramo.hasta,
+        medio: tramo.medio
+      }))));
     } else {
       console.log(`No se encontró el envío ${id_envio} en la base de datos de grafos.`);
     }
@@ -44,10 +51,33 @@ export async function handleOption8({ ask, currentUser }) {
     const id_contenedor = await ask('ID Contenedor: ');
     const recorrido = await Neo4jRouteRepository.reconstruirRecorridoContenedor(id_contenedor);
     console.log('\nRecorrido reconstruido:');
-    console.table(formatTableRows(recorrido));
+    const filasRecorrido = recorrido.flatMap(envio =>
+      envio.tramos.map(tramo => ({
+        contenedor: id_contenedor,
+        envio: envio.envio_id,
+        estado: envio.estado_envio,
+        tramo: tramo.tramo_id || '-',
+        orden: tramo.orden,
+        desde: tramo.desde,
+        hasta: tramo.hasta,
+        medio: tramo.medio
+      }))
+    );
+    console.table(formatTableRows(filasRecorrido));
   } else if (subRuta === '3') {
     const id_contenedor = await ask('ID Contenedor: ');
     const movimientos = await Neo4jRouteRepository.historialMovimientosContenedor(id_contenedor);
-    console.table(formatTableRows(movimientos));
+    const filasMovimientos = movimientos.flatMap(({ sensor, movimientos: lecturas = [] }) =>
+      lecturas.map(lectura => ({
+        sensor,
+        timestamp: typeof lectura.timestamp === 'object'
+          ? JSON.stringify(lectura.timestamp)
+          : lectura.timestamp || '',
+        ubicacion: lectura.ubicacion || '',
+        evento: lectura.evento || ''
+      }))
+    );
+    console.log('\nHistorial de movimientos:');
+    console.table(formatTableRows(filasMovimientos));
   }
 }

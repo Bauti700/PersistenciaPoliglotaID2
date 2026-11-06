@@ -17,9 +17,10 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatTableRows } from './cliFormatters.js';
 
 export async function handleOption13({ ask, currentUser }) {
   console.log('\n--- RANKING DE CLIENTES POR VOLUMEN TRANSPORTADO / FACTURADO ---');
   const ranking = await ReporteComercialRepository.rankingClientesPorVolumen();
-  console.table(ranking);
+  console.table(formatTableRows(ranking));
 }

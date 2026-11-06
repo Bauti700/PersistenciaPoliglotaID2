@@ -18,6 +18,7 @@ import { LogisticsService } from '../services/logisticsService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatTableRows } from './cliFormatters.js';
 import { formatDate, formatNumber } from './cliFormatters.js';
 
 export async function handleOption11({ ask, currentUser }) {
@@ -83,7 +84,7 @@ export async function handleOption11({ ask, currentUser }) {
         }]);
         if (envio.tramos.length > 0) {
           console.log('\nTramos:');
-          console.table(envio.tramos);
+          console.table(formatTableRows(envio.tramos));
         }
         if (envio.contenedores.length > 0) {
           console.log('\nContenedores del envío:');

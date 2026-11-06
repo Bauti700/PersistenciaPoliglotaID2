@@ -18,7 +18,7 @@ import { LogisticsService } from '../services/logisticsService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
-import { formatDate } from './cliFormatters.js';
+import { formatDate, formatTableRows } from './cliFormatters.js';
 
 export async function handleOption4({ ask, currentUser }) {
   let salirIoT = false;
@@ -129,7 +129,7 @@ export async function handleOption4({ ask, currentUser }) {
           console.log('\nSensor registrado:', sensor);
         } else if (abmOpt === '2') {
           const lista = await SensorRepository.listarSensores();
-          console.table(lista);
+          console.table(formatTableRows(lista));
         } else if (abmOpt === '3') {
           const id_sensor = await ask('ID Sensor a editar: ');
           const sensor = await SensorRepository.obtenerSensorPorId(id_sensor);
@@ -208,7 +208,7 @@ export async function handleOption4({ ask, currentUser }) {
       if (sensores.length === 0) {
         console.log('El contenedor no tiene sensores asignados.');
       } else {
-        console.table(sensores);
+        console.table(formatTableRows(sensores));
       }
     } else if (subIoT === '5') {
       let salirReglas = false;
@@ -356,7 +356,7 @@ export async function handleOption4({ ask, currentUser }) {
           if (alertas.length === 0) {
             console.log('No hay alertas abiertas.');
           } else {
-            console.table(alertas);
+            console.table(formatTableRows(alertas));
           }
         } else if (rOpt === '10') {
           const id_alerta = await ask('ID Alerta a cerrar: ');

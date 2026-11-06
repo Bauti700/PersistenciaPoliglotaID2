@@ -17,7 +17,7 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
-import { formatDate, formatMoney } from './cliFormatters.js';
+import { formatDate, formatMoney, formatTableRows } from './cliFormatters.js';
 
 export async function handleOption14({ ask, currentUser }) {
   console.log('\n--- REPORTES OPERATIVOS Y ANALÍTICOS PARAMETRIZADOS ---');
@@ -88,14 +88,14 @@ export async function handleOption14({ ask, currentUser }) {
       pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null, solo_demorados, solo_incidentes_abiertos
     }, currentUser?.email || 'sistema');
     console.log(`\nRegistros encontrados: ${rep.datos.length}`);
-    console.table(rep.datos);
+    console.table(formatTableRows(rep.datos));
     if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '3') {
     console.log('\n--- TIEMPOS MÁXIMOS Y MÍNIMOS DE ENVÍO POR CLIENTE ---');
     const rep = await ReporteComercialRepository.tiemposEnvioPorCliente(
       currentUser?.email || 'sistema'
     );
-    console.table(rep.datos);
+    console.table(formatTableRows(rep.datos));
     if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '4') {
     console.log('\n--- PROMEDIO DE INCIDENTES POR PAÍS/ESTADO/CLIENTE ---');
@@ -105,21 +105,21 @@ export async function handleOption14({ ask, currentUser }) {
     const rep = await ReporteComercialRepository.promedioIncidentesPorPaisEstadoCliente({
       pais, estado, id_cliente: id_cliente ? Number(id_cliente) : null
     }, currentUser?.email || 'sistema');
-    console.table(rep.datos);
+    console.table(formatTableRows(rep.datos));
     if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '5') {
     console.log('\n--- TIEMPOS PROMEDIO DE ENTREGA ---');
     const rep = await ReporteComercialRepository.tiemposPromedioEntrega(
       currentUser?.email || 'sistema'
     );
-    console.table(rep.datos);
+    console.table(formatTableRows(rep.datos));
     if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   } else if (opRep === '6') {
     console.log('\n--- COSTOS POR TIPO DE TRANSPORTE ---');
     const rep = await ReporteComercialRepository.costosPorTipoTransporte(
       currentUser?.email || 'sistema'
     );
-    console.table(rep.datos);
+    console.table(formatTableRows(rep.datos));
     if (rep.id_reporte_mongo) console.log(`Reporte guardado correctamente. ID: ${rep.id_reporte_mongo}`);
   }
 }

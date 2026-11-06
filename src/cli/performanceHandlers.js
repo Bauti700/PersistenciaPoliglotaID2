@@ -18,6 +18,7 @@ import { AnalyticsService } from '../services/analyticsService.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatTableRows } from './cliFormatters.js';
 
 export async function handleOption16({ ask, currentUser }) {
   console.log('\n--- ANÁLISIS HISTÓRICO DE DESEMPEÑO LOGÍSTICO ---');
@@ -27,10 +28,10 @@ export async function handleOption16({ ask, currentUser }) {
 
   console.log(`\n[Origen de datos: ${res.origen_datos}]`);
   console.log('\n=== RESUMEN GENERAL DE ENVÍOS ===');
-  console.table([res.resumen_general]);
+  console.table(formatTableRows([res.resumen_general]));
 
   console.log('\n=== MÉTRICAS DE TIEMPOS DE ENTREGA Y PUNTUALIDAD ===');
-  console.table([res.metricas_tiempos_entrega]);
+  console.table(formatTableRows([res.metricas_tiempos_entrega]));
 
   console.log('\n=== DESEMPEÑO Y TIEMPOS DE ENTREGA POR CLIENTE ===');
   console.table(res.desempeno_por_cliente.map(c => ({
@@ -45,10 +46,10 @@ export async function handleOption16({ ask, currentUser }) {
   })));
 
   console.log('\n=== COSTOS Y VOLÚMENES POR MEDIO DE TRANSPORTE ===');
-  console.table(res.costos_por_tipo_transporte);
+  console.table(formatTableRows(res.costos_por_tipo_transporte));
 
   console.log('\n=== CONFIABILIDAD OPERATIVA POR OPERADOR LOGÍSTICO ===');
-  console.table(res.confiabilidad_operadores);
+  console.table(formatTableRows(res.confiabilidad_operadores));
 
   console.log('\nInforme analítico histórico guardado correctamente.');
 }

@@ -28,17 +28,21 @@ export function formatJson(value) {
 }
 
 export function formatTableRows(rows) {
-  return rows.map(row => formatTableValue(row));
+  return rows.map(row => formatTableValue(row, false));
 }
 
-function formatTableValue(value) {
+function formatTableValue(value, nested) {
   if (value === null || value === undefined) return '-';
   if (typeof value.toNumber === 'function') return value.toNumber();
-  if (Array.isArray(value)) return value.map(item => formatTableValue(item));
+  if (Array.isArray(value)) {
+    const formatted = value.map(item => formatTableValue(item, true));
+    return nested ? JSON.stringify(formatted) : formatted;
+  }
   if (typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, formatTableValue(item)])
+    const formatted = Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, formatTableValue(item, true)])
     );
+    return nested ? JSON.stringify(formatted) : formatted;
   }
   return value;
 }

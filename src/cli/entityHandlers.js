@@ -17,6 +17,7 @@ import { EnvioRepository } from '../repositories/envioRepository.js';
 
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
+import { formatTableRows } from './cliFormatters.js';
 
 export async function handleOption1({ ask, currentUser }) {
             let volverSub = false;
@@ -47,11 +48,11 @@ export async function handleOption1({ ask, currentUser }) {
                   const estado = await CuentaCorrienteRepository.obtenerEstadoCuenta(id_actor, tipoEntidad.toUpperCase());
                   console.log(`\n=== ESTADO DE CUENTA: ${estado.actor.razon_social} (${estado.actor.tipo_actor}) ===`);
                   console.log('\nCuenta Corriente:');
-                  console.table([estado.cuenta_corriente]);
+                  console.table(formatTableRows([estado.cuenta_corriente]));
                   console.log('\nFacturas asociadas:');
-                  console.table(estado.facturas);
+                  console.table(formatTableRows(estado.facturas));
                   console.log('\nPagos / Cobros asociados:');
-                  console.table(estado.pagos);
+                  console.table(formatTableRows(estado.pagos));
                 } catch (e) {
                   console.log(`âš  Error al consultar cuenta corriente: ${e.message}`);
                 }
