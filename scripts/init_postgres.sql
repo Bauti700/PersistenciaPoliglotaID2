@@ -246,9 +246,27 @@ INSERT INTO operadores (id_operador, razon_social, cuit, email, telefono, direcc
 (1, 'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E', 'Argentina', 0.00)
 ON CONFLICT (cuit) DO UPDATE SET razon_social = EXCLUDED.razon_social;
 
+SELECT setval(
+    pg_get_serial_sequence('operadores', 'id_operador'),
+    COALESCE((SELECT MAX(id_operador) FROM operadores), 1),
+    (SELECT MAX(id_operador) IS NOT NULL FROM operadores)
+);
+
+INSERT INTO operadores (razon_social, cuit, email, telefono, direccion, pais, estado, saldo, fecha_registro) VALUES
+('Andes Cargo Internacional S.A.', '30-88990011-3', 'operaciones@andescargo.com', '+54 261 489-2200', 'Parque Industrial Mendoza, Lote 18', 'Argentina', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '8 months'),
+('Río de la Plata Transportes S.A.', '30-77889900-6', 'trafico@rioplatatransportes.com', '+598 2 900-7711', 'Camino Carrasco 4550, Montevideo', 'Uruguay', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '6 months'),
+('Pacífico Sur Logistics SpA', '76-55667788-4', 'contacto@pacificosurlogistics.cl', '+56 2 2650-1188', 'Av. El Salto 1525, Santiago', 'Chile', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '4 months')
+ON CONFLICT (cuit) DO NOTHING;
+
 INSERT INTO proveedores (id_proveedor, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Sensores del Sur Corp', '30-44332211-9', 'ventas@sensoresdelsur.com', '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina', 80000.00)
 ON CONFLICT (cuit) DO NOTHING;
+
+SELECT setval(
+    pg_get_serial_sequence('proveedores', 'id_proveedor'),
+    COALESCE((SELECT MAX(id_proveedor) FROM proveedores), 1),
+    (SELECT MAX(id_proveedor) IS NOT NULL FROM proveedores)
+);
 
 INSERT INTO proveedores (razon_social, cuit, email, telefono, direccion, pais, estado, saldo, fecha_registro) VALUES
 ('Naviera del Atlántico Sur S.A.', '30-71234567-1', 'operaciones@atlanticosur.com', '+54 11 5278-4100', 'Av. Alicia Moreau de Justo 550, Buenos Aires', 'Argentina', 'ACTIVO', 125000.00, CURRENT_TIMESTAMP - INTERVAL '11 months'),
@@ -284,6 +302,9 @@ ON CONFLICT (email) DO UPDATE SET
 --   CLIENTE 1:  -62.000 (factura EMITIDA pendiente)
 --   CLIENTE 2:  -25.000 (saldo de arrastre sin movimientos semilla)
 --   OPERADOR 1:  35.000 (factura RECIBIDA pendiente)
+--   OPERADOR 2:  78.000 (factura RECIBIDA pendiente)
+--   OPERADOR 3:       0 (factura RECIBIDA ya pagada)
+--   OPERADOR 4: 125.000 (factura RECIBIDA pendiente)
 --   PROVEEDOR 1:      0 (factura RECIBIDA ya pagada)
 -- Los actores se resuelven por CUIT para que el seed funcione también sobre
 -- volúmenes creados con versiones anteriores, donde los IDs pueden no ser 1.
@@ -314,6 +335,18 @@ SELECT o.id_operador, 'OPERADOR', 35000.00
 FROM operadores o
 WHERE o.cuit = '30-55667788-1'
 UNION ALL
+SELECT o.id_operador, 'OPERADOR', 78000.00
+FROM operadores o
+WHERE o.cuit = '30-88990011-3'
+UNION ALL
+SELECT o.id_operador, 'OPERADOR', 0.00
+FROM operadores o
+WHERE o.cuit = '30-77889900-6'
+UNION ALL
+SELECT o.id_operador, 'OPERADOR', 125000.00
+FROM operadores o
+WHERE o.cuit = '76-55667788-4'
+UNION ALL
 SELECT p.id_proveedor, 'PROVEEDOR', 0.00
 FROM proveedores p
 WHERE p.cuit = '30-44332211-9'
@@ -328,6 +361,22 @@ UNION ALL
 SELECT id_operador, 'OPERADOR', 0.00 FROM operadores
 ON CONFLICT (tipo_actor, id_actor) DO NOTHING;
 
+-- Saldos de proveedores coherentes con las facturas recibidas semilla.
+INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo)
+SELECT p.id_proveedor, 'PROVEEDOR', v.saldo
+FROM (VALUES
+    ('30-71234567-1', 125000.00),
+    ('30-76543210-9',      0.00),
+    ('30-90123456-2',  48750.00),
+    ('30-45678901-9', 215000.00),
+    ('30-34567890-1',      0.00),
+    ('30-23456789-2', 390000.00),
+    ('30-87654321-0',  67250.00)
+) AS v(cuit, saldo)
+JOIN proveedores p ON p.cuit = v.cuit
+ON CONFLICT (tipo_actor, id_actor) DO UPDATE
+SET saldo = EXCLUDED.saldo, fecha_actualizacion = CURRENT_TIMESTAMP;
+
 INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, estado) VALUES
 ('CONT-001', 'MSCU-908123-1', 'Reefer (Refrigerado)', 28000.00, 'EN_TRANSITO'),
 ('CONT-002', 'CMAU-554129-4', 'Dry (Carga Seca)', 30480.00, 'EN_TRANSITO'),
@@ -341,7 +390,10 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, estado) VALUES
 ('VEH-TRUCK-01', 'Camión Semirremolque', 'AF-204-ZX', 'Logística Express del Plata', 'OPERATIVO'),
-('VEH-SHIP-01', 'Buque Portacontenedores', 'IMO-9481234', 'Maersk Line', 'OPERATIVO')
+('VEH-SHIP-01', 'Buque Portacontenedores', 'IMO-9481234', 'Maersk Line', 'OPERATIVO'),
+('VEH-TRUCK-03', 'Camión Refrigerado', 'AG-315-KL', 'Andes Cargo Internacional S.A.', 'OPERATIVO'),
+('VEH-TRUCK-04', 'Camión Semirremolque', 'SAB-7821', 'Río de la Plata Transportes S.A.', 'OPERATIVO'),
+('VEH-SHIP-03', 'Buque Portacontenedores', 'IMO-9674521', 'Pacífico Sur Logistics SpA', 'OPERATIVO')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad, fecha_creacion, fecha_entrega) VALUES
@@ -405,9 +457,39 @@ INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_c
 (4, 1, 'RECIBIDA', 'PROVEEDOR', 'PR-0002-000129', 'Lote 10 Sensores IoT modelo SENS-88', NULL, 80000.00, 'PAGADA')
 ON CONFLICT DO NOTHING;
 
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 5, o.id_operador, 'RECIBIDA', 'OPERADOR', 'OP-0002-000318', 'Flete refrigerado ENV-1006', 'ENV-1006', 78000.00, 'PENDIENTE'
+FROM operadores o WHERE o.cuit = '30-88990011-3'
+ON CONFLICT DO NOTHING;
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 6, o.id_operador, 'RECIBIDA', 'OPERADOR', 'OP-0003-000227', 'Flete terrestre ENV-1004', 'ENV-1004', 95000.00, 'PAGADA'
+FROM operadores o WHERE o.cuit = '30-77889900-6'
+ON CONFLICT DO NOTHING;
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 7, o.id_operador, 'RECIBIDA', 'OPERADOR', 'OP-0004-000109', 'Flete marítimo ENV-1007', 'ENV-1007', 125000.00, 'PENDIENTE'
+FROM operadores o WHERE o.cuit = '76-55667788-4'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT v.id_factura, p.id_proveedor, 'RECIBIDA', 'PROVEEDOR', v.comprobante, v.concepto, v.id_envio, v.importe, v.estado
+FROM (VALUES
+    (8, '30-71234567-1', 'PR-0002-000210', 'Servicio marítimo ENV-1001', 'ENV-1001', 125000.00, 'PENDIENTE'),
+    (9, '30-76543210-9', 'PR-0003-000144', 'Servicio aéreo ENV-1002', 'ENV-1002', 98000.00, 'PAGADA'),
+    (10, '30-90123456-2', 'PR-0004-000087', 'Gestión aduanera ENV-1003', 'ENV-1003', 48750.00, 'PENDIENTE'),
+    (11, '30-45678901-9', 'PR-0005-000302', 'Transporte terrestre ENV-1004', 'ENV-1004', 215000.00, 'PENDIENTE'),
+    (12, '30-34567890-1', 'PR-0006-000051', 'Operación portuaria ENV-1005', 'ENV-1005', 142000.00, 'PAGADA'),
+    (13, '30-23456789-2', 'PR-0007-000198', 'Servicios portuarios ENV-1006', 'ENV-1006', 390000.00, 'PENDIENTE'),
+    (14, '30-87654321-0', 'PR-0008-000076', 'Almacenaje y distribución ENV-1007', 'ENV-1007', 67250.00, 'PENDIENTE')
+) AS v(id_factura, cuit, comprobante, concepto, id_envio, importe, estado)
+JOIN proveedores p ON p.cuit = v.cuit
+ON CONFLICT DO NOTHING;
+
 INSERT INTO pagos (id_pago, id_factura, tipo_pago, monto, medio_pago, referencia_comprobante) VALUES
 (1, 1, 'COBRO_CLIENTE', 45000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-SANT-11029'),
-(2, 4, 'PAGO_PROVEEDOR', 80000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BBVA-99412')
+(2, 4, 'PAGO_PROVEEDOR', 80000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BBVA-99412'),
+(3, 6, 'PAGO_OPERADOR', 95000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-ITAU-77104'),
+(4, 9, 'PAGO_PROVEEDOR', 98000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BRAD-55120'),
+(5, 12, 'PAGO_PROVEEDOR', 142000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-ICBC-88431')
 ON CONFLICT DO NOTHING;
 
 -- Cierre histórico del mes anterior. Se mantiene separado del período actual
@@ -445,7 +527,17 @@ FROM (VALUES
     ('30-71123456-8', 'CLIENTE',   0.00, 62000.00,     0.00, -62000.00),
     ('30-99887766-4', 'CLIENTE',   0.00, 25000.00,     0.00, -25000.00),
     ('30-55667788-1', 'OPERADOR',  0.00,     0.00, 35000.00,  35000.00),
-    ('30-44332211-9', 'PROVEEDOR', 0.00, 80000.00, 80000.00,      0.00)
+    ('30-88990011-3', 'OPERADOR',  0.00, 78000.00,     0.00,  78000.00),
+    ('30-77889900-6', 'OPERADOR',  0.00, 95000.00, 95000.00,      0.00),
+    ('76-55667788-4', 'OPERADOR',  0.00,125000.00,     0.00, 125000.00),
+    ('30-44332211-9', 'PROVEEDOR', 0.00, 80000.00, 80000.00,      0.00),
+    ('30-71234567-1', 'PROVEEDOR', 0.00,125000.00,     0.00, 125000.00),
+    ('30-76543210-9', 'PROVEEDOR', 0.00, 98000.00, 98000.00,      0.00),
+    ('30-90123456-2', 'PROVEEDOR', 0.00, 48750.00,     0.00,  48750.00),
+    ('30-45678901-9', 'PROVEEDOR', 0.00,215000.00,     0.00, 215000.00),
+    ('30-34567890-1', 'PROVEEDOR', 0.00,142000.00,142000.00,      0.00),
+    ('30-23456789-2', 'PROVEEDOR', 0.00,390000.00,     0.00, 390000.00),
+    ('30-87654321-0', 'PROVEEDOR', 0.00, 67250.00,     0.00,  67250.00)
 ) AS v(cuit, tipo_actor, saldo_inicial, total_debe, total_haber, saldo_final)
 JOIN (
     SELECT id_cliente AS id_actor, 'CLIENTE' AS tipo_actor, cuit FROM clientes

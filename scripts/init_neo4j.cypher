@@ -9,6 +9,7 @@ CREATE CONSTRAINT IF NOT EXISTS FOR (c:Cliente) REQUIRE c.id_cliente IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (e:Envio) REQUIRE e.id_envio IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (u:Ubicacion) REQUIRE u.nombre IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (op:Operador) REQUIRE op.nombre IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (pr:Proveedor) REQUIRE pr.id_actor IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (v:Vehiculo) REQUIRE v.identificacion IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (cont:Contenedor) REQUIRE cont.id_contenedor IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (s:Sensor) REQUIRE s.id_sensor IS UNIQUE;
@@ -28,8 +29,23 @@ CREATE (u5:Ubicacion {nombre: "Santiago", pais: "Chile"})
 CREATE (u6:Ubicacion {nombre: "Mendoza", pais: "Argentina"})
 
 CREATE (op1:Operador {id_actor: 1, nombre: "Logística Express del Plata"})
+CREATE (op2:Operador {id_actor: 2, nombre: "Andes Cargo Internacional S.A."})
+CREATE (op3:Operador {id_actor: 3, nombre: "Río de la Plata Transportes S.A."})
+CREATE (op4:Operador {id_actor: 4, nombre: "Pacífico Sur Logistics SpA"})
+
+CREATE (pr1:Proveedor {id_actor: 1, nombre: "Sensores del Sur Corp", pais: "Argentina"})
+CREATE (pr2:Proveedor {id_actor: 2, nombre: "Naviera del Atlántico Sur S.A.", pais: "Argentina"})
+CREATE (pr3:Proveedor {id_actor: 3, nombre: "Brasil Cargo Aéreo Ltda.", pais: "Brasil"})
+CREATE (pr4:Proveedor {id_actor: 4, nombre: "Agencia Aduanera Pacífico SpA", pais: "Chile"})
+CREATE (pr5:Proveedor {id_actor: 5, nombre: "Transportes Terrestres del Uruguay S.A.", pais: "Uruguay"})
+CREATE (pr6:Proveedor {id_actor: 6, nombre: "Shanghai East Gate Logistics Co.", pais: "China"})
+CREATE (pr7:Proveedor {id_actor: 7, nombre: "Miami Gateway Port Services LLC", pais: "Estados Unidos"})
+CREATE (pr8:Proveedor {id_actor: 8, nombre: "Almacenes y Carga Ibérica S.L.", pais: "España"})
 
 CREATE (v1:Vehiculo {id_vehiculo: "VEH-TRUCK-01", tipo: "Camión Semirremolque", identificacion: "AF-204-ZX"})
+CREATE (v4:Vehiculo {id_vehiculo: "VEH-TRUCK-03", tipo: "Camión Refrigerado", identificacion: "AG-315-KL"})
+CREATE (v5:Vehiculo {id_vehiculo: "VEH-TRUCK-04", tipo: "Camión Semirremolque", identificacion: "SAB-7821"})
+CREATE (v6:Vehiculo {id_vehiculo: "VEH-SHIP-03", tipo: "Buque Portacontenedores", identificacion: "IMO-9674521"})
 
 CREATE (e1:Envio {id_envio: "ENV-1001", estado: "EN_TRANSITO", prioridad: "ALTA"})
 CREATE (e2:Envio {id_envio: "ENV-1002", estado: "CREADO", prioridad: "MEDIA"})
@@ -41,6 +57,12 @@ CREATE (e1)-[:TIENE_DESTINO]->(u3)
 CREATE (e1)-[:ASIGNADO_A]->(op1)
 CREATE (op1)-[:OPERA_VEHICULO]->(v1)
 CREATE (e1)-[:TRANSPORTADO_POR]->(v1)
+CREATE (e2)-[:ASIGNADO_A]->(op2)
+CREATE (op2)-[:OPERA_VEHICULO]->(v4)
+CREATE (e2)-[:TRANSPORTADO_POR]->(v4)
+CREATE (pr1)-[:PROVEE_COMPONENTES_A]->(e1)
+CREATE (pr2)-[:PROVEE_TRANSPORTE_A]->(e1)
+CREATE (pr3)-[:PROVEE_TRANSPORTE_A]->(e2)
 
 // Ruta / Tramos del Envío
 CREATE (t1:Tramo {id_tramo: "TR-1001-1", orden: 1, medio: "Terrestre"})
@@ -162,6 +184,18 @@ CREATE (e7)-[:TRANSPORTADO_POR]->(v3)
 CREATE (e8)-[:TIENE_ORIGEN]->(u3)
 CREATE (e8)-[:TIENE_DESTINO]->(u11)
 CREATE (e8)-[:TRANSPORTADO_POR]->(v2)
+CREATE (pr4)-[:GESTIONA_ADUANA_DE]->(e3)
+CREATE (pr5)-[:PROVEE_TRANSPORTE_A]->(e4)
+CREATE (pr6)-[:PROVEE_SERVICIO_PORTUARIO_A]->(e5)
+CREATE (e3)-[:ASIGNADO_A]->(op3)
+CREATE (op3)-[:OPERA_VEHICULO]->(v5)
+CREATE (e3)-[:TRANSPORTADO_POR]->(v5)
+CREATE (e4)-[:ASIGNADO_A]->(op4)
+CREATE (op4)-[:OPERA_VEHICULO]->(v6)
+CREATE (e4)-[:TRANSPORTADO_POR]->(v6)
+CREATE (e8)-[:ASIGNADO_A]->(op2)
+CREATE (pr7)-[:PROVEE_SERVICIO_PORTUARIO_A]->(e6)
+CREATE (pr8)-[:PROVEE_ALMACENAJE_A]->(e7)
 CREATE (cont6:Contenedor {id_contenedor: "CONT-006", codigo_internacional: "OOLU-445566-7", estado: "EN_TRANSITO"})
 CREATE (cont7:Contenedor {id_contenedor: "CONT-007", codigo_internacional: "MSCU-778899-3", estado: "EN_TRANSITO"})
 CREATE (cont8:Contenedor {id_contenedor: "CONT-008", codigo_internacional: "TGHU-112233-5", estado: "DISPONIBLE"})
