@@ -4,7 +4,9 @@ import { IncidenteRepository } from '../repositories/incidenteRepository.js';
 import { ReporteMongoRepository } from '../repositories/reporteMongoRepository.js';
 import { calcularRiesgoEnvio } from './riskCalculator.js';
 
+// Servicio para manejar la predicción de riesgo de envíos, integrando datos relacionales y documentales, y utilizando un sistema de caché para optimizar el rendimiento.
 export class RiesgoService {
+  // Obtiene o predice el riesgo de un envío específico, consultando primero la caché y luego los datos históricos y de incidentes si es necesario. También registra la predicción en la base de datos documental para trazabilidad.
   static async obtenerOPredicirRiesgo(id_envio, usuario = 'sistema') {
     try {
       const cached = await RiskCacheRepository.obtenerPrediccionRiesgo(id_envio);

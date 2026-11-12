@@ -10,6 +10,7 @@ import {
 const ESTADOS_SENSOR = ['ACTIVO', 'INACTIVO'];
 const CAMPOS_SENSOR = ['id_sensor', 'tipo', 'fabricante', 'id_contenedor', 'estado', 'fecha_instalacion'];
 
+// Valida los datos de un sensor y devuelve un objeto con los campos válidos.
 function validarSensor(data, { parcial = false } = {}) {
   const claves = Object.keys(data || {});
   const desconocidos = claves.filter(campo => !CAMPOS_SENSOR.includes(campo));
@@ -56,6 +57,7 @@ function validarSensor(data, { parcial = false } = {}) {
   return sensor;
 }
 
+// Valida que el contenedor exista en PostgreSQL y que esté activo.
 async function validarContenedorExistente(id_contenedor) {
   if (id_contenedor === undefined || id_contenedor === null || id_contenedor === '') return null;
   const id = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
@@ -72,6 +74,7 @@ async function validarContenedorExistente(id_contenedor) {
   return res.rows[0];
 }
 
+//Repositorio para manejar operaciones de sensores en la base de datos MongoDB y sincronización con Neo4j.
 export class SensorRepository {
   static async registrarSensor(sensorData) {
     const datos = validarSensor(sensorData);
@@ -101,6 +104,7 @@ export class SensorRepository {
     return doc;
   }
 
+  // Lista sensores según filtros opcionales: estado, id_contenedor y tipo.
   static async listarSensores(filtro = {}) {
     const query = {};
     if (filtro.estado) query.estado = unoDe(filtro.estado, ESTADOS_SENSOR, 'estado');
@@ -109,21 +113,25 @@ export class SensorRepository {
     return await getDb().collection('sensores').find(query).sort({ id_sensor: 1 }).toArray();
   }
 
+  // Obtiene un sensor por su ID.
   static async obtenerSensorPorId(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     return await getDb().collection('sensores').findOne({ id_sensor: id });
   }
 
+  // Lista todos los sensores asignados a un contenedor específico.
   static async listarSensoresPorContenedor(id_contenedor) {
     const id = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
     return await getDb().collection('sensores').find({ id_contenedor: id }).sort({ id_sensor: 1 }).toArray();
   }
 
+  // Verifica si un sensor existe en la base de datos.
   static async existeSensor(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     return Boolean(await getDb().collection('sensores').findOne({ id_sensor: id }, { projection: { _id: 1 } }));
   }
 
+  // Asigna un sensor a un contenedor, actualizando la base de datos y sincronizando con Neo4j.
   static async asignarSensorAContenedor(id_sensor, id_contenedor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const idCont = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
@@ -154,6 +162,7 @@ export class SensorRepository {
     return actualizado;
   }
 
+  // Desasigna un sensor de un contenedor, actualizando la base de datos y sincronizando con Neo4j.
   static async desasignarSensorDeContenedor(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const col = getDb().collection('sensores');
@@ -174,6 +183,7 @@ export class SensorRepository {
     return actualizado;
   }
 
+  // Restaura la asignación de un sensor a un contenedor, o lo desasigna si no se proporciona un contenedor.
   static async restaurarAsignacion(id_sensor, id_contenedor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const col = getDb().collection('sensores');
@@ -195,6 +205,7 @@ export class SensorRepository {
     return actualizado;
   }
 
+  // Actualiza los datos de un sensor, validando los cambios y sincronizando con Neo4j.
   static async actualizarSensor(id_sensor, datos) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const actualizacion = validarSensor(datos, { parcial: true });
@@ -222,6 +233,7 @@ export class SensorRepository {
     return actualizado;
   }
 
+  // Cambia el estado de un sensor a "INACTIVO", registrando la fecha de baja y sincronizando con Neo4j.
   static async darDeBajaSensor(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const col = getDb().collection('sensores');
@@ -239,6 +251,7 @@ export class SensorRepository {
     return actualizado;
   }
 
+  // Cambia el estado de un sensor a "ACTIVO", registrando la fecha de reactivación y sincronizando con Neo4j.
   static async activarSensor(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const col = getDb().collection('sensores');
@@ -256,6 +269,7 @@ export class SensorRepository {
     return actualizado;
   }
 
+  // Cuenta las dependencias de un sensor en otras colecciones (lecturas, alertas, incidentes) para determinar si puede eliminarse.
   static async contarDependencias(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const db = getDb();
@@ -267,6 +281,7 @@ export class SensorRepository {
     return { lecturas, alertas, incidentes, total: lecturas + alertas + incidentes };
   }
 
+  // Elimina un sensor de la base de datos si no tiene dependencias, y sincroniza la eliminación con Neo4j.
   static async eliminarSensor(id_sensor) {
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
     const dependencias = await this.contarDependencias(id);

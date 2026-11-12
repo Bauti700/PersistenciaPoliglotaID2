@@ -10,16 +10,19 @@ import {
 export const TIPOS_MENSAJE = ['PRIVADO', 'GRUPAL'];
 const MAX_CONTENIDO = 2000;
 
+// Normaliza un ID de grupo, asegurando que sea un texto requerido y en mayúsculas
 function normalizarIdGrupo(id_grupo) {
   return textoRequerido(id_grupo, 'id_grupo', { max: 50 }).toUpperCase();
 }
 
+// Normaliza la lista de integrantes de un grupo, devolviendo un array de emails en minúsculas y sin duplicados
 function integrantesNormalizados(grupo) {
   return (grupo?.integrantes || [])
     .map(integrante => String(integrante || '').trim().toLowerCase())
     .filter(Boolean);
 }
 
+// Repositorio para manejar la mensajería, tanto privada como grupal, en la base de datos MongoDB
 export class MensajeRepository {
   // --- GRUPOS DE TRABAJO ---
   static async listarGrupos(usuario = null) {
@@ -35,6 +38,7 @@ export class MensajeRepository {
     return grupos.filter(grupo => integrantesNormalizados(grupo).includes(email));
   }
 
+  // Obtiene un grupo de trabajo por su ID único, lanzando un error si no existe
   static async obtenerGrupo(id_grupo) {
     const id = normalizarIdGrupo(id_grupo);
     const grupo = await getDb().collection('grupos_trabajo').findOne({ id_grupo: id });
@@ -44,6 +48,7 @@ export class MensajeRepository {
     return grupo;
   }
 
+  // Valida que un usuario sea integrante de un grupo específico, lanzando un error si no lo es
   static async validarIntegranteGrupo(id_grupo, email) {
     const grupo = await this.obtenerGrupo(id_grupo);
     const usuario = emailValido(email, 'remitente');
@@ -80,6 +85,7 @@ export class MensajeRepository {
     return doc;
   }
 
+  // Obtiene los mensajes privados entre dos usuarios, ordenados por fecha ascendente
   static async obtenerMensajes(usuario1, usuario2) {
     const u1 = emailValido(usuario1, 'usuario1');
     const u2 = emailValido(usuario2, 'usuario2');
@@ -113,6 +119,7 @@ export class MensajeRepository {
     return doc;
   }
 
+  // Obtiene los mensajes grupales de un grupo específico, ordenados por fecha ascendente
   static async obtenerMensajesGrupales(id_grupo) {
     const grupo = await this.obtenerGrupo(id_grupo);
     return await getDb().collection('mensajes').find({
@@ -126,6 +133,7 @@ export class MensajeRepository {
   }
 
   // --- ENVÍO GENÉRICO (compatibilidad) ---
+  // Envía un mensaje, determinando automáticamente si es privado o grupal según los parámetros proporcionados
   static async enviarMensaje({
     remitente,
     destinatario = null,

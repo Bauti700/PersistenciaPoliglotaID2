@@ -5,6 +5,7 @@ import { EnvioQueryService } from './envioQueryService.js';
 import { MonitoreoService } from './monitoreoService.js';
 import { RiesgoService } from './riesgoService.js';
 
+// Servicio principal que actúa como fachada para las operaciones de logística, delegando la lógica de negocio a los servicios especializados.
 export class LogisticsService {
   static async crearEnvioPoliglota(params) {
     return EnvioCreationService.crearEnvioPoliglota(params);

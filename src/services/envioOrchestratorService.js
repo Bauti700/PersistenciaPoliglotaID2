@@ -15,6 +15,7 @@ import {
   errorValidacion
 } from '../utils/validation.js';
 
+// Genera la clave de caché para el estado del envío.
 function claveCacheEnvio(id_envio) {
   return `envio:estado:${id_envio}`;
 }
@@ -63,6 +64,7 @@ async function revertirEstadoYContenedores(id_envio, estadoAnterior, contenedore
   }
 }
 
+// Ejecuta una serie de acciones de compensación y devuelve los errores que ocurran.
 async function compensar(acciones) {
   const errores = [];
   for (const accion of acciones) {
@@ -75,6 +77,7 @@ async function compensar(acciones) {
   return errores;
 }
 
+// Actualiza la caché de estado del envío en Redis con un TTL de 1 hora.
 async function actualizarCacheEnvio(id_envio, datos) {
   await RedisCacheRepository.setCache(claveCacheEnvio(id_envio), {
     ...datos,
@@ -82,6 +85,7 @@ async function actualizarCacheEnvio(id_envio, datos) {
   }, 3600);
 }
 
+// Invalida la predicción de riesgo del envío en Redis, si existe.
 async function invalidarPrediccionEnvio(id_envio) {
   try {
     await RedisCacheRepository.invalidarPrediccionRiesgo(id_envio);
@@ -90,6 +94,7 @@ async function invalidarPrediccionEnvio(id_envio) {
   }
 }
 
+// Registra un evento de trazabilidad en MongoDB, ignorando errores para no afectar la operación principal.
 async function registrarEventoTrazabilidad({ id_envio, tipo_evento, descripcion, ubicacion = null }) {
   try {
     await MongoTelemetryRepository.registrarEventoLogistico({
@@ -104,6 +109,7 @@ async function registrarEventoTrazabilidad({ id_envio, tipo_evento, descripcion,
   }
 }
 
+// Construye la lista de tramos actualizados para un envío, ajustando los extremos según el origen y destino.
 function construirTramosActualizados(tramosActuales, origen, destino) {
   const normalizar = (tramo) => ({
     id_tramo: tramo.id_tramo || tramo.tramo_id || null,
@@ -301,6 +307,7 @@ export class EnvioOrchestratorService {
     }
   }
 
+  // Crea un envío sincronizado, delegando la lógica a EnvioOrchestratorService.
   static async crearEnvioSincronizado({ id_envio, id_cliente, origen, destino, prioridad = 'MEDIA', contenedores }) {
     return this.crearEnvioPoliglota({
       id_envio,
@@ -313,10 +320,12 @@ export class EnvioOrchestratorService {
     });
   }
 
+  // Asigna un contenedor a un envío específico, realizando validaciones de existencia y estado, y registrando el evento en la base de datos de telemetría.
   static async asignarContenedorAEnvio({ id_envio, id_contenedor }) {
     return ContenedorAssignmentService.asignarContenedorAEnvio({ id_envio, id_contenedor });
   }
 
+  // Asigna un sensor a un contenedor dentro de un envío específico, asegurando que el sensor y el contenedor existan y estén disponibles para la asignación.
   static async asignarSensorAContenedorEnvio({ id_envio, id_contenedor, id_sensor }) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const idContenedor = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
@@ -406,6 +415,7 @@ export class EnvioOrchestratorService {
     };
   }
 
+  // Actualiza los datos de un envío, validando cambios y sincronizando con Neo4j y Redis. No permite cambiar el estado del envío.
   static async actualizarEnvio(id_envio, cambios) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const existente = await EnvioRepository.obtenerPorId(idEnvio);
@@ -486,6 +496,7 @@ export class EnvioOrchestratorService {
     return { envio: actualizado, sincronizacion: { postgresql: 'OK', neo4j: grafo, redis } };
   }
 
+  // Cambia el estado de un envío, liberando contenedores si corresponde y registrando el evento en la base de datos de telemetría. La operación es transaccional y consistente entre PostgreSQL, Neo4j y Redis.
   static async cambiarEstadoEnvio(id_envio, estado) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const existente = await EnvioRepository.obtenerPorId(idEnvio);
@@ -577,6 +588,7 @@ export class EnvioOrchestratorService {
     };
   }
 
+  // Cancela un envío, liberando contenedores y registrando el evento en la base de datos de telemetría. La operación es transaccional y consistente entre PostgreSQL, Neo4j y Redis. No se puede cancelar un envío que ya fue entregado.
   static async cancelarEnvio(id_envio) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const existente = await EnvioRepository.obtenerPorId(idEnvio);
@@ -646,6 +658,7 @@ export class EnvioOrchestratorService {
     };
   }
 
+  // Elimina un envío de forma completa, incluyendo su registro en PostgreSQL, Neo4j, Redis y MongoDB. La operación es transaccional y consistente entre los motores de datos, y devuelve un resumen del estado de sincronización.
   static async eliminarEnvio(id_envio) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const existente = await EnvioRepository.obtenerPorId(idEnvio);

@@ -1,5 +1,6 @@
 import { formatTableRows } from './cliFormatters.js';
 
+// Función para mostrar un menú de ABM (Alta, Baja, Modificación) para una entidad específica en la CLI.
 export async function menuABMEntidad(nombrePlural, nombreSingular, repo, idField, ask) {
   let salir = false;
   while (!salir) {

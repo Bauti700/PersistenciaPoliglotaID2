@@ -20,6 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate } from './cliFormatters.js';
 
+// Función para manejar la opción 6 del menú principal, que corresponde al módulo de gestión de incidentes. Permite listar incidentes con filtros, registrar incidentes manualmente, cerrar incidentes y sus alertas, y ver incidentes agrupados por envío.
 export async function handleOption6({ ask, currentUser }) {
   let salirIncidentes = false;
   while (!salirIncidentes) {

@@ -6,6 +6,7 @@ import { MensajeRepository } from './mensajeRepository.js';
 import { ReporteMongoRepository } from './reporteMongoRepository.js';
 import { EventoLogisticoRepository } from './eventoLogisticoRepository.js';
 
+//Repositorio para manejar todas las operaciones relacionadas con telemetría, incluyendo sensores, lecturas, incidentes, alertas, eventos logísticos y mensajería.
 export class MongoTelemetryRepository {
   // --- SENSORES ---
   static registrarSensor = SensorRepository.registrarSensor;

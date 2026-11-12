@@ -9,6 +9,7 @@ import {
   errorValidacion
 } from '../utils/validation.js';
 
+// Constantes para tipos y estados de actores
 const TIPOS_ACTOR = ['CLIENTE', 'PROVEEDOR', 'OPERADOR'];
 const ESTADOS_ACTOR = ['ACTIVO', 'INACTIVO'];
 
@@ -26,6 +27,7 @@ class BaseEntidadRepository {
     this.tipoActor = tipoActor;
   }
 
+  // Mapea un actor a un objeto con id_actor y tipo_actor
   mapear(actor) {
     if (!actor) return null;
     return { ...actor, id_actor: actor[this.idColumna], tipo_actor: this.tipoActor };
@@ -35,6 +37,7 @@ class BaseEntidadRepository {
     return enteroPositivo(id, this.idColumna);
   }
 
+  // Valida los datos de un actor
   validarAlta(data = {}) {
     return {
       razon_social: textoRequerido(data.razon_social, 'razon_social', { max: 150 }),
@@ -46,6 +49,7 @@ class BaseEntidadRepository {
     };
   }
 
+  // Valida la actualización de un actor
   validarActualizacion(data = {}) {
     const valores = {};
     let cantidad = 0;
@@ -85,6 +89,7 @@ class BaseEntidadRepository {
     return valores;
   }
 
+  // Crea un actor y su cuenta corriente
   async crear(data) {
     const actor = this.validarAlta(data);
     const query = `
@@ -126,6 +131,7 @@ class BaseEntidadRepository {
     }
   }
 
+  // Lista todos los actores con su cuenta corriente
   async listarTodos() {
     const query = `
       SELECT t.${this.idColumna} AS ${this.idColumna},
@@ -148,6 +154,7 @@ class BaseEntidadRepository {
     return res.rows.map(row => this.mapear(row));
   }
 
+  // Obtiene un actor por ID con su cuenta corriente
   async obtenerPorId(id) {
     const idNormalizado = this.normalizarId(id);
     const query = `
@@ -171,6 +178,7 @@ class BaseEntidadRepository {
     return this.mapear(res.rows[0]);
   }
 
+  // Actualiza un actor con su cuenta corriente
   async actualizar(id, data) {
     const idNormalizado = this.normalizarId(id);
     const valores = this.validarActualizacion(data);
@@ -195,6 +203,7 @@ class BaseEntidadRepository {
     }
   }
 
+  // Cambia el estado de un actor
   async cambiarEstado(id, estado) {
     const idNormalizado = this.normalizarId(id);
     const estadoNormalizado = unoDe(estado, ESTADOS_ACTOR, 'estado');
@@ -207,14 +216,17 @@ class BaseEntidadRepository {
     return this.mapear(res.rows[0]);
   }
 
+  // Da de baja un actor
   async darDeBaja(id) {
     return this.cambiarEstado(id, 'INACTIVO');
   }
 
+  // Activa un actor
   async activar(id) {
     return this.cambiarEstado(id, 'ACTIVO');
   }
 
+  // Cuenta las dependencias de un actor antes de eliminarlo. Esto incluye facturas, cierres de cuentas corrientes, envíos y usuarios asociados.
   async contarDependencias(id) {
     const idNormalizado = this.normalizarId(id);
     const checks = [];
@@ -245,6 +257,7 @@ class BaseEntidadRepository {
       });
     }
 
+    // Para proveedores y operadores, también se podrían agregar otras dependencias según la lógica del negocio.
     const resultados = await Promise.all(checks.map(check => check.query));
     const dependencias = resultados
       .map((res, index) => ({ etiqueta: checks[index].etiqueta, total: res.rows[0].total }))
@@ -261,6 +274,7 @@ class BaseEntidadRepository {
     return dependencias;
   }
 
+  // Elimina un actor físicamente, verificando dependencias
   async eliminar(id) {
     const idNormalizado = this.normalizarId(id);
     const dependencias = await this.contarDependencias(idNormalizado);
@@ -331,6 +345,7 @@ export class OperadorRepository {
   static eliminar(id) { return _operadorRepo.eliminar(id); }
 }
 
+// 4. Fachada de compatibilidad ActorRepository (consulta polimórfica)
 const REPOSITORIOS = {
   CLIENTE: ClienteRepository,
   PROVEEDOR: ProveedorRepository,
@@ -357,6 +372,7 @@ export class ActorRepository {
     return [...clientes, ...proveedores, ...operadores];
   }
 
+  // Resuelve un actor por su ID y tipo, o busca entre todos los tipos si no se especifica.
   static async obtenerPorId(id, tipo_actor = null) {
     if (tipo_actor) {
       const { repo } = repositorioDe(tipo_actor);
@@ -406,29 +422,34 @@ export class ActorRepository {
     return coincidencias[0];
   }
 
+  // Crea un actor de cualquier tipo, por defecto CLIENTE
   static async crear({ tipo_actor = 'CLIENTE', ...data }) {
     const { repo } = repositorioDe(tipo_actor);
     return repo.crear(data);
   }
 
+  // Actualiza un actor de cualquier tipo, resolviendo su identidad
   static async actualizar(id, data, tipo_actor = null) {
     const actor = await this.resolverActor(id, tipo_actor);
     const { repo } = repositorioDe(actor.tipo_actor);
     return repo.actualizar(actor.id_actor, data);
   }
 
+  // Cambia el estado de un actor de cualquier tipo, resolviendo su identidad
   static async darDeBaja(id, tipo_actor = null) {
     const actor = await this.resolverActor(id, tipo_actor);
     const { repo } = repositorioDe(actor.tipo_actor);
     return repo.darDeBaja(actor.id_actor);
   }
 
+  // Cambia el estado de un actor de cualquier tipo, resolviendo su identidad
   static async activar(id, tipo_actor = null) {
     const actor = await this.resolverActor(id, tipo_actor);
     const { repo } = repositorioDe(actor.tipo_actor);
     return repo.activar(actor.id_actor);
   }
 
+  // Elimina un actor de cualquier tipo, resolviendo su identidad
   static async eliminar(id, tipo_actor = null) {
     const actor = await this.resolverActor(id, tipo_actor);
     const { repo } = repositorioDe(actor.tipo_actor);

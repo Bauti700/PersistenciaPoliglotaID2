@@ -21,6 +21,7 @@ export class ReporteComercialRepository {
     }
   }
 
+  // Reporte parametrizado que combina métricas y parámetros, con auditoría en MongoDB
   static async reporteComercialParametrizado(filtros = {}, usuario = null) {
     const base = await ReporteComercialSqlRepository.reporteComercialParametrizado(filtros);
 
@@ -43,10 +44,12 @@ export class ReporteComercialRepository {
     };
   }
 
+  // Reporte de ranking de clientes por volumen, obteniendo los datos desde PostgreSQL
   static async rankingClientesPorVolumen() {
     return await ReporteComercialSqlRepository.rankingClientesPorVolumen();
   }
 
+  // Reporte de ranking de clientes por incidentes, obteniendo los datos desde PostgreSQL
   static async reporteOperativoEnvios(filtros = {}, usuario = null) {
     const datos = await ReporteComercialSqlRepository.reporteOperativoEnvios(filtros);
     try {
@@ -67,6 +70,7 @@ export class ReporteComercialRepository {
     }
   }
 
+  // Reporte de tiempos de envío por cliente, obteniendo los datos desde PostgreSQL y auditando en MongoDB
   static async tiemposEnvioPorCliente(usuario = null) {
     const datos = await ReporteComercialSqlRepository.tiemposEnvioPorCliente();
     const id_reporte_mongo = await ReporteComercialRepository._auditarReporte({
@@ -85,6 +89,7 @@ export class ReporteComercialRepository {
     return { datos, id_reporte_mongo };
   }
 
+  // Reporte de promedio de incidentes por país, estado y cliente, obteniendo los datos desde PostgreSQL y auditando en MongoDB
   static async promedioIncidentesPorPaisEstadoCliente(filtros = {}, usuario = null) {
     const datos = await ReporteComercialSqlRepository.promedioIncidentesPorPaisEstadoCliente(filtros);
     const id_reporte_mongo = await ReporteComercialRepository._auditarReporte({
@@ -101,6 +106,7 @@ export class ReporteComercialRepository {
     return { datos, id_reporte_mongo };
   }
 
+  // Reporte de tiempos promedio de entrega por país, obteniendo los datos desde PostgreSQL y auditando en MongoDB
   static async tiemposPromedioEntrega(usuario = null) {
     const datos = await ReporteComercialSqlRepository.tiemposPromedioEntrega();
     const id_reporte_mongo = await ReporteComercialRepository._auditarReporte({
@@ -116,6 +122,7 @@ export class ReporteComercialRepository {
     return { datos, id_reporte_mongo };
   }
 
+  // Reporte de costos por tipo de transporte, obteniendo los datos desde PostgreSQL y auditando en MongoDB
   static async costosPorTipoTransporte(usuario = null) {
     const datos = await ReporteComercialSqlRepository.costosPorTipoTransporte();
     const id_reporte_mongo = await ReporteComercialRepository._auditarReporte({
@@ -132,6 +139,7 @@ export class ReporteComercialRepository {
     return { datos, id_reporte_mongo };
   }
 
+  // Reporte facturable parametrizado que combina métricas y parámetros, con auditoría en MongoDB
   static async reporteFacturableParametrizado(filtros = {}, usuario = null) {
     // Se consulta una sola vez y se persiste un único documento FACTURABLE.
     const base = await ReporteComercialSqlRepository.reporteComercialParametrizado(filtros);

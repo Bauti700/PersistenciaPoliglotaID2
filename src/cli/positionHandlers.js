@@ -19,6 +19,7 @@ import { RedisCacheRepository } from '../repositories/cacheRepository.js';
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 
+// Función para manejar la opción 10 del menú principal, que corresponde a la consulta de posiciones GPS en tiempo real. Permite al usuario autenticado consultar la última posición de un contenedor, listar todas las posiciones cacheadas o buscar contenedores cercanos a una coordenada específica.
 export async function handleOption10({ ask, currentUser }) {
   console.log('\n--- CONSULTA DE POSICIONES GPS EN TIEMPO REAL ---');
   console.log('1. Última posición de un contenedor');

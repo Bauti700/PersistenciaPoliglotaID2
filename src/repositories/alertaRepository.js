@@ -9,6 +9,7 @@ import {
   errorValidacion
 } from '../utils/validation.js';
 
+// Constantes de configuración de reglas y alertas
 const TIPOS_REGLA = ['TEMPERATURA', 'BATERIA', 'INACTIVIDAD'];
 const TIPOS_ALERTA = [...TIPOS_REGLA, 'INCIDENTE'];
 const CONDICIONES = ['MAYOR_QUE', 'MAYOR_IGUAL_QUE', 'MENOR_QUE', 'MENOR_IGUAL_QUE', 'IGUAL_QUE'];
@@ -16,6 +17,7 @@ const SEVERIDADES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA'];
 const ESTADOS_ALERTA = ['ABIERTA', 'PENDIENTE', 'CERRADA'];
 const ESTADOS_ABIERTOS = ['ABIERTA', 'PENDIENTE'];
 
+// 5. Fachada de compatibilidad AlertRuleRepository (consulta polimórfica)
 const REGLAS_POR_DEFECTO = {
   TEMPERATURA: {
     id_regla: 'REG-DEF-TEMPERATURA',
@@ -46,10 +48,12 @@ const REGLAS_POR_DEFECTO = {
   }
 };
 
+// Devuelve la condición por defecto según el tipo de regla
 function condicionPorDefecto(tipo) {
   return tipo === 'BATERIA' ? 'MENOR_QUE' : 'MAYOR_QUE';
 }
 
+// Valida los datos de una regla de alerta, opcionalmente de forma parcial para actualizaciones
 function validarRegla(data = {}, { parcial = false } = {}) {
   const regla = {};
   let cantidad = 0;
@@ -111,6 +115,7 @@ function validarRegla(data = {}, { parcial = false } = {}) {
   return regla;
 }
 
+// Evalúa si un valor cumple con la condición y el umbral especificados
 function evaluarCondicion(valor, condicion, umbral) {
   const numero = Number(valor);
   if (!Number.isFinite(numero)) return false;
@@ -124,6 +129,7 @@ function evaluarCondicion(valor, condicion, umbral) {
   }
 }
 
+// Devuelve una etiqueta legible para el tipo de alerta
 function etiquetaTipo(tipo) {
   return {
     TEMPERATURA: 'Temperatura',
@@ -132,6 +138,7 @@ function etiquetaTipo(tipo) {
   }[tipo] || tipo;
 }
 
+// Exportación de la clase AlertaRepository y constantes relacionadas
 export class AlertaRepository {
   // --- REGLAS ---
   static async crearRegla(regla) {
@@ -154,6 +161,7 @@ export class AlertaRepository {
     return doc;
   }
 
+  // Valida que no exista otra regla activa del mismo tipo, opcionalmente excluyendo una regla específica
   static async validarReglaActivaUnica(tipo, exceptoId = null) {
     const filtro = { tipo, activa: true };
     if (exceptoId) filtro.id_regla = { $ne: exceptoId };
@@ -167,6 +175,7 @@ export class AlertaRepository {
     }
   }
 
+  // Obtiene todas las reglas, opcionalmente filtrando solo las activas
   static async listarReglas({ soloActivas = false } = {}) {
     const filtro = soloActivas ? { activa: true } : {};
     return await getDb().collection('reglas_alertas')
@@ -175,11 +184,13 @@ export class AlertaRepository {
       .toArray();
   }
 
+  // Obtiene una regla por su ID
   static async obtenerReglaPorId(id_regla) {
     const id = textoRequerido(id_regla, 'id_regla', { max: 50 });
     return await getDb().collection('reglas_alertas').findOne({ id_regla: id });
   }
 
+  // Obtiene la regla activa aplicable para un tipo específico
   static async actualizarRegla(id_regla, datos) {
     const id = textoRequerido(id_regla, 'id_regla', { max: 50 });
     const actualizacion = validarRegla(datos, { parcial: true });
@@ -200,6 +211,7 @@ export class AlertaRepository {
     return await col.findOne({ id_regla: id });
   }
 
+  // Obtiene la regla activa aplicable para un tipo específico
   static async activarRegla(id_regla) {
     const id = textoRequerido(id_regla, 'id_regla', { max: 50 });
     const col = getDb().collection('reglas_alertas');
@@ -216,6 +228,7 @@ export class AlertaRepository {
     return await col.findOne({ id_regla: id });
   }
 
+  // Desactiva una regla específica
   static async desactivarRegla(id_regla) {
     const id = textoRequerido(id_regla, 'id_regla', { max: 50 });
     const col = getDb().collection('reglas_alertas');
@@ -227,6 +240,7 @@ export class AlertaRepository {
     return await col.findOne({ id_regla: id });
   }
 
+  // Elimina una regla específica
   static async eliminarRegla(id_regla) {
     const id = textoRequerido(id_regla, 'id_regla', { max: 50 });
     const res = await getDb().collection('reglas_alertas').deleteOne({ id_regla: id });
@@ -262,12 +276,14 @@ export class AlertaRepository {
     return mapa;
   }
 
+  // Obtiene la regla activa aplicable para un tipo específico
   static async obtenerReglaAplicable(tipo) {
     const tipoNormalizado = unoDe(tipo, TIPOS_REGLA, 'tipo');
     const reglas = await AlertaRepository.obtenerReglasActivas();
     return reglas[tipoNormalizado];
   }
 
+  // Devuelve todas las reglas efectivas, incluyendo las desactivadas con valores por defecto
   static async listarReglasEfectivas() {
     const mapa = await AlertaRepository.obtenerReglasActivas();
     return TIPOS_REGLA.map(tipo => {
@@ -286,6 +302,7 @@ export class AlertaRepository {
   }
 
   // --- ALERTAS ---
+  // Crea una nueva alerta en la base de datos
   static async crearAlerta(alerta) {
     const idSensor = alerta.id_sensor
       ? textoRequerido(alerta.id_sensor, 'id_sensor', { max: 50 })
@@ -327,6 +344,7 @@ export class AlertaRepository {
     return doc;
   }
 
+ // Verifica si existe una alerta abierta para un sensor y tipo específicos
   static async existeAlertaAbierta({ id_sensor, tipo }) {
     if (!id_sensor) return false;
     const id = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
@@ -339,6 +357,7 @@ export class AlertaRepository {
     return Boolean(res);
   }
 
+  // Verifica si existe una alerta abierta asociada a un incidente específico
   static async existeAlertaPorIncidente(id_incidente) {
     const id = textoRequerido(id_incidente, 'id_incidente', { max: 100 });
     const res = await getDb().collection('alertas').findOne({
@@ -348,6 +367,7 @@ export class AlertaRepository {
     return Boolean(res);
   }
 
+  // Devuelve todas las alertas abiertas, ordenadas por fecha descendente
   static async listarAlertasAbiertas() {
     return await getDb().collection('alertas')
       .find({ estado: { $in: ESTADOS_ABIERTOS } })
@@ -355,6 +375,7 @@ export class AlertaRepository {
       .toArray();
   }
 
+  // Devuelve todas las alertas según filtros opcionales, ordenadas por fecha descendente
   static async listarAlertas({ estado = null, tipo = null, id_sensor = null, id_contenedor = null, id_incidente = null, limite = 100 } = {}) {
     const filtro = {};
     if (estado) filtro.estado = unoDe(estado, ESTADOS_ALERTA, 'estado');
@@ -379,6 +400,7 @@ export class AlertaRepository {
       .toArray();
   }
 
+  // Cierra una alerta específica, cambiando su estado a "CERRADA" y registrando la fecha de cierre
   static async cerrarAlerta(id_alerta) {
     const id = textoRequerido(id_alerta, 'id_alerta', { max: 100 });
     const col = getDb().collection('alertas');
@@ -390,6 +412,7 @@ export class AlertaRepository {
     return await col.findOne({ id_alerta: id });
   }
 
+  // Cierra todas las alertas abiertas asociadas a un sensor específico
   static evaluarLectura(lectura, reglas) {
     const disparos = [];
     if (lectura.temperatura !== undefined && lectura.temperatura !== null) {
@@ -407,6 +430,7 @@ export class AlertaRepository {
     return disparos;
   }
 
+  // Genera un mensaje de alerta legible a partir del tipo, valor y regla aplicada
   static mensajeAlerta(tipo, valor, regla) {
     const unidad = tipo === 'TEMPERATURA' ? '°C' : tipo === 'BATERIA' ? '%' : ' h';
     const operador = {
@@ -474,6 +498,7 @@ export class AlertaRepository {
     return res.modifiedCount;
   }
 
+  // Detecta alertas de estado de sensores según las reglas activas y genera alertas correspondientes
   static async detectarAlertasEstadoSensores() {
     const colSensores = getDb().collection('sensores');
     const colLecturas = getDb().collection('lecturas_sensores');

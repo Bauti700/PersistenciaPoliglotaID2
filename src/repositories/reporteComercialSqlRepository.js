@@ -11,6 +11,10 @@ import {
   ESTADOS_FACTURA
 } from '../utils/validation.js';
 
+// Los reportes comerciales se generan a partir de datos relacionales en PostgreSQL,
+// pero algunos agregados (como incidentes por envío) se obtienen desde MongoDB.
+// Esta clase encapsula la lógica de consulta y agregación de datos para los
+// reportes comerciales.
 export class ReporteComercialSqlRepository {
   // Los incidentes viven en MongoDB, no en PostgreSQL. Este helper devuelve un
   // mapa id_envio -> agregados para combinarlos con las filas relacionales.
@@ -24,6 +28,9 @@ export class ReporteComercialSqlRepository {
     }
   }
 
+  // Genera un reporte comercial parametrizado según los filtros indicados. Devuelve
+  // un objeto con los parámetros aplicados, las métricas agregadas y el detalle de
+  // facturas que cumplen los filtros.
   static async reporteComercialParametrizado({
     fecha_desde = null,
     fecha_hasta = null,
@@ -95,6 +102,7 @@ export class ReporteComercialSqlRepository {
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    // Se hace un JOIN con una subconsulta que unifica clientes, proveedores y operadores para poder filtrar por tipo_actor y obtener la razón social y país del actor.
     const query = `
       SELECT f.id_factura, f.tipo_factura, f.numero_comprobante, f.concepto, f.id_envio,
              f.importe_total, f.estado, f.fecha_emision,
@@ -137,6 +145,7 @@ export class ReporteComercialSqlRepository {
     const pendienteCobro = facturadoEmitido - cobradoEmitido;
     const pendientePago = facturadoRecibido - pagadoRecibido;
 
+    // Se redondean los importes a dos decimales para evitar problemas de precisión con números flotantes.
     const metricas = {
       total_facturas: facturas.length,
       facturas_pagadas: facturas.filter(f => f.estado === 'PAGADA').length,
@@ -156,6 +165,7 @@ export class ReporteComercialSqlRepository {
     return { parametros, metricas, facturas };
   }
 
+  // Genera un ranking de clientes por volumen de envíos y facturación. Devuelve un array de objetos con id_actor, razón social, país, total_envios, total_facturas y volumen_facturado.
   static async rankingClientesPorVolumen() {
     // Los envíos y las facturas se agregan en subconsultas separadas para evitar
     // el producto cartesiano que duplicaba los importes facturados.
@@ -191,6 +201,7 @@ export class ReporteComercialSqlRepository {
     }));
   }
 
+  // Genera un reporte de envíos con sus fechas estimadas y reales de entrega, indicando si están demorados y cuántos incidentes tienen. Se pueden aplicar filtros por país, estado del envío, ID de cliente y si se quieren solo los demorados o solo los con incidentes abiertos.
   static async reporteOperativoEnvios(filtros = {}) {
     const {
       pais = null,
@@ -232,6 +243,7 @@ export class ReporteComercialSqlRepository {
       filtrosSQL.push(`e.id_cliente = $${params.length}`);
     }
 
+    // Se construyen las cláusulas WHERE según los filtros aplicados. Si solo se quieren los envíos demorados, se agrega un filtro adicional.
     const whereFiltros = filtrosSQL.length > 0 ? `WHERE ${filtrosSQL.join(' AND ')}` : '';
     const whereDemorados = solo_demorados
       ? `WHERE b.fecha_entrega IS NULL
@@ -239,6 +251,7 @@ export class ReporteComercialSqlRepository {
            AND b.estado NOT IN ('ENTREGADO', 'CANCELADO')`
       : '';
 
+      // Se hace un CTE (Common Table Expression) para calcular la fecha estimada de entrega
     const query = `
       WITH base AS (
         SELECT e.id_envio, e.id_cliente, c.razon_social, c.pais,
@@ -311,6 +324,7 @@ export class ReporteComercialSqlRepository {
     return result.rows;
   }
 
+  // Genera un reporte de promedio de incidentes por país, estado del envío y cliente. Devuelve un array de objetos con país, estado, id_cliente, razón social, total_envios, total_incidentes y promedio_incidentes_por_envio.
   static async promedioIncidentesPorPaisEstadoCliente(filtros = {}) {
     const { pais = null, estado = null, id_cliente = null } = filtros;
     const estadoNormalizado = estado ? unoDe(estado, ESTADOS_ENVIO, 'estado') : null;
@@ -387,6 +401,7 @@ export class ReporteComercialSqlRepository {
       );
   }
 
+  // Genera un reporte de tiempos promedio de entrega por país. Devuelve un array de objetos con país, cantidad de envíos entregados, promedio de días de entrega, mínimo y máximo.
   static async tiemposPromedioEntrega() {
     const query = `
       SELECT c.pais,
@@ -404,6 +419,7 @@ export class ReporteComercialSqlRepository {
     return result.rows;
   }
 
+  // Genera un reporte de costos por tipo de transporte. Devuelve un array de objetos con medio_transporte, total_envios, total_tramos, costo_total_estimado y costo_promedio_por_tramo.
   static async costosPorTipoTransporte() {
     const query = `
       SELECT t.medio_transporte AS medio,

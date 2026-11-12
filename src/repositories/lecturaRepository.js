@@ -9,6 +9,7 @@ const OPERADORES = {
   IGUAL_QUE: '$eq'
 };
 
+// Construye un filtro de rango de fechas para consultas MongoDB, devolviendo un objeto con $gte y/o $lte según los parámetros proporcionados
 function rangoFechas(desde = null, hasta = null) {
   const filtro = {};
   if (desde) {
@@ -22,6 +23,7 @@ function rangoFechas(desde = null, hasta = null) {
   return Object.keys(filtro).length > 0 ? filtro : null;
 }
 
+// Construye un filtro de consulta para el histórico de lecturas, combinando identificadores y rango de fechas
 function construirFiltroHistorico(identificador, { desde = null, hasta = null } = {}) {
   const filtro = { ...identificador };
   const rango = rangoFechas(desde, hasta);
@@ -64,6 +66,7 @@ export class LecturaRepository {
     return doc;
   }
 
+  // Consulta el histórico de lecturas de un sensor específico, con filtros opcionales de fecha y límite de resultados
   static async consultarHistoricoLecturas(id_sensor, limite = 10, filtros = {}) {
     const cantidad = enteroPositivo(limite, 'limite', { min: 1, max: 500 });
     return await getDb().collection('lecturas_sensores')
@@ -73,6 +76,7 @@ export class LecturaRepository {
       .toArray();
   }
 
+  // Consulta el histórico de lecturas de un contenedor específico, con filtros opcionales de fecha y límite de resultados
   static async consultarHistoricoPorContenedor(id_contenedor, limite = 20, filtros = {}) {
     const cantidad = enteroPositivo(limite, 'limite', { min: 1, max: 500 });
     return await getDb().collection('lecturas_sensores')
@@ -82,6 +86,7 @@ export class LecturaRepository {
       .toArray();
   }
 
+  //Detecta anomalías de temperatura en las lecturas de sensores, según un umbral y condición especificados, con filtros opcionales de sensor, contenedor y rango de fechas
   static async detectarAnomaliasTemperatura(umbral = 8.0, condicion = 'MAYOR_QUE', filtros = {}) {
     const operador = OPERADORES[condicion] || '$gt';
     const match = { temperatura: { [operador]: Number(umbral) } };

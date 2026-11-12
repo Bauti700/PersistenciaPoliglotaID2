@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate, formatMoney } from './cliFormatters.js';
 
+// Función para manejar la opción 3 del menú principal, que corresponde al módulo de gestión comercial y financiera. Permite emitir facturas, registrar pagos, consultar saldos y generar reportes comerciales.
 export async function handleOption3({ ask, currentUser }) {
             let salirCom = false;
             while (!salirCom) {

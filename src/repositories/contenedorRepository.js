@@ -6,9 +6,11 @@ import {
   errorValidacion
 } from '../utils/validation.js';
 
+//Clase de repositorio para manejar los contenedores
 export const ESTADOS_CONTENEDOR = ['DISPONIBLE', 'EN_TRANSITO', 'FUERA_SERVICIO'];
 const CAMPOS_CONTENEDOR = ['id_contenedor', 'codigo_internacional', 'tipo', 'capacidad', 'estado'];
 
+// Validación de datos de contenedor (para creación o actualización)
 function validarContenedor(data, { parcial = false } = {}) {
   const claves = Object.keys(data || {});
   const desconocidos = claves.filter(campo => !CAMPOS_CONTENEDOR.includes(campo));
@@ -19,6 +21,7 @@ function validarContenedor(data, { parcial = false } = {}) {
     throw errorValidacion('El campo id_contenedor es obligatorio.');
   }
 
+  // Validación de cada campo según su tipo y restricciones
   const contenedor = {};
   if (data.id_contenedor !== undefined) {
     if (parcial) throw errorValidacion('El ID del contenedor no se puede modificar.');
@@ -42,18 +45,21 @@ function validarContenedor(data, { parcial = false } = {}) {
   return contenedor;
 }
 
+// Repositorio de contenedores con métodos CRUD y de gestión de estado
 export class ContenedorRepository {
   static async listarTodos() {
     const res = await pgPool.query('SELECT * FROM contenedores ORDER BY id_contenedor ASC');
     return res.rows;
   }
 
+  // Obtenemos un contenedor por su ID
   static async obtenerPorId(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query('SELECT * FROM contenedores WHERE id_contenedor = $1', [idContenedor]);
     return res.rows[0] || null;
   }
 
+  // Obtenemos un contenedor por su código internacional
   static async obtenerPorCodigoInternacional(codigo) {
     const codigoNormalizado = textoRequerido(codigo, 'codigo_internacional', { max: 100 });
     const res = await pgPool.query(
@@ -63,6 +69,7 @@ export class ContenedorRepository {
     return res.rows[0] || null;
   }
 
+  //Creamos un nuevo contenedor con los datos proporcionados
   static async crear(data) {
     const contenedor = validarContenedor(data);
     try {
@@ -86,6 +93,7 @@ export class ContenedorRepository {
     }
   }
 
+  // Actualizamos un contenedor existente con los datos proporcionados
   static async actualizar(id, data) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const contenedor = validarContenedor(data, { parcial: true });
@@ -116,6 +124,7 @@ export class ContenedorRepository {
     return existente;
   }
 
+  // Damos de baja un contenedor (lo marcamos como FUERA_SERVICIO) si está DISPONIBLE
   static async darDeBaja(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query(`
@@ -132,6 +141,7 @@ export class ContenedorRepository {
     return existente;
   }
 
+  // Activamos un contenedor (lo marcamos como DISPONIBLE) si no está EN_TRANSITO
   static async activar(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query(`
@@ -148,6 +158,7 @@ export class ContenedorRepository {
     return existente;
   }
 
+  // Marcamos un contenedor como EN_TRANSITO si está DISPONIBLE
   static async marcarEnTransito(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query(`
@@ -164,6 +175,7 @@ export class ContenedorRepository {
     return existente;
   }
 
+  // Restauramos el estado de un contenedor a DISPONIBLE o FUERA_SERVICIO
   static async restaurarEstado(id, estado) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const estadoNormalizado = unoDe(estado, ESTADOS_CONTENEDOR, 'estado');
@@ -174,6 +186,7 @@ export class ContenedorRepository {
     return res.rows[0] || null;
   }
 
+  // Eliminamos un contenedor si no está en tránsito y no tiene envíos asociados
   static async eliminar(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const existente = await this.obtenerPorId(idContenedor);
@@ -199,6 +212,7 @@ export class ContenedorRepository {
     return res.rows[0] || null;
   }
 
+  // Verificamos si un contenedor existe por su ID
   static async existe(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query('SELECT 1 FROM contenedores WHERE id_contenedor = $1', [idContenedor]);

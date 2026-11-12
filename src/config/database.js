@@ -100,7 +100,7 @@ export async function initDatabaseConnections() {
   return status;
 }
 
-// Cierre ordenado
+// Obtener la instancia de la base de datos MongoDB
 export function getDb() {
   if (!mongoDb) {
     throw new Error('MongoDB no inicializado. Llamar a initDatabaseConnections() primero.');
@@ -108,9 +108,10 @@ export function getDb() {
   return mongoDb;
 }
 
+// Cierre ordenado de todas las conexiones
 export async function closeDatabaseConnections() {
-  try { await pgPool.end(); } catch {}
-  try { await mongoClient.close(); } catch {}
-  try { await neoDriver.close(); } catch {}
-  try { if (redisClient.isOpen) await redisClient.quit(); } catch {}
+  try { await pgPool.end(); } catch { }
+  try { await mongoClient.close(); } catch { }
+  try { await neoDriver.close(); } catch { }
+  try { if (redisClient.isOpen) await redisClient.quit(); } catch { }
 }

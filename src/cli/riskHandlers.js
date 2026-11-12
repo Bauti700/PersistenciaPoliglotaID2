@@ -19,6 +19,7 @@ import { LogisticsService } from '../services/logisticsService.js';
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 
+// Función para manejar la opción 12 del menú principal, que corresponde a la predicción de riesgo de demora en un envío. Permite al usuario autenticado ingresar un ID de envío y obtener una predicción basada en datos históricos y modelos de riesgo.
 export async function handleOption12({ ask, currentUser }) {
   console.log('\n--- PREDICCIÓN DE RIESGO DE DEMORA ---');
   const id_envio = await ask('ID Envío (ej: ENV-1001): ') || 'ENV-1001';

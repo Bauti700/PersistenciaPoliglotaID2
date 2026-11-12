@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatNumber } from './cliFormatters.js';
 
+// Manejo de la opción 2: Gestión de contenedores
 export async function handleOption2({ ask, currentUser }) {
   let salirCont = false;
   while (!salirCont) {

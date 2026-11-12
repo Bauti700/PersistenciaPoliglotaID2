@@ -1,12 +1,14 @@
 import { pgPool, getDb } from '../config/database.js';
 import { textoRequerido, errorValidacion } from '../utils/validation.js';
 
+//Repositorio para manejar la relación entre envíos y contenedores, incluyendo asignación, liberación y validación de contenedores.
 export class ShipmentContainerRepository {
   static async contarSensoresAsignados(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     return getDb().collection('sensores').countDocuments({ id_contenedor: idContenedor });
   }
 
+  // Cuenta cuántas asignaciones de contenedores existen para un envío específico.
   static async contarAsignaciones(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query(
@@ -16,6 +18,7 @@ export class ShipmentContainerRepository {
     return res.rows[0]?.total || 0;
   }
 
+  // Cuenta cuántas asignaciones activas (no liberadas) existen para un contenedor específico.
   static async contarAsignacionesActivas(id) {
     const idContenedor = textoRequerido(id, 'id_contenedor', { max: 50 });
     const res = await pgPool.query(`
@@ -25,6 +28,7 @@ export class ShipmentContainerRepository {
     return res.rows[0]?.total || 0;
   }
 
+  // Verifica si un contenedor está asignado a un envío específico y aún no ha sido liberado.
   static async estaAsignadoAEnvio(id_envio, id_contenedor) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const idContenedor = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
@@ -35,6 +39,7 @@ export class ShipmentContainerRepository {
     return res.rowCount > 0;
   }
 
+  // Bloquea y valida un conjunto de contenedores para su asignación a un envío, verificando su existencia, estado y asignaciones previas.
   static async bloquearYValidar(ids, client = pgPool, id_envio = null) {
     const contenedores = [...new Set(ids || [])];
     if (contenedores.length === 0) {
@@ -79,6 +84,7 @@ export class ShipmentContainerRepository {
     return res.rows;
   }
 
+  // Asigna un conjunto de contenedores a un envío específico, bloqueando y validando los contenedores antes de la asignación.
   static async asignar(id_envio, contenedores, client = pgPool) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const ids = (contenedores || []).map((contenedor, index) => textoRequerido(
@@ -105,6 +111,7 @@ export class ShipmentContainerRepository {
     return asignados.rows;
   }
 
+  // Lista los contenedores asignados a un envío específico, con opción de filtrar solo los activos (no liberados).
   static async listar(id_envio, { soloActivos = false, client = pgPool } = {}) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const filtroActivo = soloActivos ? 'AND ec.fecha_liberacion IS NULL' : '';
@@ -117,6 +124,7 @@ export class ShipmentContainerRepository {
     return res.rows;
   }
 
+  // Libera los contenedores asignados a un envío específico, marcando la fecha de liberación y actualizando su estado a "DISPONIBLE".
   static async liberar(id_envio, client = pgPool) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const liberados = await client.query(`
@@ -134,6 +142,7 @@ export class ShipmentContainerRepository {
     return ids;
   }
 
+  // Reactiva los contenedores previamente liberados de un envío específico, eliminando la fecha de liberación y actualizando su estado a "EN_TRANSITO".
   static async reactivar(id_envio, ids, client = pgPool) {
     const idEnvio = textoRequerido(id_envio, 'id_envio', { max: 50 });
     if (!Array.isArray(ids) || ids.length === 0) return;
@@ -147,6 +156,7 @@ export class ShipmentContainerRepository {
     `, [ids]);
   }
 
+  // Métodos de conveniencia que llaman a los métodos principales con los mismos argumentos.
   static asignarContenedoresAEnvio(...args) {
     return this.asignar(...args);
   }

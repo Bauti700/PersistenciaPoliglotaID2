@@ -1,11 +1,13 @@
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+//Código de error de validación personalizado
 export function errorValidacion(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// Validaciones de campos de texto, números y fechas
 export function textoRequerido(valor, campo, { min = 1, max = 255 } = {}) {
   if (typeof valor !== 'string') {
     throw errorValidacion(`El campo ${campo} debe ser texto.`);
@@ -23,6 +25,7 @@ export function textoRequerido(valor, campo, { min = 1, max = 255 } = {}) {
   return limpio;
 }
 
+// Validación de texto opcional (puede ser null o vacío)
 export function textoOpcional(valor, campo, { min = 0, max = 255 } = {}) {
   if (valor === undefined || valor === null) return null;
   if (typeof valor !== 'string') {
@@ -83,6 +86,7 @@ export function idTexto(valor, campo = 'id') {
   return textoRequerido(valor, campo, { max: 50 });
 }
 
+// Validación de un objeto JSON (no array) a partir de un string
 export function objetoJson(valor, campo = 'permisos') {
   if (valor === undefined || valor === null || valor === '') return {};
   if (typeof valor === 'object' && !Array.isArray(valor)) return valor;
@@ -97,6 +101,7 @@ export function objetoJson(valor, campo = 'permisos') {
   }
 }
 
+// Validación de un array de strings a partir de un string JSON
 export function booleano(valor, campo = 'activa') {
   if (typeof valor === 'boolean') return valor;
   const normalizado = String(valor || '').trim().toLowerCase();

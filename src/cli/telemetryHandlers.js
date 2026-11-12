@@ -20,6 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate, formatTableRows } from './cliFormatters.js';
 
+// Función para manejar la opción 4 del menú principal, que corresponde a la ingesta de telemetría IoT. Permite al usuario autenticado registrar lecturas de sensores, gestionar sensores (ABM), asignar sensores a contenedores/envíos, listar sensores por contenedor y configurar reglas y alertas de estado.
 export async function handleOption4({ ask, currentUser }) {
   let salirIoT = false;
   while (!salirIoT) {

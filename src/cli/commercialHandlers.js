@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatTableRows } from './cliFormatters.js';
 
+//Manejo de la opción 13: Ranking de clientes por volumen transportado/facturado
 export async function handleOption13({ ask, currentUser }) {
   console.log('\n--- RANKING DE CLIENTES POR VOLUMEN TRANSPORTADO / FACTURADO ---');
   const ranking = await ReporteComercialRepository.rankingClientesPorVolumen();
