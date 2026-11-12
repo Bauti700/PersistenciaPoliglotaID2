@@ -145,7 +145,7 @@ export async function handleOption11({ ask, currentUser }) {
           tramos: [{ desde: origen, hasta: destino, medio }]
         });
         console.log('\nEnvío creado y propagado exitosamente:');
-        console.log(res);
+        console.dir(res, { depth: null });
       } catch (error) {
         console.log(`\n[No se pudo crear el envío] ${error.message}`);
       }
