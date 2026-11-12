@@ -406,7 +406,12 @@ INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, 
 ('CONT-012', 'HLXU-443322-4', 'Flat Rack', 31000.00, 'DISPONIBLE'),
 ('CONT-013', 'SUDU-332211-5', 'Reefer (Refrigerado)', 28000.00, 'EN_TRANSITO'),
 ('CONT-014', 'OOLU-221100-6', 'Dry (Carga Seca)', 29000.00, 'DISPONIBLE'),
-('CONT-015', 'TGHU-998877-7', 'Tank Container', 25000.00, 'EN_TRANSITO')
+('CONT-015', 'TGHU-998877-7', 'Tank Container', 25000.00, 'EN_TRANSITO'),
+('CONT-016', 'TCNU-552109-7', 'Dry (Carga Seca)', 30500.00, 'EN_TRANSITO'),
+('CONT-017', 'HLXU-441298-3', 'Dry (Carga Seca)', 28000.00, 'EN_TRANSITO'),
+('CONT-018', 'CMAU-772341-9', 'Dry (Carga Seca)', 31000.00, 'EN_TRANSITO'),
+('CONT-019', 'SUDU-883412-5', 'Reefer (Refrigerado)', 27500.00, 'EN_TRANSITO'),
+('CONT-020', 'MSCU-994321-0', 'Dry (Carga Seca)', 29000.00, 'EN_TRANSITO')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, estado) VALUES
@@ -458,7 +463,12 @@ INSERT INTO envio_contenedores (id_envio, id_contenedor, fecha_asignacion, fecha
 ('ENV-1012', 'CONT-012', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
 ('ENV-1013', 'CONT-013', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
 ('ENV-1014', 'CONT-014', CURRENT_TIMESTAMP - INTERVAL '18 days', CURRENT_TIMESTAMP - INTERVAL '14 days'),
-('ENV-1015', 'CONT-015', CURRENT_TIMESTAMP - INTERVAL '15 days', NULL)
+('ENV-1015', 'CONT-015', CURRENT_TIMESTAMP - INTERVAL '15 days', NULL),
+('ENV-1010', 'CONT-016', CURRENT_TIMESTAMP - INTERVAL '8 days', NULL),
+('ENV-1010', 'CONT-017', CURRENT_TIMESTAMP - INTERVAL '8 days', NULL),
+('ENV-1012', 'CONT-018', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
+('ENV-1013', 'CONT-019', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1013', 'CONT-020', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL)
 ON CONFLICT DO NOTHING;
 
 -- Mantiene coherente el estado del contenedor con su composición activa incluso

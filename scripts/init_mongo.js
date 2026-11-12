@@ -115,6 +115,46 @@ db.sensores.insertMany([
     fecha_instalacion: new Date("2024-07-20T16:00:00Z"),
     estado: "ACTIVO",
     id_contenedor: "CONT-015"
+  },
+  {
+    id_sensor: "SENS-114",
+    tipo: "Vibración/Impacto/GPS",
+    fabricante: "SafeCargo Sensors",
+    fecha_instalacion: new Date("2024-07-22T08:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-016"
+  },
+  {
+    id_sensor: "SENS-115",
+    tipo: "Presión/Vibración/GPS",
+    fabricante: "OrbitLink Sat",
+    fecha_instalacion: new Date("2024-07-22T09:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-017"
+  },
+  {
+    id_sensor: "SENS-116",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "IoTCorp Tech",
+    fecha_instalacion: new Date("2024-07-25T10:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-018"
+  },
+  {
+    id_sensor: "SENS-117",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "Carrier Transicold",
+    fecha_instalacion: new Date("2024-07-28T11:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-019"
+  },
+  {
+    id_sensor: "SENS-118",
+    tipo: "Humedad/GPS",
+    fabricante: "ColdChain Pro",
+    fecha_instalacion: new Date("2024-07-28T12:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-020"
   }
 ]);
 
@@ -386,6 +426,66 @@ db.lecturas_sensores.insertMany([
     vibracion: 0.04,
     posicion_gps: { type: "Point", coordinates: [9.9937, 53.5511] },
     nivel_bateria: 85
+  },
+  {
+    id_lectura: "LEC-022",
+    id_sensor: "SENS-114",
+    id_contenedor: "CONT-016",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 3600000 * 3),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.22,
+    posicion_gps: { type: "Point", coordinates: [-69.0000, -23.8000] },
+    nivel_bateria: 92
+  },
+  {
+    id_lectura: "LEC-023",
+    id_sensor: "SENS-115",
+    id_contenedor: "CONT-017",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 3600000 * 2),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.18,
+    posicion_gps: { type: "Point", coordinates: [-69.5000, -23.7000] },
+    nivel_bateria: 95
+  },
+  {
+    id_lectura: "LEC-024",
+    id_sensor: "SENS-116",
+    id_contenedor: "CONT-018",
+    id_envio: "ENV-1012",
+    fecha_hora: new Date(Date.now() - 3600000 * 4),
+    temperatura: 22.0,
+    humedad: 76.0,
+    vibracion: 0.05,
+    posicion_gps: { type: "Point", coordinates: [-58.0000, -27.0000] },
+    nivel_bateria: 91
+  },
+  {
+    id_lectura: "LEC-025",
+    id_sensor: "SENS-117",
+    id_contenedor: "CONT-019",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    temperatura: 3.5,
+    humedad: 85.0,
+    vibracion: 0.06,
+    posicion_gps: { type: "Point", coordinates: [4.4000, 51.9000] },
+    nivel_bateria: 98
+  },
+  {
+    id_lectura: "LEC-026",
+    id_sensor: "SENS-118",
+    id_contenedor: "CONT-020",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    temperatura: 18.0,
+    humedad: 50.0,
+    vibracion: 0.04,
+    posicion_gps: { type: "Point", coordinates: [4.4000, 51.9000] },
+    nivel_bateria: 96
   }
 ]);
 

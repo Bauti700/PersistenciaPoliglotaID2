@@ -459,3 +459,43 @@ CREATE (s11)-[:REGISTRA]->(l18)
 CREATE (s11)-[:REGISTRA]->(l19)
 CREATE (s12)-[:REGISTRA]->(l20)
 CREATE (s13)-[:REGISTRA]->(l21)
+
+// Contenedores adicionales para envíos con composición múltiple
+CREATE (cont16:Contenedor {id_contenedor: "CONT-016", codigo_internacional: "TCNU-552109-7", estado: "EN_TRANSITO"})
+CREATE (cont17:Contenedor {id_contenedor: "CONT-017", codigo_internacional: "HLXU-441298-3", estado: "EN_TRANSITO"})
+CREATE (cont18:Contenedor {id_contenedor: "CONT-018", codigo_internacional: "CMAU-772341-9", estado: "EN_TRANSITO"})
+CREATE (cont19:Contenedor {id_contenedor: "CONT-019", codigo_internacional: "SUDU-883412-5", estado: "EN_TRANSITO"})
+CREATE (cont20:Contenedor {id_contenedor: "CONT-020", codigo_internacional: "MSCU-994321-0", estado: "EN_TRANSITO"})
+
+// Asignaciones multi-contenedor a envíos (ENV-1010, ENV-1012, ENV-1013)
+CREATE (cont16)-[:PERTENECE_A]->(e10)
+CREATE (cont17)-[:PERTENECE_A]->(e10)
+CREATE (cont18)-[:PERTENECE_A]->(e12)
+CREATE (cont19)-[:PERTENECE_A]->(e13)
+CREATE (cont20)-[:PERTENECE_A]->(e13)
+
+// Sensores IoT para los nuevos contenedores
+CREATE (s14:Sensor {id_sensor: "SENS-114", tipo: "Vibración/Impacto/GPS"})
+CREATE (s15:Sensor {id_sensor: "SENS-115", tipo: "Presión/Vibración/GPS"})
+CREATE (s16:Sensor {id_sensor: "SENS-116", tipo: "Temperatura/Humedad/GPS"})
+CREATE (s17:Sensor {id_sensor: "SENS-117", tipo: "Temperatura/Humedad/GPS"})
+CREATE (s18:Sensor {id_sensor: "SENS-118", tipo: "Humedad/GPS"})
+
+CREATE (cont16)-[:MONITOREADO_POR]->(s14)
+CREATE (cont17)-[:MONITOREADO_POR]->(s15)
+CREATE (cont18)-[:MONITOREADO_POR]->(s16)
+CREATE (cont19)-[:MONITOREADO_POR]->(s17)
+CREATE (cont20)-[:MONITOREADO_POR]->(s18)
+
+// Lecturas proyectadas
+CREATE (l22:Lectura {id_lectura: "LEC-022", timestamp: datetime() - duration('PT3H'), fecha_hora: datetime() - duration('PT3H'), temperatura: null, humedad: null, vibracion: 0.22, nivel_bateria: 92, latitud: -23.8000, longitud: -69.0000, evento: "LECTURA", ubicacion: "-23.8,-69.0", id_envio: "ENV-1010"})
+CREATE (l23:Lectura {id_lectura: "LEC-023", timestamp: datetime() - duration('PT2H'), fecha_hora: datetime() - duration('PT2H'), temperatura: null, humedad: null, vibracion: 0.18, nivel_bateria: 95, latitud: -23.7000, longitud: -69.5000, evento: "LECTURA", ubicacion: "-23.7,-69.5", id_envio: "ENV-1010"})
+CREATE (l24:Lectura {id_lectura: "LEC-024", timestamp: datetime() - duration('PT4H'), fecha_hora: datetime() - duration('PT4H'), temperatura: 22.0, humedad: 76.0, vibracion: 0.05, nivel_bateria: 91, latitud: -27.0000, longitud: -58.0000, evento: "LECTURA", ubicacion: "-27.0,-58.0", id_envio: "ENV-1012"})
+CREATE (l25:Lectura {id_lectura: "LEC-025", timestamp: datetime() - duration('PT1H'), fecha_hora: datetime() - duration('PT1H'), temperatura: 3.5, humedad: 85.0, vibracion: 0.06, nivel_bateria: 98, latitud: 51.9000, longitud: 4.4000, evento: "LECTURA", ubicacion: "51.9,4.4", id_envio: "ENV-1013"})
+CREATE (l26:Lectura {id_lectura: "LEC-026", timestamp: datetime() - duration('PT1H'), fecha_hora: datetime() - duration('PT1H'), temperatura: 18.0, humedad: 50.0, vibracion: 0.04, nivel_bateria: 96, latitud: 51.9000, longitud: 4.4000, evento: "LECTURA", ubicacion: "51.9,4.4", id_envio: "ENV-1013"})
+
+CREATE (s14)-[:REGISTRA]->(l22)
+CREATE (s15)-[:REGISTRA]->(l23)
+CREATE (s16)-[:REGISTRA]->(l24)
+CREATE (s17)-[:REGISTRA]->(l25)
+CREATE (s18)-[:REGISTRA]->(l26)
