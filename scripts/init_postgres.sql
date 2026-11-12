@@ -239,7 +239,13 @@ INSERT INTO clientes (id_cliente, razon_social, cuit, email, telefono, direccion
 (1, 'Importadora Andina S.A.', '30-71123456-8', 'contacto@andina.com', '+54 11 4321-8765', 'Av. Córdoba 1234', 'Argentina', 150000.00),
 (2, 'Global Traders Ltd', '30-99887766-4', 'ops@globaltraders.com', '+55 11 9876-5432', 'Rua das Flores 45', 'Brasil', -25000.00),
 (3, 'Andes Pharma S.A.', '30-66778899-5', 'logistica@andespharma.com', '+54 261 445-8899', 'Av. San Martín 850', 'Argentina', 0.00),
-(4, 'Pacific Imports SpA', '76-12345678-9', 'operaciones@pacificimports.cl', '+56 2 2345-6789', 'Av. Providencia 2200', 'Chile', 0.00)
+(4, 'Pacific Imports SpA', '76-12345678-9', 'operaciones@pacificimports.cl', '+56 2 2345-6789', 'Av. Providencia 2200', 'Chile', 0.00),
+(5, 'Minera del Altiplano Corp', '30-11223344-5', 'comercial@mineraaltiplano.pe', '+51 1 619-2000', 'Av. Las Begonias 441, San Isidro, Lima', 'Perú', 280000.00),
+(6, 'AgroExport del Sur S.A.', '30-22334455-6', 'export@agroexportsur.uy', '+598 2 916-3344', 'Rambla 25 de Agosto 580, Montevideo', 'Uruguay', -95000.00),
+(7, 'Frutícola del Valle Central', '76-33445566-7', 'ventas@fruticolavalle.cl', '+56 72 233-4455', 'Camino Los Maitenes s/n, Curicó', 'Chile', 140000.00),
+(8, 'Distribuidora Mercosur SRL', '30-44556677-8', 'operaciones@distrimercosur.py', '+595 21 600-789', 'Av. Aviadores del Chaco 2050, Asunción', 'Paraguay', 0.00),
+(9, 'BioTech Solutions Latam', '30-55667788-9', 'supply@biotechlatam.co', '+57 1 744-8900', 'Calle 100 # 19-61, Bogotá', 'Colombia', 65000.00),
+(10, 'Automotriz Continental S.A.', '30-66778899-0', 'logistica@autocontinental.com.br', '+55 11 3848-2000', 'Av. das Nações Unidas 14171, São Paulo', 'Brasil', -180000.00)
 ON CONFLICT (cuit) DO NOTHING;
 
 INSERT INTO operadores (id_operador, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
@@ -255,7 +261,11 @@ SELECT setval(
 INSERT INTO operadores (razon_social, cuit, email, telefono, direccion, pais, estado, saldo, fecha_registro) VALUES
 ('Andes Cargo Internacional S.A.', '30-88990011-3', 'operaciones@andescargo.com', '+54 261 489-2200', 'Parque Industrial Mendoza, Lote 18', 'Argentina', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '8 months'),
 ('Río de la Plata Transportes S.A.', '30-77889900-6', 'trafico@rioplatatransportes.com', '+598 2 900-7711', 'Camino Carrasco 4550, Montevideo', 'Uruguay', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '6 months'),
-('Pacífico Sur Logistics SpA', '76-55667788-4', 'contacto@pacificosurlogistics.cl', '+56 2 2650-1188', 'Av. El Salto 1525, Santiago', 'Chile', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '4 months')
+('Pacífico Sur Logistics SpA', '76-55667788-4', 'contacto@pacificosurlogistics.cl', '+56 2 2650-1188', 'Av. El Salto 1525, Santiago', 'Chile', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '4 months'),
+('Transoceánica Shipping Group', '30-99001122-4', 'chartering@transoceanicaship.com', '+55 13 3210-5000', 'Praça da República 62, Santos', 'Brasil', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '3 months'),
+('Ferrocarril Trasandino Cargas', '30-88112233-5', 'cargas@ferrocarriltrasandino.com', '+54 261 423-1100', 'Estación Central Pasajeros s/n, Mendoza', 'Argentina', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '3 months'),
+('AeroCargas Andinas', '30-77223344-6', 'ops@aerocargasandinas.com', '+51 1 575-1234', 'Aeropuerto Jorge Chávez, Hangar 4, Lima', 'Perú', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '2 months'),
+('Hidrovía Fluvial Paraná-Paraguay', '30-66334455-7', 'barcazas@hidroviafluvial.com', '+595 21 441-200', 'Puerto de Villeta, Terminal Fluvial', 'Paraguay', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '2 months')
 ON CONFLICT (cuit) DO NOTHING;
 
 INSERT INTO proveedores (id_proveedor, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
@@ -275,7 +285,11 @@ INSERT INTO proveedores (razon_social, cuit, email, telefono, direccion, pais, e
 ('Transportes Terrestres del Uruguay S.A.', '30-45678901-9', 'trafico@tturuguay.com.uy', '+598 2 601-4820', 'Camino Bajo de la Petisa 4890, Montevideo', 'Uruguay', 'ACTIVO', 215000.00, CURRENT_TIMESTAMP - INTERVAL '5 months'),
 ('Shanghai East Gate Logistics Co.', '30-34567890-1', 'warehouse@eastgatelogistics.cn', '+86 21 5868 2470', 'No. 88 Waigaoqiao Free Trade Zone, Pudong, Shanghai', 'China', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '3 months'),
 ('Miami Gateway Port Services LLC', '30-23456789-2', 'service@miamigatewayport.com', '+1 305 555 0186', '1015 North America Way, Miami, Florida', 'Estados Unidos', 'ACTIVO', 390000.00, CURRENT_TIMESTAMP - INTERVAL '2 months'),
-('Almacenes y Carga Ibérica S.L.', '30-87654321-0', 'logistica@cargaiberica.es', '+34 96 367 4280', 'Calle del Muelle de la Aduana 7, Valencia', 'España', 'ACTIVO', 67250.00, CURRENT_TIMESTAMP - INTERVAL '1 month')
+('Almacenes y Carga Ibérica S.L.', '30-87654321-0', 'logistica@cargaiberica.es', '+34 96 367 4280', 'Calle del Muelle de la Aduana 7, Valencia', 'España', 'ACTIVO', 67250.00, CURRENT_TIMESTAMP - INTERVAL '1 month'),
+('Telemetría Satelital OrbitLink', '30-55443322-1', 'iot@orbitlink.com', '+1 415 555 0199', '500 Howard St, San Francisco, California', 'Estados Unidos', 'ACTIVO', 110000.00, CURRENT_TIMESTAMP - INTERVAL '1 month'),
+('Reefer Cold Services GmbH', '30-44332211-2', 'support@reefercold.de', '+49 40 3705-0', 'Willy-Brandt-Straße 59, Hamburgo', 'Alemania', 'ACTIVO', 85000.00, CURRENT_TIMESTAMP - INTERVAL '1 month'),
+('Embalajes Industriales del Plata', '30-33221100-3', 'ventas@embalajesdelplata.com.ar', '+54 11 4756-8800', 'Ruta 8 Km 18.5, San Martín, Buenos Aires', 'Argentina', 'ACTIVO', 42000.00, CURRENT_TIMESTAMP - INTERVAL '15 days'),
+('Terminal Portuaria Callao Logistics', '30-22110099-4', 'gate@callaologistics.pe', '+51 1 201-3400', 'Av. Néstor Gambetta 150, Callao', 'Perú', 'ACTIVO', 175000.00, CURRENT_TIMESTAMP - INTERVAL '10 days')
 ON CONFLICT (cuit) DO NOTHING;
 
 -- Contraseñas hasheadas con bcrypt (cost=10) y distintas para cada usuario:
@@ -385,7 +399,14 @@ INSERT INTO contenedores (id_contenedor, codigo_internacional, tipo, capacidad, 
 ('CONT-005', 'SUDU-118452-0', 'Reefer (Refrigerado)', 26000.00, 'EN_TRANSITO'),
 ('CONT-006', 'OOLU-445566-7', 'Reefer (Refrigerado)', 27000.00, 'EN_TRANSITO'),
 ('CONT-007', 'MSCU-778899-3', 'Dry (Carga Seca)', 30000.00, 'EN_TRANSITO'),
-('CONT-008', 'TGHU-112233-5', 'Open Top', 25000.00, 'DISPONIBLE')
+('CONT-008', 'TGHU-112233-5', 'Open Top', 25000.00, 'DISPONIBLE'),
+('CONT-009', 'MSCU-889900-1', 'Reefer (Refrigerado)', 27000.00, 'EN_TRANSITO'),
+('CONT-010', 'CMAU-667788-2', 'Dry (Carga Seca)', 30500.00, 'EN_TRANSITO'),
+('CONT-011', 'TCNU-554433-3', 'Tank Container', 24000.00, 'EN_TRANSITO'),
+('CONT-012', 'HLXU-443322-4', 'Flat Rack', 31000.00, 'DISPONIBLE'),
+('CONT-013', 'SUDU-332211-5', 'Reefer (Refrigerado)', 28000.00, 'EN_TRANSITO'),
+('CONT-014', 'OOLU-221100-6', 'Dry (Carga Seca)', 29000.00, 'DISPONIBLE'),
+('CONT-015', 'TGHU-998877-7', 'Tank Container', 25000.00, 'EN_TRANSITO')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, estado) VALUES
@@ -393,7 +414,12 @@ INSERT INTO vehiculos (id_vehiculo, tipo, identificacion, empresa_operadora, est
 ('VEH-SHIP-01', 'Buque Portacontenedores', 'IMO-9481234', 'Maersk Line', 'OPERATIVO'),
 ('VEH-TRUCK-03', 'Camión Refrigerado', 'AG-315-KL', 'Andes Cargo Internacional S.A.', 'OPERATIVO'),
 ('VEH-TRUCK-04', 'Camión Semirremolque', 'SAB-7821', 'Río de la Plata Transportes S.A.', 'OPERATIVO'),
-('VEH-SHIP-03', 'Buque Portacontenedores', 'IMO-9674521', 'Pacífico Sur Logistics SpA', 'OPERATIVO')
+('VEH-SHIP-03', 'Buque Portacontenedores', 'IMO-9674521', 'Pacífico Sur Logistics SpA', 'OPERATIVO'),
+('VEH-TRAIN-01', 'Tren de Carga Trasandino', 'TREN-901-AR', 'Ferrocarril Trasandino Cargas', 'OPERATIVO'),
+('VEH-PLANE-01', 'Boeing 767-300F Carguero', 'LV-BOG-767', 'AeroCargas Andinas', 'OPERATIVO'),
+('VEH-BARGE-01', 'Convoy de Barcazas Fluviales', 'BCZ-PARANA-14', 'Hidrovía Fluvial Paraná-Paraguay', 'OPERATIVO'),
+('VEH-SHIP-04', 'Buque Portacontenedores Transatlántico', 'IMO-9812450', 'Transoceánica Shipping Group', 'OPERATIVO'),
+('VEH-TRUCK-05', 'Camión Bitren Cerealero', 'AD-890-PQ', 'Logística Express del Plata', 'OPERATIVO')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad, fecha_creacion, fecha_entrega) VALUES
@@ -404,7 +430,14 @@ INSERT INTO envios (id_envio, id_cliente, origen, destino, estado, prioridad, fe
 ('ENV-1005', 1, 'Buenos Aires, Argentina', 'San Pablo, Brasil', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
 ('ENV-1006', 3, 'Mendoza, Argentina', 'Lima, Perú', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
 ('ENV-1007', 4, 'Valparaíso, Chile', 'Buenos Aires, Argentina', 'CREADO', 'BAJA', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
-('ENV-1008', 2, 'San Pablo, Brasil', 'Asunción, Paraguay', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days')
+('ENV-1008', 2, 'San Pablo, Brasil', 'Asunción, Paraguay', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days'),
+('ENV-1009', 5, 'Callao, Perú', 'Valparaíso, Chile', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '4 days', NULL),
+('ENV-1010', 6, 'Rosario, Argentina', 'Hamburgo, Alemania', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '8 days', NULL),
+('ENV-1011', 7, 'Curicó, Chile', 'Miami, Estados Unidos', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '5 days', NULL),
+('ENV-1012', 8, 'Buenos Aires, Argentina', 'Asunción, Paraguay', 'EN_TRANSITO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
+('ENV-1013', 9, 'Bogotá, Colombia', 'Buenos Aires, Argentina', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1014', 10, 'San Pablo, Brasil', 'Córdoba, Argentina', 'ENTREGADO', 'MEDIA', CURRENT_TIMESTAMP - INTERVAL '18 days', CURRENT_TIMESTAMP - INTERVAL '14 days'),
+('ENV-1015', 1, 'Shanghai, China', 'Buenos Aires, Argentina', 'EN_TRANSITO', 'ALTA', CURRENT_TIMESTAMP - INTERVAL '15 days', NULL)
 ON CONFLICT DO NOTHING;
 
 -- Cada envío semilla queda compuesto por al menos un contenedor entero.
@@ -418,7 +451,14 @@ INSERT INTO envio_contenedores (id_envio, id_contenedor, fecha_asignacion, fecha
 ('ENV-1005', 'CONT-005', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
 ('ENV-1006', 'CONT-006', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
 ('ENV-1007', 'CONT-007', CURRENT_TIMESTAMP - INTERVAL '1 day', NULL),
-('ENV-1008', 'CONT-008', CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days')
+('ENV-1008', 'CONT-008', CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days'),
+('ENV-1009', 'CONT-009', CURRENT_TIMESTAMP - INTERVAL '4 days', NULL),
+('ENV-1010', 'CONT-010', CURRENT_TIMESTAMP - INTERVAL '8 days', NULL),
+('ENV-1011', 'CONT-011', CURRENT_TIMESTAMP - INTERVAL '5 days', NULL),
+('ENV-1012', 'CONT-012', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL),
+('ENV-1013', 'CONT-013', CURRENT_TIMESTAMP - INTERVAL '2 days', NULL),
+('ENV-1014', 'CONT-014', CURRENT_TIMESTAMP - INTERVAL '18 days', CURRENT_TIMESTAMP - INTERVAL '14 days'),
+('ENV-1015', 'CONT-015', CURRENT_TIMESTAMP - INTERVAL '15 days', NULL)
 ON CONFLICT DO NOTHING;
 
 -- Mantiene coherente el estado del contenedor con su composición activa incluso
@@ -445,7 +485,17 @@ INSERT INTO tramos (id_tramo, id_envio, medio_transporte, origen, destino, costo
 ('TR-1006-1', 'ENV-1006', 'Terrestre', 'Mendoza', 'Paso Internacional', 36000.00, CURRENT_TIMESTAMP - INTERVAL '3 days', CURRENT_TIMESTAMP - INTERVAL '1 day'),
 ('TR-1006-2', 'ENV-1006', 'Terrestre', 'Paso Internacional', 'Lima', 58000.00, CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '2 days'),
 ('TR-1007-1', 'ENV-1007', 'Marítimo', 'Valparaíso', 'Buenos Aires', 68000.00, CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '8 days'),
-('TR-1008-1', 'ENV-1008', 'Terrestre', 'San Pablo', 'Asunción', 47000.00, CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days')
+('TR-1008-1', 'ENV-1008', 'Terrestre', 'San Pablo', 'Asunción', 47000.00, CURRENT_TIMESTAMP - INTERVAL '20 days', CURRENT_TIMESTAMP - INTERVAL '15 days'),
+('TR-1009-1', 'ENV-1009', 'Marítimo', 'Callao', 'Valparaíso', 54000.00, CURRENT_TIMESTAMP - INTERVAL '4 days', CURRENT_TIMESTAMP + INTERVAL '1 day'),
+('TR-1010-1', 'ENV-1010', 'Fluvial', 'Rosario', 'Buenos Aires', 28000.00, CURRENT_TIMESTAMP - INTERVAL '8 days', CURRENT_TIMESTAMP - INTERVAL '6 days'),
+('TR-1010-2', 'ENV-1010', 'Marítimo', 'Buenos Aires', 'Hamburgo', 185000.00, CURRENT_TIMESTAMP - INTERVAL '6 days', CURRENT_TIMESTAMP + INTERVAL '14 days'),
+('TR-1011-1', 'ENV-1011', 'Terrestre', 'Curicó', 'Valparaíso', 22000.00, CURRENT_TIMESTAMP - INTERVAL '5 days', CURRENT_TIMESTAMP - INTERVAL '4 days'),
+('TR-1011-2', 'ENV-1011', 'Marítimo', 'Valparaíso', 'Miami', 165000.00, CURRENT_TIMESTAMP - INTERVAL '4 days', CURRENT_TIMESTAMP + INTERVAL '10 days'),
+('TR-1012-1', 'ENV-1012', 'Fluvial', 'Buenos Aires', 'Asunción', 39000.00, CURRENT_TIMESTAMP - INTERVAL '3 days', CURRENT_TIMESTAMP + INTERVAL '2 days'),
+('TR-1013-1', 'ENV-1013', 'Aéreo', 'Bogotá', 'Buenos Aires', 92000.00, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '1 day'),
+('TR-1014-1', 'ENV-1014', 'Terrestre', 'San Pablo', 'Córdoba', 74000.00, CURRENT_TIMESTAMP - INTERVAL '18 days', CURRENT_TIMESTAMP - INTERVAL '14 days'),
+('TR-1015-1', 'ENV-1015', 'Marítimo', 'Shanghai', 'Puerto de Santos', 210000.00, CURRENT_TIMESTAMP - INTERVAL '15 days', CURRENT_TIMESTAMP + INTERVAL '12 days'),
+('TR-1015-2', 'ENV-1015', 'Terrestre', 'Puerto de Santos', 'Buenos Aires', 62000.00, CURRENT_TIMESTAMP + INTERVAL '12 days', CURRENT_TIMESTAMP + INTERVAL '16 days')
 ON CONFLICT DO NOTHING;
 
 -- Observar que los IDs 1 de CLIENTE, PROVEEDOR y OPERADOR son válidos porque
@@ -484,12 +534,48 @@ FROM (VALUES
 JOIN proveedores p ON p.cuit = v.cuit
 ON CONFLICT DO NOTHING;
 
+
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado) VALUES
+(15, 5, 'EMITIDA', 'CLIENTE', 'FC-0001-00000003', 'Flete marítimo de concentrado minero Callao - Valparaíso', 'ENV-1009', 115000.00, 'PENDIENTE'),
+(16, 6, 'EMITIDA', 'CLIENTE', 'FC-0001-00000004', 'Exportación agrícola multimodal Rosario - Hamburgo', 'ENV-1010', 290000.00, 'PENDIENTE'),
+(17, 7, 'EMITIDA', 'CLIENTE', 'FC-0001-00000005', 'Campaña fruta fresca reefer Curicó - Miami', 'ENV-1011', 245000.00, 'PAGADA'),
+(18, 8, 'EMITIDA', 'CLIENTE', 'FC-0001-00000006', 'Flete fluvial barcazas Buenos Aires - Asunción', 'ENV-1012', 68000.00, 'PENDIENTE'),
+(19, 9, 'EMITIDA', 'CLIENTE', 'FC-0001-00000007', 'Carga aérea pharma refrigerada Bogotá - Ezeiza', 'ENV-1013', 135000.00, 'PAGADA'),
+(20, 10, 'EMITIDA', 'CLIENTE', 'FC-0001-00000008', 'Lote autopartes San Pablo - Córdoba planta automotriz', 'ENV-1014', 180000.00, 'PAGADA'),
+(21, 1, 'EMITIDA', 'CLIENTE', 'FC-0001-00000009', 'Importación masiva insumos Shanghai - Buenos Aires', 'ENV-1015', 380000.00, 'PENDIENTE')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 22, o.id_operador, 'RECIBIDA', 'OPERADOR', 'OP-0005-000144', 'Operación marítima transatlántica ENV-1010', 'ENV-1010', 160000.00, 'PENDIENTE'
+FROM operadores o WHERE o.cuit = '30-99001122-4'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 23, o.id_operador, 'RECIBIDA', 'OPERADOR', 'OP-0006-000092', 'Flete aéreo pharma internacional ENV-1013', 'ENV-1013', 85000.00, 'PAGADA'
+FROM operadores o WHERE o.cuit = '30-77223344-6'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 24, p.id_proveedor, 'RECIBIDA', 'PROVEEDOR', 'PR-0009-000041', 'Servicio de telemetría y geofencing IoT Lote 15', NULL, 110000.00, 'PAGADA'
+FROM proveedores p WHERE p.cuit = '30-55443322-1'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facturas (id_factura, id_cliente, tipo_factura, tipo_actor, numero_comprobante, concepto, id_envio, importe_total, estado)
+SELECT 25, p.id_proveedor, 'RECIBIDA', 'PROVEEDOR', 'PR-0010-000118', 'Inspección técnica reefer y precintado digital', 'ENV-1011', 85000.00, 'PENDIENTE'
+FROM proveedores p WHERE p.cuit = '30-44332211-2'
+ON CONFLICT DO NOTHING;
+
 INSERT INTO pagos (id_pago, id_factura, tipo_pago, monto, medio_pago, referencia_comprobante) VALUES
 (1, 1, 'COBRO_CLIENTE', 45000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-SANT-11029'),
 (2, 4, 'PAGO_PROVEEDOR', 80000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BBVA-99412'),
 (3, 6, 'PAGO_OPERADOR', 95000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-ITAU-77104'),
 (4, 9, 'PAGO_PROVEEDOR', 98000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BRAD-55120'),
-(5, 12, 'PAGO_PROVEEDOR', 142000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-ICBC-88431')
+(5, 12, 'PAGO_PROVEEDOR', 142000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-ICBC-88431'),
+(6, 17, 'COBRO_CLIENTE', 245000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BCI-99812'),
+(7, 19, 'COBRO_CLIENTE', 135000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BCOL-44310'),
+(8, 20, 'COBRO_CLIENTE', 180000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BRAD-88710'),
+(9, 23, 'PAGO_OPERADOR', 85000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-BCP-11200'),
+(10, 24, 'PAGO_PROVEEDOR', 110000.00, 'TRANSFERENCIA_BANCARIA', 'TRF-CHASE-66512')
 ON CONFLICT DO NOTHING;
 
 -- Cierre histórico del mes anterior. Se mantiene separado del período actual

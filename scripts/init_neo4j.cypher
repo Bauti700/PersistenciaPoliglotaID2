@@ -246,3 +246,216 @@ CREATE (s4)-[:REGISTRA]->(l6)
 CREATE (s4)-[:REGISTRA]->(l7)
 CREATE (s5)-[:REGISTRA]->(l8)
 CREATE (s6)-[:REGISTRA]->(l9)
+
+// =============================================================================
+// DATOS EXTENDIDOS PARA DEMOSTRACIÓN EN VIVO (CLIENTES, RUTAS, IOT, MULTIMODAL)
+// =============================================================================
+
+// Nuevas Ubicaciones
+CREATE (u12:Ubicacion {nombre: "Curicó", pais: "Chile"})
+CREATE (u13:Ubicacion {nombre: "Antofagasta", pais: "Chile"})
+CREATE (u14:Ubicacion {nombre: "Bogotá", pais: "Colombia"})
+CREATE (u15:Ubicacion {nombre: "Rosario", pais: "Argentina"})
+CREATE (u16:Ubicacion {nombre: "Callao", pais: "Perú"})
+CREATE (u17:Ubicacion {nombre: "Róterdam", pais: "Países Bajos"})
+CREATE (u18:Ubicacion {nombre: "Hamburgo", pais: "Alemania"})
+
+// Nuevos Clientes
+CREATE (c5:Cliente {id_cliente: 5, razon_social: "Minera del Altiplano S.A.", pais: "Chile"})
+CREATE (c6:Cliente {id_cliente: 6, razon_social: "AgroExport del Sur S.R.L.", pais: "Argentina"})
+CREATE (c7:Cliente {id_cliente: 7, razon_social: "Frutícola del Valle Central SpA", pais: "Chile"})
+CREATE (c8:Cliente {id_cliente: 8, razon_social: "Distribuidora Mercosur S.A.", pais: "Uruguay"})
+CREATE (c9:Cliente {id_cliente: 9, razon_social: "BioTech Solutions Corp", pais: "Colombia"})
+CREATE (c10:Cliente {id_cliente: 10, razon_social: "Automotriz Continental S.A.", pais: "Brasil"})
+
+// Nuevos Operadores Logísticos
+CREATE (op5:Operador {id_actor: 5, nombre: "Transoceánica Shipping Group"})
+CREATE (op6:Operador {id_actor: 6, nombre: "Ferrocarril Trasandino Cargas S.A."})
+CREATE (op7:Operador {id_actor: 7, nombre: "AeroCargas Andinas S.A."})
+CREATE (op8:Operador {id_actor: 8, nombre: "Hidrovía Fluvial Paraná-Paraguay S.A."})
+
+// Nuevos Proveedores Especializados
+CREATE (pr9:Proveedor {id_actor: 9, nombre: "Telemetría Satelital OrbitLink", pais: "Argentina"})
+CREATE (pr10:Proveedor {id_actor: 10, nombre: "Reefer Cold Services S.A.", pais: "Chile"})
+CREATE (pr11:Proveedor {id_actor: 11, nombre: "Embalajes Industriales del Plata", pais: "Argentina"})
+CREATE (pr12:Proveedor {id_actor: 12, nombre: "Terminal Portuaria Callao Logistics", pais: "Perú"})
+
+// Nuevos Vehículos Multimodales
+CREATE (v7:Vehiculo {id_vehiculo: "VEH-TRAIN-01", tipo: "Locomotora Diésel GM-GT22", identificacion: "BAP-9012"})
+CREATE (v8:Vehiculo {id_vehiculo: "VEH-PLANE-01", tipo: "Boeing 767-300F Carga", identificacion: "LV-B767"})
+CREATE (v9:Vehiculo {id_vehiculo: "VEH-BARGE-01", tipo: "Barcaza Fluvial Cono Sur I", identificacion: "BF-7740"})
+CREATE (v10:Vehiculo {id_vehiculo: "VEH-SHIP-04", tipo: "Buque Portacontenedores NeoPanamax", identificacion: "IMO-9812345"})
+CREATE (v11:Vehiculo {id_vehiculo: "VEH-TRUCK-05", tipo: "Camión Bitren Tolva", identificacion: "AG-882-MM"})
+
+// Operadores manejan sus flotas
+CREATE (op6)-[:OPERA_VEHICULO]->(v7)
+CREATE (op7)-[:OPERA_VEHICULO]->(v8)
+CREATE (op8)-[:OPERA_VEHICULO]->(v9)
+CREATE (op5)-[:OPERA_VEHICULO]->(v10)
+CREATE (op1)-[:OPERA_VEHICULO]->(v11)
+
+// Nuevos Contenedores
+CREATE (cont9:Contenedor {id_contenedor: "CONT-009", codigo_internacional: "CMAU-881920-3", estado: "EN_TRANSITO"})
+CREATE (cont10:Contenedor {id_contenedor: "CONT-010", codigo_internacional: "MSCU-334912-8", estado: "EN_TRANSITO"})
+CREATE (cont11:Contenedor {id_contenedor: "CONT-011", codigo_internacional: "TCNU-990145-2", estado: "EN_TRANSITO"})
+CREATE (cont12:Contenedor {id_contenedor: "CONT-012", codigo_internacional: "HLXU-667123-0", estado: "EN_TRANSITO"})
+CREATE (cont13:Contenedor {id_contenedor: "CONT-013", codigo_internacional: "OOLU-112358-4", estado: "EN_TRANSITO"})
+CREATE (cont14:Contenedor {id_contenedor: "CONT-014", codigo_internacional: "SUDU-445890-1", estado: "CREADO"})
+CREATE (cont15:Contenedor {id_contenedor: "CONT-015", codigo_internacional: "TGHU-998877-6", estado: "ENTREGADO"})
+
+// Nuevos Sensores IoT
+CREATE (s7:Sensor {id_sensor: "SENS-107", tipo: "Temperatura/Humedad/GPS"})
+CREATE (s8:Sensor {id_sensor: "SENS-108", tipo: "Vibración/Impacto/GPS"})
+CREATE (s9:Sensor {id_sensor: "SENS-109", tipo: "Temperatura/Humedad/GPS"})
+CREATE (s10:Sensor {id_sensor: "SENS-110", tipo: "Presión/Vibración/GPS"})
+CREATE (s11:Sensor {id_sensor: "SENS-111", tipo: "Temperatura/GPS"})
+CREATE (s12:Sensor {id_sensor: "SENS-112", tipo: "Temperatura/Humedad/GPS"})
+CREATE (s13:Sensor {id_sensor: "SENS-113", tipo: "GPS/Vibración"})
+
+CREATE (cont9)-[:MONITOREADO_POR]->(s7)
+CREATE (cont10)-[:MONITOREADO_POR]->(s8)
+CREATE (cont11)-[:MONITOREADO_POR]->(s9)
+CREATE (cont12)-[:MONITOREADO_POR]->(s10)
+CREATE (cont13)-[:MONITOREADO_POR]->(s11)
+CREATE (cont14)-[:MONITOREADO_POR]->(s12)
+CREATE (cont15)-[:MONITOREADO_POR]->(s13)
+
+// Nuevos Envíos (ENV-1009 a ENV-1015)
+CREATE (e9:Envio {id_envio: "ENV-1009", estado: "EN_TRANSITO", prioridad: "ALTA"})
+CREATE (e10:Envio {id_envio: "ENV-1010", estado: "EN_TRANSITO", prioridad: "MEDIA"})
+CREATE (e11:Envio {id_envio: "ENV-1011", estado: "EN_TRANSITO", prioridad: "URGENTE"})
+CREATE (e12:Envio {id_envio: "ENV-1012", estado: "EN_TRANSITO", prioridad: "MEDIA"})
+CREATE (e13:Envio {id_envio: "ENV-1013", estado: "EN_TRANSITO", prioridad: "ALTA"})
+CREATE (e14:Envio {id_envio: "ENV-1014", estado: "CREADO", prioridad: "MEDIA"})
+CREATE (e15:Envio {id_envio: "ENV-1015", estado: "ENTREGADO", prioridad: "ALTA"})
+
+// Relaciones Contenedores a Envíos
+CREATE (cont9)-[:PERTENECE_A]->(e9)
+CREATE (cont10)-[:PERTENECE_A]->(e10)
+CREATE (cont11)-[:PERTENECE_A]->(e11)
+CREATE (cont12)-[:PERTENECE_A]->(e12)
+CREATE (cont13)-[:PERTENECE_A]->(e13)
+CREATE (cont14)-[:PERTENECE_A]->(e14)
+CREATE (cont15)-[:PERTENECE_A]->(e15)
+
+// Asignaciones de Envíos a Clientes, Operadores, Rutas y Flota
+// ENV-1009: Fruta fresca refrigerada Curicó -> Valparaíso -> Róterdam
+CREATE (c7)-[:SOLICITA]->(e9)
+CREATE (e9)-[:TIENE_ORIGEN]->(u12)
+CREATE (e9)-[:TIENE_DESTINO]->(u17)
+CREATE (e9)-[:ASIGNADO_A]->(op5)
+CREATE (e9)-[:TRANSPORTADO_POR]->(v10)
+CREATE (pr10)-[:PROVEE_SERVICIO_PORTUARIO_A]->(e9)
+
+CREATE (t13:Tramo {id_tramo: "TR-1009-1", orden: 1, medio: "Terrestre"})
+CREATE (t14:Tramo {id_tramo: "TR-1009-2", orden: 2, medio: "Marítimo"})
+CREATE (e9)-[:COMPUESTO_POR]->(t13)
+CREATE (e9)-[:COMPUESTO_POR]->(t14)
+CREATE (t13)-[:DESDE]->(u12)
+CREATE (t13)-[:HASTA]->(u10)
+CREATE (t14)-[:DESDE]->(u10)
+CREATE (t14)-[:HASTA]->(u17)
+CREATE (t13)-[:CONECTA_A]->(t14)
+
+// ENV-1010: Carga minera Trasandina Ferrocarril Mendoza -> Antofagasta
+CREATE (c5)-[:SOLICITA]->(e10)
+CREATE (e10)-[:TIENE_ORIGEN]->(u6)
+CREATE (e10)-[:TIENE_DESTINO]->(u13)
+CREATE (e10)-[:ASIGNADO_A]->(op6)
+CREATE (e10)-[:TRANSPORTADO_POR]->(v7)
+CREATE (pr9)-[:PROVEE_COMPONENTES_A]->(e10)
+
+CREATE (t15:Tramo {id_tramo: "TR-1010-1", orden: 1, medio: "Ferroviario"})
+CREATE (e10)-[:COMPUESTO_POR]->(t15)
+CREATE (t15)-[:DESDE]->(u6)
+CREATE (t15)-[:HASTA]->(u13)
+
+// ENV-1011: Reactivos e insumos biotecnológicos Aéreos Buenos Aires -> Bogotá
+CREATE (c9)-[:SOLICITA]->(e11)
+CREATE (e11)-[:TIENE_ORIGEN]->(u1)
+CREATE (e11)-[:TIENE_DESTINO]->(u14)
+CREATE (e11)-[:ASIGNADO_A]->(op7)
+CREATE (e11)-[:TRANSPORTADO_POR]->(v8)
+CREATE (pr9)-[:PROVEE_COMPONENTES_A]->(e11)
+
+CREATE (t16:Tramo {id_tramo: "TR-1011-1", orden: 1, medio: "Aéreo"})
+CREATE (e11)-[:COMPUESTO_POR]->(t16)
+CREATE (t16)-[:DESDE]->(u1)
+CREATE (t16)-[:HASTA]->(u14)
+
+// ENV-1012: Granos y harinas barcaza fluvial Rosario -> Asunción
+CREATE (c6)-[:SOLICITA]->(e12)
+CREATE (e12)-[:TIENE_ORIGEN]->(u15)
+CREATE (e12)-[:TIENE_DESTINO]->(u11)
+CREATE (e12)-[:ASIGNADO_A]->(op8)
+CREATE (e12)-[:TRANSPORTADO_POR]->(v9)
+CREATE (pr11)-[:PROVEE_COMPONENTES_A]->(e12)
+
+CREATE (t17:Tramo {id_tramo: "TR-1012-1", orden: 1, medio: "Fluvial"})
+CREATE (e12)-[:COMPUESTO_POR]->(t17)
+CREATE (t17)-[:DESDE]->(u15)
+CREATE (t17)-[:HASTA]->(u11)
+
+// ENV-1013: Exportación Callao -> Róterdam
+CREATE (c4)-[:SOLICITA]->(e13)
+CREATE (e13)-[:TIENE_ORIGEN]->(u16)
+CREATE (e13)-[:TIENE_DESTINO]->(u17)
+CREATE (e13)-[:ASIGNADO_A]->(op5)
+CREATE (e13)-[:TRANSPORTADO_POR]->(v10)
+CREATE (pr12)-[:PROVEE_SERVICIO_PORTUARIO_A]->(e13)
+
+CREATE (t18:Tramo {id_tramo: "TR-1013-1", orden: 1, medio: "Marítimo"})
+CREATE (e13)-[:COMPUESTO_POR]->(t18)
+CREATE (t18)-[:DESDE]->(u16)
+CREATE (t18)-[:HASTA]->(u17)
+
+// ENV-1014: Componentes automotrices San Pablo -> Buenos Aires
+CREATE (c10)-[:SOLICITA]->(e14)
+CREATE (e14)-[:TIENE_ORIGEN]->(u3)
+CREATE (e14)-[:TIENE_DESTINO]->(u1)
+CREATE (e14)-[:ASIGNADO_A]->(op1)
+CREATE (e14)-[:TRANSPORTADO_POR]->(v11)
+
+CREATE (t19:Tramo {id_tramo: "TR-1014-1", orden: 1, medio: "Terrestre"})
+CREATE (e14)-[:COMPUESTO_POR]->(t19)
+CREATE (t19)-[:DESDE]->(u3)
+CREATE (t19)-[:HASTA]->(u1)
+
+// ENV-1015: Maquinaria industrial importada Hamburgo -> Buenos Aires
+CREATE (c8)-[:SOLICITA]->(e15)
+CREATE (e15)-[:TIENE_ORIGEN]->(u18)
+CREATE (e15)-[:TIENE_DESTINO]->(u1)
+CREATE (e15)-[:ASIGNADO_A]->(op5)
+CREATE (e15)-[:TRANSPORTADO_POR]->(v10)
+
+CREATE (t20:Tramo {id_tramo: "TR-1015-1", orden: 1, medio: "Marítimo"})
+CREATE (e15)-[:COMPUESTO_POR]->(t20)
+CREATE (t20)-[:DESDE]->(u18)
+CREATE (t20)-[:HASTA]->(u1)
+
+// Lecturas IoT proyectadas de nuevos sensores (LEC-010 a LEC-021)
+CREATE (l10:Lectura {id_lectura: "LEC-010", timestamp: datetime() - duration('PT4H'), fecha_hora: datetime() - duration('PT4H'), temperatura: -18.2, humedad: 45.0, vibracion: 0.05, nivel_bateria: 97, latitud: -34.9828, longitud: -71.2489, evento: "LECTURA", ubicacion: "-34.9828,-71.2489", id_envio: "ENV-1009"})
+CREATE (l11:Lectura {id_lectura: "LEC-011", timestamp: datetime() - duration('PT2H'), fecha_hora: datetime() - duration('PT2H'), temperatura: -17.8, humedad: 46.5, vibracion: 0.07, nivel_bateria: 96, latitud: -33.0472, longitud: -71.6127, evento: "LECTURA", ubicacion: "-33.0472,-71.6127", id_envio: "ENV-1009"})
+CREATE (l12:Lectura {id_lectura: "LEC-012", timestamp: datetime() - duration('PT5H'), fecha_hora: datetime() - duration('PT5H'), temperatura: null, humedad: null, vibracion: 0.28, nivel_bateria: 90, latitud: -23.8000, longitud: -69.0000, evento: "LECTURA", ubicacion: "-23.8,-69.0", id_envio: "ENV-1010"})
+CREATE (l13:Lectura {id_lectura: "LEC-013", timestamp: datetime() - duration('PT1H'), fecha_hora: datetime() - duration('PT1H'), temperatura: null, humedad: null, vibracion: 0.14, nivel_bateria: 89, latitud: -23.6509, longitud: -70.3975, evento: "LECTURA", ubicacion: "-23.6509,-70.3975", id_envio: "ENV-1010"})
+CREATE (l14:Lectura {id_lectura: "LEC-014", timestamp: datetime() - duration('PT6H'), fecha_hora: datetime() - duration('PT6H'), temperatura: 2.4, humedad: 40.0, vibracion: 0.03, nivel_bateria: 99, latitud: -34.8222, longitud: -58.5358, evento: "LECTURA", ubicacion: "-34.8222,-58.5358", id_envio: "ENV-1011"})
+CREATE (l15:Lectura {id_lectura: "LEC-015", timestamp: datetime() - duration('PT2H'), fecha_hora: datetime() - duration('PT2H'), temperatura: 3.1, humedad: 42.0, vibracion: 0.08, nivel_bateria: 98, latitud: 4.7016, longitud: -74.1469, evento: "LECTURA", ubicacion: "4.7016,-74.1469", id_envio: "ENV-1011"})
+CREATE (l16:Lectura {id_lectura: "LEC-016", timestamp: datetime() - duration('PT8H'), fecha_hora: datetime() - duration('PT8H'), temperatura: 21.0, humedad: 75.0, vibracion: 0.04, nivel_bateria: 94, latitud: -32.9468, longitud: -60.6393, evento: "LECTURA", ubicacion: "-32.9468,-60.6393", id_envio: "ENV-1012"})
+CREATE (l17:Lectura {id_lectura: "LEC-017", timestamp: datetime() - duration('PT3H'), fecha_hora: datetime() - duration('PT3H'), temperatura: 22.5, humedad: 78.0, vibracion: 0.05, nivel_bateria: 93, latitud: -25.2800, longitud: -57.6300, evento: "LECTURA", ubicacion: "-25.28,-57.63", id_envio: "ENV-1012"})
+CREATE (l18:Lectura {id_lectura: "LEC-018", timestamp: datetime() - duration('PT12H'), fecha_hora: datetime() - duration('PT12H'), temperatura: 1.5, humedad: 50.0, vibracion: 0.06, nivel_bateria: 95, latitud: -12.0500, longitud: -77.1500, evento: "LECTURA", ubicacion: "-12.05,-77.15", id_envio: "ENV-1013"})
+CREATE (l19:Lectura {id_lectura: "LEC-019", timestamp: datetime() - duration('PT2H'), fecha_hora: datetime() - duration('PT2H'), temperatura: 2.0, humedad: 52.0, vibracion: 0.05, nivel_bateria: 91, latitud: 51.9000, longitud: 4.4000, evento: "LECTURA", ubicacion: "51.9,4.4", id_envio: "ENV-1013"})
+CREATE (l20:Lectura {id_lectura: "LEC-020", timestamp: datetime() - duration('PT1H'), fecha_hora: datetime() - duration('PT1H'), temperatura: 19.8, humedad: 55.0, vibracion: 0.09, nivel_bateria: 100, latitud: -23.5505, longitud: -46.6333, evento: "LECTURA", ubicacion: "-23.5505,-46.6333", id_envio: "ENV-1014"})
+CREATE (l21:Lectura {id_lectura: "LEC-021", timestamp: datetime() - duration('PT24H'), fecha_hora: datetime() - duration('PT24H'), temperatura: 15.0, humedad: 60.0, vibracion: 0.04, nivel_bateria: 85, latitud: 53.5511, longitud: 9.9937, evento: "LECTURA", ubicacion: "53.5511,9.9937", id_envio: "ENV-1015"})
+
+CREATE (s7)-[:REGISTRA]->(l10)
+CREATE (s7)-[:REGISTRA]->(l11)
+CREATE (s8)-[:REGISTRA]->(l12)
+CREATE (s8)-[:REGISTRA]->(l13)
+CREATE (s9)-[:REGISTRA]->(l14)
+CREATE (s9)-[:REGISTRA]->(l15)
+CREATE (s10)-[:REGISTRA]->(l16)
+CREATE (s10)-[:REGISTRA]->(l17)
+CREATE (s11)-[:REGISTRA]->(l18)
+CREATE (s11)-[:REGISTRA]->(l19)
+CREATE (s12)-[:REGISTRA]->(l20)
+CREATE (s13)-[:REGISTRA]->(l21)
