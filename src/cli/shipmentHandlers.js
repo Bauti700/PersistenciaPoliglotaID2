@@ -21,6 +21,7 @@ import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatTableRows } from './cliFormatters.js';
 import { formatDate, formatNumber } from './cliFormatters.js';
 
+// Función para manejar la opción 11 del menú principal, que corresponde al ABM de envíos. Permite al usuario autenticado listar envíos, consultar detalles, crear envíos políglotas, modificar datos, cambiar estado, cancelar, eliminar, asignar contenedores y sensores, y ver eventos logísticos asociados.
 export async function handleOption11({ ask, currentUser }) {
   let salirEnvios = false;
   while (!salirEnvios) {
@@ -144,7 +145,7 @@ export async function handleOption11({ ask, currentUser }) {
           tramos: [{ desde: origen, hasta: destino, medio }]
         });
         console.log('\nEnvío creado y propagado exitosamente:');
-        console.log(res);
+        console.dir(res, { depth: null });
       } catch (error) {
         console.log(`\n[No se pudo crear el envío] ${error.message}`);
       }

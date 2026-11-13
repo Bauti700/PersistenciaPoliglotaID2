@@ -1,5 +1,6 @@
 import { neoDriver } from '../config/database.js';
 
+// Función auxiliar para ordenar tramos por su propiedad "orden", normalizando valores de Neo4j a números.
 function ordenarTramos(tramos = []) {
   const numero = valor => {
     if (valor && typeof valor.toNumber === 'function') return valor.toNumber();
@@ -9,6 +10,7 @@ function ordenarTramos(tramos = []) {
   return [...tramos].sort((a, b) => numero(a?.orden) - numero(b?.orden));
 }
 
+// Función auxiliar para normalizar valores de Neo4j a tipos de datos nativos de JavaScript.
 function normalizarValorNeo4j(valor) {
   if (valor && typeof valor.toNumber === 'function') return valor.toNumber();
   if (Array.isArray(valor)) return valor.map(normalizarValorNeo4j);
@@ -23,7 +25,9 @@ function normalizarValorNeo4j(valor) {
   return valor;
 }
 
+// Repositorio de rutas y envíos en Neo4j. Proporciona métodos para crear envíos con rutas, asignar contenedores y sensores, actualizar estados y datos, y consultar rutas completas y redes de relaciones.
 export class Neo4jRouteRepository {
+  // Crea un envío con su ruta completa, incluyendo cliente, origen, destino, operador, vehículo, tramos y contenedores. Si no se proporciona id_envio, se genera uno único. Devuelve un objeto con status y id_envio.
   static async crearEnvioConRuta({
     id_envio,
     id_cliente,
@@ -192,6 +196,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Actualiza datos del envío, incluyendo origen, destino, prioridad y estado. Si se proporciona un valor nulo para origen o destino, no se actualiza esa relación.
   static async actualizarDatosEnvio({ id_envio, origen, destino, prioridad, estado }) {
     const session = neoDriver.session();
     try {
@@ -218,6 +223,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Reemplaza todos los tramos de un envío con una nueva lista de tramos, eliminando los existentes y creando los nuevos en orden. Devuelve la cantidad de tramos actualizados.
   static async reemplazarTramosEnvio(id_envio, tramos = []) {
     const session = neoDriver.session();
     try {
@@ -289,6 +295,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Actualiza el estado de un sensor en el grafo. Devuelve true si se encontró y actualizó el sensor, false si no se encontró.
   static async actualizarEstadoSensor(id_sensor, estado) {
     const session = neoDriver.session();
     try {
@@ -358,6 +365,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Desasigna un contenedor de un envío, eliminando la relación PERTENECE_A en el grafo. Devuelve true si se encontró y eliminó la relación, false si no se encontró.
   static async desasignarContenedorDeEnvio(id_envio, id_contenedor) {
     const session = neoDriver.session();
     try {
@@ -371,6 +379,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Desasigna un sensor de un contenedor, eliminando la relación MONITOREADO_POR en el grafo. Devuelve true si se encontró y eliminó la relación, false si no se encontró.
   static async desasignarSensorDeContenedor(id_contenedor, id_sensor) {
     const session = neoDriver.session();
     try {
@@ -384,6 +393,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Elimina un sensor del grafo, eliminando el nodo Sensor y todas sus relaciones. Devuelve true si se encontró y eliminó el sensor, false si no se encontró.
   static async eliminarSensor(id_sensor) {
     const session = neoDriver.session();
     try {
@@ -397,6 +407,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Elimina un contenedor del grafo, eliminando el nodo Contenedor y todas sus relaciones. Devuelve true si se encontró y eliminó el contenedor, false si no se encontró.
   static async eliminarContenedor(id_contenedor) {
     const session = neoDriver.session();
     try {
@@ -410,6 +421,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Elimina un envío del grafo, eliminando el nodo Envio y todas sus relaciones. Devuelve true si se encontró y eliminó el envío, false si no se encontró.
   static async eliminarEnvio(id_envio) {
     const session = neoDriver.session();
     try {
@@ -428,6 +440,7 @@ export class Neo4jRouteRepository {
     }
   }
 
+  // Consulta Avanzada: Listado de contenedores asociados a un envío, incluyendo los sensores que los monitorean. Devuelve un array de objetos con id_contenedor y un array de id_sensor.
   static async listarContenedoresDeEnvio(id_envio) {
     const session = neoDriver.session();
     try {

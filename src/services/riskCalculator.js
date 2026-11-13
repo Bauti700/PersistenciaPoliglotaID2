@@ -1,3 +1,4 @@
+// Servicio para calcular el riesgo de un envío basado en su estado, prioridad, fechas y incidentes asociados.
 export function calcularRiesgoEnvio({
   id_envio,
   estado,

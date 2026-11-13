@@ -19,12 +19,15 @@ const MAPA_INCIDENTE = {
   INACTIVIDAD: 'SENSOR_INACTIVO'
 };
 
+// Función auxiliar para validar números opcionales, devolviendo null si el valor es undefined, null o vacío.
 function numeroOpcional(valor, campo, opciones) {
   if (valor === undefined || valor === null || valor === '') return null;
   return numeroPositivo(valor, campo, opciones);
 }
 
+// Servicio para manejar la lógica de negocio relacionada con el monitoreo de sensores, alertas e incidentes.
 export class MonitoreoService {
+  // Validación de la lectura de un sensor, asegurando que los datos sean correctos y que los sensores y contenedores existan y estén activos.
   static async validarLectura(data) {
     const id_sensor = textoRequerido(data.id_sensor, 'id_sensor', { max: 50 });
     const id_contenedor = textoRequerido(data.id_contenedor, 'id_contenedor', { max: 50 });
@@ -71,6 +74,7 @@ export class MonitoreoService {
     };
   }
 
+  // Crear un incidente automáticamente basado en una alerta de sensor, verificando si ya existe un incidente abierto del mismo tipo para el sensor.
   static async crearIncidenteAutomatico({
     tipoAlerta,
     regla = null,
@@ -115,6 +119,7 @@ export class MonitoreoService {
     });
   }
 
+  // Crear un incidente automáticamente basado en una alerta de sensor, verificando si ya existe un incidente abierto del mismo tipo para el sensor.
   static async crearIncidenteDesdeAlerta(alerta) {
     if (!alerta || !MAPA_INCIDENTE[alerta.tipo]) return null;
     return await this.crearIncidenteAutomatico({
@@ -132,6 +137,7 @@ export class MonitoreoService {
     });
   }
 
+  // Procesar la lectura de un sensor, validando los datos, registrando la lectura en MongoDB, actualizando la posición en Redis, proyectando la lectura al grafo y evaluando reglas para generar alertas e incidentes.
   static async procesarLecturaSensor(data) {
     const lecturaValidada = await this.validarLectura(data);
 
@@ -203,6 +209,7 @@ export class MonitoreoService {
     };
   }
 
+  // Ejecutar el monitoreo de sensores, detectando alertas de estado y generando incidentes automáticos según corresponda.
   static async ejecutarMonitoreoSensores() {
     const alertas = await AlertaRepository.detectarAlertasEstadoSensores();
     const incidentes = [];
@@ -220,12 +227,14 @@ export class MonitoreoService {
     };
   }
 
+  // Registrar un incidente manualmente, creando también una alerta asociada al mismo.
   static async registrarIncidenteManual(data) {
     const incidente = await IncidenteRepository.registrarIncidente(data);
     const alerta = await AlertaRepository.crearAlertaDesdeIncidente(incidente);
     return { incidente, alerta };
   }
 
+  // Cerrar un incidente, actualizando su estado y cerrando todas las alertas asociadas al mismo.
   static async cerrarIncidente(id_incidente) {
     const incidente = await IncidenteRepository.cerrarIncidente(id_incidente);
     if (!incidente) return null;

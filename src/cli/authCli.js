@@ -16,6 +16,8 @@ import { SesionRepository } from '../repositories/sesionRepository.js';
 import { EnvioRepository } from '../repositories/envioRepository.js';
 import { AuthenticationService } from '../services/authenticationService.js';
 
+
+// Función para manejar el proceso de inicio de sesión en la CLI, solicitando credenciales al usuario y autenticándolo mediante el AuthenticationService.
 export async function login(context) {
   console.log('\n==================== AUTENTICACIÓN ====================');
   console.log('Ingrese sus credenciales para acceder al sistema');

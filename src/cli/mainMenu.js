@@ -40,6 +40,7 @@ const handlers = {
   '16': handleOption16
 };
 
+// Función principal para ejecutar el menú principal de la CLI, mostrando las opciones disponibles y manejando la interacción con el usuario. Permite acceder a diferentes módulos del sistema según la opción seleccionada.
 export async function runMainMenu(context) {
   banner();
   let salir = false;

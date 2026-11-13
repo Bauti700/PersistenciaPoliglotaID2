@@ -20,6 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatTableRows } from './cliFormatters.js';
 
+// Función para manejar la opción 16 del menú principal, que corresponde al análisis histórico de desempeño logístico. Permite al usuario autenticado generar un informe analítico sobre tiempos de entrega, puntualidad y costos, filtrando por cliente si se desea.
 export async function handleOption16({ ask, currentUser }) {
   console.log('\n--- ANÁLISIS HISTÓRICO DE DESEMPEÑO LOGÍSTICO ---');
   const id_cliente = (await ask('Filtrar por ID Cliente específico (opcional, ENTER para global): ')).trim() || null;

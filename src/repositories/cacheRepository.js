@@ -1,5 +1,6 @@
 import { redisClient } from '../config/database.js';
 
+// Clase de repositorio para manejar la caché en Redis
 export class RedisCacheRepository {
   // --- GESTIÓN DE SESIONES CON TTL ---
   static async guardarSesion(id_sesion, datosUsuario, ttlSegundos = 3600) {
@@ -15,12 +16,14 @@ export class RedisCacheRepository {
     return true;
   }
 
+  //Obtenemos la sesión de un usuario a partir del id_sesion
   static async obtenerSesion(id_sesion) {
     if (!redisClient.isOpen) return null;
     const data = await redisClient.hGetAll(`sesion:${id_sesion}`);
     return Object.keys(data).length > 0 ? data : null;
   }
 
+  //Cerramos la sesión de un usuario a partir del id_sesion
   static async cerrarSesion(id_sesion) {
     if (!redisClient.isOpen) return false;
     await redisClient.del(`sesion:${id_sesion}`);
@@ -42,6 +45,7 @@ export class RedisCacheRepository {
     return true;
   }
 
+  //Obtenemos un valor del caché a partir de la clave
   static async getCache(key) {
     if (!redisClient.isOpen) return null;
     const raw = await redisClient.get(key);
@@ -53,6 +57,7 @@ export class RedisCacheRepository {
     }
   }
 
+  //Eliminamos un valor del caché a partir de la clave
   static async delCache(key) {
     if (!redisClient.isOpen) return false;
     return (await redisClient.del(key)) > 0;
@@ -92,6 +97,7 @@ export class RedisCacheRepository {
     return Object.keys(pos).length > 0 ? pos : null;
   }
 
+  //Obtenemos todas las posiciones de los contenedores
   static async obtenerTodasPosiciones() {
     if (!redisClient.isOpen) return [];
     try {
@@ -110,6 +116,7 @@ export class RedisCacheRepository {
     }
   }
 
+  //Obtenemos todas las posiciones de los contenedores cercanas a una ubicación
   static async obtenerPosicionesCercanas(lng, lat, radioKm = 100) {
     if (!redisClient.isOpen) return [];
     try {
@@ -139,6 +146,7 @@ export class RedisCacheRepository {
     return `prediccion:riesgo:${id_envio}`;
   }
 
+  // Guardamos la predicción de riesgo en caché con un TTL (por defecto 24h)
   static async cachearPrediccionRiesgo(id_envio, prediccion, ttlSegundos = 86400) {
     if (!redisClient.isOpen) return false;
     const key = RedisCacheRepository.clavePrediccionRiesgo(id_envio);
@@ -146,12 +154,14 @@ export class RedisCacheRepository {
     return true;
   }
 
+  // Obtenemos la predicción de riesgo desde caché
   static async obtenerPrediccionRiesgo(id_envio) {
     if (!redisClient.isOpen) return null;
     const raw = await redisClient.get(RedisCacheRepository.clavePrediccionRiesgo(id_envio));
     return raw ? JSON.parse(raw) : null;
   }
 
+  // Invalidamos la predicción de riesgo en caché (por ejemplo, cuando se actualiza el envío o se registra un incidente)
   static async invalidarPrediccionRiesgo(id_envio) {
     if (!redisClient.isOpen || !id_envio) return false;
     return (await redisClient.del(RedisCacheRepository.clavePrediccionRiesgo(id_envio))) > 0;
@@ -165,6 +175,7 @@ export class RedisCacheRepository {
     return true;
   }
 
+  // Obtenemos la analítica cacheada a partir de la clave
   static async obtenerAnaliticaCacheada(clave) {
     if (!redisClient.isOpen) return null;
     const raw = await redisClient.get(`analytics:${clave}`);

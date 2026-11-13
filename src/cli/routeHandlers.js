@@ -20,6 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatTableRows } from './cliFormatters.js';
 
+// Función para manejar la opción 8 del menú principal, que corresponde a la consulta de rutas y recorridos. Permite al usuario autenticado consultar la ruta completa de un envío, reconstruir el recorrido de un contenedor o ver el historial completo de movimientos de un contenedor.
 export async function handleOption8({ ask, currentUser }) {
   console.log('\n--- CONSULTA DE RUTA ---');
   console.log('1. Ruta completa de un envío');

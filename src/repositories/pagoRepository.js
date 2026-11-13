@@ -9,10 +9,12 @@ import {
   MEDIOS_PAGO
 } from '../utils/validation.js';
 
+// Redondea un valor numérico a dos decimales, útil para cálculos de montos y saldos
 function redondear(valor) {
   return Math.round(Number(valor) * 100) / 100;
 }
 
+// Repositorio para manejar pagos y cobros en la base de datos PostgreSQL
 export class PagoRepository {
   /**
    * Registra un pago (cobro a cliente o pago a proveedor/operador).

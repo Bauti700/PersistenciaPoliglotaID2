@@ -20,6 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate, formatTableRows } from './cliFormatters.js';
 
+// Función para manejar la opción 17 del menú principal, que corresponde a la gestión de seguridad (ABM de usuarios, roles y sesiones). Permite al usuario autenticado con permisos de administrador gestionar roles, usuarios y sesiones activas o históricas.
 export async function handleOption17({ ask, currentUser }) {
   if (!AuthenticationService.esAdministrador(currentUser)) {
     console.log('\n[ACCESO DENEGADO] Solo usuarios administradores pueden acceder a Gestión de Usuarios, Roles y Sesiones.');

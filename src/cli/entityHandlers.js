@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatTableRows } from './cliFormatters.js';
 
+// Manejo de la opción 1: Gestión de entidades logísticas
 export async function handleOption1({ ask, currentUser }) {
             let volverSub = false;
             while (!volverSub) {

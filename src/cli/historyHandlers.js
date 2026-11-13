@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate, formatNumber } from './cliFormatters.js';
 
+// Función para manejar la opción 5 del menú principal, que corresponde al módulo de histórico y detección de anomalías. Permite consultar lecturas históricas por sensor o contenedor, y detectar anomalías de temperatura según reglas definidas.
 export async function handleOption5({ ask, currentUser }) {
   console.log('\n--- HISTÓRICO Y DETECCIÓN DE ANOMALÍAS ---');
   console.log('1. Histórico por sensor');

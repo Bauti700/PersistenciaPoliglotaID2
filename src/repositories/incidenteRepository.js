@@ -35,6 +35,7 @@ async function invalidarPrediccionDeIncidente(id_envio) {
   }
 }
 
+// Valida que un valor sea una fecha válida, lanzando un error de validación si no lo es
 function fechaValida(valor, campo = 'fecha') {
   const fecha = valor instanceof Date ? valor : new Date(valor);
   if (Number.isNaN(fecha.getTime())) {
@@ -43,6 +44,7 @@ function fechaValida(valor, campo = 'fecha') {
   return fecha;
 }
 
+// Valida los campos de un incidente, devolviendo un objeto con los campos validados y normalizados
 function validarIncidente(data, { parcial = false } = {}) {
   const incidente = {};
   let cantidad = 0;
@@ -124,6 +126,7 @@ function validarIncidente(data, { parcial = false } = {}) {
   return incidente;
 }
 
+// Repositorio para manejar incidentes, incluyendo registro, actualización, cierre y analítica
 export class IncidenteRepository {
   // --- INCIDENTES ---
   static async registrarIncidente(incidente) {
@@ -133,6 +136,7 @@ export class IncidenteRepository {
     return doc;
   }
 
+  // Actualiza un incidente existente, devolviendo el documento actualizado o null si no se encontró
   static async actualizarIncidente(id_incidente, cambios) {
     const id = textoRequerido(id_incidente, 'id_incidente', { max: 100 });
     const actualizacion = validarIncidente(cambios, { parcial: true });
@@ -149,6 +153,7 @@ export class IncidenteRepository {
     return actualizado;
   }
 
+  // Comprueba si existe al menos un incidente abierto que coincida con los filtros opcionales de id_sensor, tipo e id_envio
   static async existeIncidenteAbierto({ id_sensor = null, tipo = null, id_envio = null } = {}) {
     const filtro = { estado: { $in: ESTADOS_ABIERTOS } };
     if (id_sensor) filtro.id_sensor = textoRequerido(id_sensor, 'id_sensor', { max: 50 });
@@ -158,6 +163,7 @@ export class IncidenteRepository {
     return Boolean(res);
   }
 
+  // Lista los incidentes con filtros opcionales de estado, id_envio, id_sensor, id_contenedor y tipo, ordenados por fecha descendente y limitados a un número máximo
   static async listarIncidentes({
     estado = null,
     id_envio = null,
@@ -173,6 +179,7 @@ export class IncidenteRepository {
     if (id_contenedor) filtro.id_contenedor = textoRequerido(id_contenedor, 'id_contenedor', { max: 50 });
     if (tipo) filtro.tipo = unoDe(tipo, TIPOS_INCIDENTE, 'tipo');
 
+    // Limite de resultados, con validación de rango entre 1 y 500
     const cantidad = enteroPositivo(limite, 'limite', { min: 1, max: 500 });
     return await getDb().collection('incidentes')
       .find(filtro)
@@ -181,15 +188,18 @@ export class IncidenteRepository {
       .toArray();
   }
 
+  // Lista los incidentes abiertos, limitados a un máximo de 500
   static async listarIncidentesAbiertos() {
     return await this.listarIncidentes({ estado: 'ABIERTO', limite: 500 });
   }
 
+  // Lista los incidentes asociados a un envío específico, limitados a un máximo de 500
   static async listarIncidentesPorEnvio(id_envio) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     return await this.listarIncidentes({ id_envio: id, limite: 500 });
   }
 
+  // Obtiene un incidente por su ID único
   static async cerrarIncidente(id_incidente) {
     const id = textoRequerido(id_incidente, 'id_incidente', { max: 100 });
     const col = getDb().collection('incidentes');

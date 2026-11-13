@@ -100,8 +100,9 @@ async function seedPostgres() {
 // ---------------------------------------------------------------------------
 // MongoDB (mongosh local o dentro del contenedor)
 // ---------------------------------------------------------------------------
-function ejecutarComando(comando, args, etiqueta) {
+function ejecutarComando(comando, args, etiqueta, input) {
   const resultado = spawnSync(comando, args, {
+    input,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
     timeout: 120000
@@ -135,23 +136,22 @@ function uriParaContenedor(uri) {
 async function seedMongo() {
   logSeccion('MongoDB');
   const script = await readFile(RUTA_MONGO, 'utf8');
-  const argumentosBase = [MONGO_URI, '--quiet', '--eval', script];
 
-  // 1. mongosh instalado en el host
-  const local = ejecutarComando('mongosh', argumentosBase, 'mongosh local');
+  // 1. mongosh instalado en el host (pasa el script por stdin para evitar ENAMETOOLONG en Windows)
+  const local = ejecutarComando('mongosh', [MONGO_URI, '--quiet'], 'mongosh local', script);
   if (local.disponible) {
     if (local.salida) console.log(local.salida);
     console.log('Colecciones y datos semilla aplicados correctamente.');
     return;
   }
 
-  // 2. mongosh dentro del contenedor Docker (no requiere instalación local)
+  // 2. mongosh dentro del contenedor Docker (con -i para pipear stdin)
   console.log('mongosh no está instalado en el host; usando el contenedor Docker...');
   const argsDocker = [
-    'exec', MONGO_CONTAINER,
-    'mongosh', uriParaContenedor(MONGO_URI), '--quiet', '--eval', script
+    'exec', '-i', MONGO_CONTAINER,
+    'mongosh', uriParaContenedor(MONGO_URI), '--quiet'
   ];
-  const docker = ejecutarComando('docker', argsDocker, 'mongosh en docker');
+  const docker = ejecutarComando('docker', argsDocker, 'mongosh en docker', script);
   if (!docker.disponible) {
     throw new Error(
       'No se encontró mongosh ni Docker. Instalá MongoDB Shell o iniciá Docker Desktop ' +
@@ -339,6 +339,78 @@ const POSICIONES_SEED = [
     lat: -33.0472,
     lng: -71.6127,
     datosExtra: { id_envio: 'ENV-1008', id_sensor: 'SENS-106', estado: 'DISPONIBLE' }
+  },
+  {
+    id_contenedor: 'CONT-009',
+    lat: -33.0472,
+    lng: -71.6127,
+    datosExtra: { id_envio: 'ENV-1009', id_sensor: 'SENS-107', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-010',
+    lat: -23.6509,
+    lng: -70.3975,
+    datosExtra: { id_envio: 'ENV-1010', id_sensor: 'SENS-108', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-011',
+    lat: 4.7016,
+    lng: -74.1469,
+    datosExtra: { id_envio: 'ENV-1011', id_sensor: 'SENS-109', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-012',
+    lat: -25.28,
+    lng: -57.63,
+    datosExtra: { id_envio: 'ENV-1012', id_sensor: 'SENS-110', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-013',
+    lat: 51.9,
+    lng: 4.4,
+    datosExtra: { id_envio: 'ENV-1013', id_sensor: 'SENS-111', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-014',
+    lat: -23.5505,
+    lng: -46.6333,
+    datosExtra: { id_envio: 'ENV-1014', id_sensor: 'SENS-112', estado: 'CREADO' }
+  },
+  {
+    id_contenedor: 'CONT-015',
+    lat: -34.6037,
+    lng: -58.3816,
+    datosExtra: { id_envio: 'ENV-1015', id_sensor: 'SENS-113', estado: 'ENTREGADO' }
+  },
+  {
+    id_contenedor: 'CONT-016',
+    lat: -23.8,
+    lng: -69.0,
+    datosExtra: { id_envio: 'ENV-1010', id_sensor: 'SENS-114', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-017',
+    lat: -23.7,
+    lng: -69.5,
+    datosExtra: { id_envio: 'ENV-1010', id_sensor: 'SENS-115', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-018',
+    lat: -27.0,
+    lng: -58.0,
+    datosExtra: { id_envio: 'ENV-1012', id_sensor: 'SENS-116', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-019',
+    lat: 51.9,
+    lng: 4.4,
+    datosExtra: { id_envio: 'ENV-1013', id_sensor: 'SENS-117', estado: 'EN_TRANSITO' }
+  },
+  {
+    id_contenedor: 'CONT-020',
+    lat: 51.9,
+    lng: 4.4,
+    datosExtra: { id_envio: 'ENV-1013', id_sensor: 'SENS-118', estado: 'EN_TRANSITO' }
   }
 ];
 

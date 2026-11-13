@@ -15,10 +15,12 @@ const ACTORES_UNION = `
   SELECT id_operador AS id_actor, razon_social, 'OPERADOR' AS tipo_actor, cuit, pais FROM operadores
 `;
 
+// Funciones auxiliares para el manejo de saldos y períodos
 function redondear(valor) {
   return Math.round(Number(valor) * 100) / 100;
 }
 
+// Convierte un período en formato "YYYY-MM" a un rango de fechas de inicio y fin
 function rangoPeriodo(periodo) {
   const [anio, mes] = periodo.split('-').map(Number);
   const inicio = `${periodo}-01`;
@@ -49,6 +51,7 @@ export class CuentaCorrienteRepository {
     return Number(res.rows[0].saldo);
   }
 
+  // Asegura que un actor tenga una cuenta corriente, creándola si no existe
   static async asegurarCuentaCorriente(id_actor, tipo_actor) {
     await pgPool.query(`
       INSERT INTO cuentas_corrientes (id_actor, tipo_actor, saldo)
@@ -76,6 +79,7 @@ export class CuentaCorrienteRepository {
       );
     }
 
+    // Obtenemos todas las facturas del actor, con el saldo pendiente calculado
     const facturas = await pgPool.query(`
       SELECT f.*,
              COALESCE((SELECT SUM(monto) FROM pagos p WHERE p.id_factura = f.id_factura), 0) AS total_pagado,
@@ -149,6 +153,7 @@ export class CuentaCorrienteRepository {
         ? [per, actorFiltro.id_actor, actorFiltro.tipo_actor]
         : [per];
 
+        // Verificamos si ya existe un cierre para el período y actor especificado
       const existente = await client.query(
         `SELECT 1 FROM cierres_cuentas_corrientes ${filtroCierre} LIMIT 1;`,
         paramsCierre
@@ -160,6 +165,7 @@ export class CuentaCorrienteRepository {
         );
       }
 
+      // Verificamos que no haya cierres posteriores al período que se quiere cerrar
       const filtroPosterior = actorFiltro
         ? 'WHERE periodo > $1 AND id_actor = $2 AND tipo_actor = $3'
         : 'WHERE periodo > $1';
@@ -177,6 +183,7 @@ export class CuentaCorrienteRepository {
         );
       }
 
+      // Obtenemos todos los actores (clientes, proveedores, operadores) y sus saldos actuales
       const params = [];
       let whereActor = '';
       if (actorFiltro) {
@@ -196,6 +203,7 @@ export class CuentaCorrienteRepository {
 
       const resumenCierres = [];
 
+      // Para cada actor, calculamos el total facturado, total pagado y saldo final del período
       for (const act of resActores.rows) {
         const resFacs = await client.query(`
           SELECT
@@ -206,6 +214,7 @@ export class CuentaCorrienteRepository {
             AND fecha_emision >= $3::date AND fecha_emision < $4::date;
         `, [act.id_actor, act.tipo_actor, inicio, siguiente]);
 
+        // Calculamos el total de pagos realizados en el período
         const resPagos = await client.query(`
           SELECT COALESCE(SUM(p.monto), 0) AS total_pagos
           FROM pagos p
@@ -247,6 +256,7 @@ export class CuentaCorrienteRepository {
         const totalDebe = redondear(act.tipo_actor === 'CLIENTE' ? totalFacturadoMes : totalPagadoMes);
         const totalHaber = redondear(act.tipo_actor === 'CLIENTE' ? totalPagadoMes : totalFacturadoMes);
 
+        // Guardamos el cierre del período en la tabla de cierres, haciendo un upsert
         await client.query(`
           INSERT INTO cierres_cuentas_corrientes
             (periodo, id_actor, tipo_actor, saldo_inicial, total_debe, total_haber, saldo_final, fecha_cierre, estado)

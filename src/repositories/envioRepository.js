@@ -8,9 +8,11 @@ import {
   errorValidacion
 } from '../utils/validation.js';
 
+// Constantes para validación de estados y prioridades de envío
 const ESTADOS_ENVIO = ['CREADO', 'EN_TRANSITO', 'ENTREGADO', 'RETRASADO', 'CANCELADO'];
 const PRIORIDADES = ['BAJA', 'MEDIA', 'ALTA', 'URGENTE'];
 
+//Valida un tramo de envío y devuelve un objeto con los campos validados y normalizados
 function validarTramo(tramo, index = 0) {
   if (!tramo || typeof tramo !== 'object') {
     throw errorValidacion(`El tramo ${index + 1} es inválido.`);
@@ -25,6 +27,7 @@ function validarTramo(tramo, index = 0) {
     ? numeroPositivo(tramo.costo, `tramos[${index}].costo`, { min: 0, max: 99999999.99 })
     : null;
 
+  // Validación de fechas
   const fechas = {};
   for (const campo of ['fecha_salida', 'fecha_llegada_estimada']) {
     if (tramo[campo] !== undefined && tramo[campo] !== null && tramo[campo] !== '') {
@@ -39,6 +42,7 @@ function validarTramo(tramo, index = 0) {
   return { id_tramo, desde, hasta, medio, costo, ...fechas };
 }
 
+// Valida una lista de tramos y devuelve un array de tramos validados
 function validarTramos(tramos) {
   if (tramos === undefined) return [];
   if (!Array.isArray(tramos)) {
@@ -47,6 +51,7 @@ function validarTramos(tramos) {
   return tramos.map((tramo, index) => validarTramo(tramo, index));
 }
 
+// Inserta los tramos validados en la base de datos y devuelve los tramos insertados
 async function insertarTramos(client, id_envio, tramos) {
   const insertados = [];
   for (let i = 0; i < tramos.length; i++) {
@@ -72,11 +77,13 @@ async function insertarTramos(client, id_envio, tramos) {
   return insertados;
 }
 
+// Clase que representa el repositorio de envíos, con métodos para validar, crear, actualizar, eliminar y consultar envíos y sus tramos asociados.
 export class EnvioRepository {
   static validarEnvio(data, { parcial = false } = {}) {
     const envio = {};
     let cantidad = 0;
 
+    //Se valida cada campo del envío según si es obligatorio o no, y se normalizan los valores
     if (data.id_envio !== undefined) {
       if (parcial) throw errorValidacion('El ID del envío no se puede modificar.');
       envio.id_envio = textoRequerido(data.id_envio, 'id_envio', { max: 50 });
@@ -139,6 +146,7 @@ export class EnvioRepository {
     return envio;
   }
 
+  // Lista todos los envíos con filtros opcionales por estado, id_cliente y prioridad
   static async listarTodos({ estado = null, id_cliente = null, prioridad = null } = {}) {
     const condiciones = [];
     const params = [];
@@ -157,6 +165,7 @@ export class EnvioRepository {
     }
     const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
+    // Consulta a la base de datos para obtener los envíos con los filtros aplicados, incluyendo la cantidad de tramos y contenedores asociados
     const res = await pgPool.query(`
       SELECT e.*, c.razon_social AS cliente,
              (SELECT COUNT(*)::int FROM tramos t WHERE t.id_envio = e.id_envio) AS cantidad_tramos,
@@ -175,6 +184,7 @@ export class EnvioRepository {
     return res.rows;
   }
 
+  // Obtiene un envío por su ID, incluyendo sus tramos y contenedores asociados
   static async obtenerPorId(id_envio) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const res = await pgPool.query(`
@@ -185,10 +195,12 @@ export class EnvioRepository {
     `, [id]);
     if (!res.rows[0]) return null;
 
+    // Consulta a la base de datos para obtener los tramos y contenedores asociados al envío
     const tramos = await pgPool.query(
       'SELECT * FROM tramos WHERE id_envio = $1 ORDER BY fecha_salida NULLS LAST, id_tramo ASC',
       [id]
     );
+    // Consulta a la base de datos para obtener los contenedores asociados al envío, incluyendo las fechas de asignación y liberación
     const contenedores = await pgPool.query(`
       SELECT c.*, ec.fecha_asignacion, ec.fecha_liberacion
       FROM envio_contenedores ec
@@ -199,12 +211,14 @@ export class EnvioRepository {
     return { ...res.rows[0], tramos: tramos.rows, contenedores: contenedores.rows };
   }
 
+  // Verifica si un envío existe por su ID
   static async existeEnvio(id_envio) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const res = await pgPool.query('SELECT 1 FROM envios WHERE id_envio = $1', [id]);
     return res.rowCount > 0;
   }
 
+  // Crea un nuevo envío con sus tramos asociados en la base de datos
   static async crearEnvio(data, client = pgPool) {
     const envio = this.validarEnvio(data);
     const tramos = validarTramos(data.tramos);
@@ -219,6 +233,7 @@ export class EnvioRepository {
     return { ...res.rows[0], tramos: tramosInsertados };
   }
 
+  // Actualiza un envío existente con los datos proporcionados, validando que el envío no esté en estado ENTREGADO o CANCELADO
   static async actualizar(id_envio, data) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const envio = this.validarEnvio(data, { parcial: true });
@@ -248,6 +263,7 @@ export class EnvioRepository {
     }
   }
 
+  //Actualiza los extremos (origen y destino) de los tramos de un envío, según la cantidad de tramos existentes
   static async actualizarExtremosTramos(id_envio, origen, destino) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const tramos = await pgPool.query(
@@ -276,6 +292,7 @@ export class EnvioRepository {
     return tramos.rows.length;
   }
 
+  // Cambia el estado de un envío y actualiza la fecha de entrega si el estado es ENTREGADO
   static async cambiarEstado(id_envio, estado, client = pgPool) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const estadoNormalizado = unoDe(estado, ESTADOS_ENVIO, 'estado');
@@ -290,6 +307,7 @@ export class EnvioRepository {
     return res.rows[0] || null;
   }
 
+  // Cuenta la cantidad de facturas emitidas asociadas a un envío
   static async contarFacturas(id_envio) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const res = await pgPool.query(
@@ -299,6 +317,7 @@ export class EnvioRepository {
     return res.rows[0].total;
   }
 
+  // Elimina un envío y sus tramos asociados, liberando los contenedores activos si no hay facturas emitidas
   static async eliminar(id_envio) {
     const id = textoRequerido(id_envio, 'id_envio', { max: 50 });
     const existente = await this.obtenerPorId(id);
@@ -313,6 +332,7 @@ export class EnvioRepository {
       );
     }
 
+    // Iniciamos una transacción para eliminar el envío y sus tramos, y liberar los contenedores activos
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');

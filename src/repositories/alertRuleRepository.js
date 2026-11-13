@@ -1,5 +1,6 @@
 import { AlertaRepository } from './alertaRepository.js';
 
+// 5. Fachada de compatibilidad AlertRuleRepository (consulta polimórfica)
 export class AlertRuleRepository {
   static crear(...args) { return AlertaRepository.crearRegla(...args); }
   static actualizar(...args) { return AlertaRepository.actualizarRegla(...args); }

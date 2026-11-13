@@ -13,6 +13,7 @@ import {
   TIPOS_ACTOR_FINANCIERO
 } from '../utils/validation.js';
 
+//Verifica que no exista una factura con el mismo tipo_actor, tipo_factura y numero_comprobante
 async function verificarComprobanteUnico(client, { tipo_actor, tipo_factura, numero_comprobante }) {
   const res = await client.query(`
     SELECT id_factura
@@ -29,6 +30,7 @@ async function verificarComprobanteUnico(client, { tipo_actor, tipo_factura, num
   }
 }
 
+// Verifica que el envío exista, que pertenezca al cliente (si se pasa id_cliente), y opcionalmente marca el envío como ENTREGADO
 async function verificarEnvio(client, id_envio, { id_cliente = null, marcar_entregado = false } = {}) {
   if (!id_envio) return null;
 
@@ -58,6 +60,7 @@ async function verificarEnvio(client, id_envio, { id_cliente = null, marcar_entr
   return envio;
 }
 
+// Repositorio para manejar facturas emitidas y recibidas, así como la facturación automática de envíos
 export class FacturaRepository {
   /**
    * Emite factura a un CLIENTE (Facturación de venta emitida por el sistema)

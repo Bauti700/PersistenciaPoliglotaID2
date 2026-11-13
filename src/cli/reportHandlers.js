@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate, formatMoney, formatTableRows } from './cliFormatters.js';
 
+// Función para manejar la opción 14 del menú principal, que corresponde a la generación de reportes operativos y analíticos parametrizados. Permite al usuario autenticado generar diferentes tipos de reportes según los filtros seleccionados.
 export async function handleOption14({ ask, currentUser }) {
   console.log('\n--- REPORTES OPERATIVOS Y ANALÍTICOS PARAMETRIZADOS ---');
   console.log('1. Reporte Comercial Parametrizado (Facturable)');

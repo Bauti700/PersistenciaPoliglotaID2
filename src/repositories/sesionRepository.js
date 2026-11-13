@@ -5,17 +5,21 @@ import { enteroPositivo, textoRequerido, unoDe, errorValidacion } from '../utils
 
 const ESTADOS_HISTORIAL = ['ACTIVA', 'CERRADA', 'EXPIRADA'];
 
+// Función auxiliar para asegurar que Redis esté disponible antes de realizar operaciones de sesión.
 function asegurarRedis() {
   if (!redisClient.isOpen) {
     throw new Error('Redis no está disponible. No se pueden gestionar sesiones.');
   }
 }
 
+// Función auxiliar para normalizar y validar el token de sesión.
 function normalizarToken(token) {
   return textoRequerido(token, 'token', { min: 8, max: 64 });
 }
 
+//Repository para gestionar sesiones de usuario, incluyendo creación, renovación, cierre y auditoría de sesiones.
 export class SesionRepository {
+  // Crea una nueva sesión para un usuario, almacenándola en Redis y registrando el historial en PostgreSQL.
   static async crearSesion({ id_usuario, email, id_rol, ip = null, ttl = 3600 }) {
     asegurarRedis();
     await UsuarioRepository.ensureSchema();
@@ -62,6 +66,7 @@ export class SesionRepository {
     return sesion;
   }
 
+  // Obtiene los datos de una sesión a partir de su token, devolviendo null si no existe o ha expirado.
   static async obtenerSesion(token) {
     asegurarRedis();
     const tokenNormalizado = normalizarToken(token);
@@ -75,6 +80,7 @@ export class SesionRepository {
     }
   }
 
+  // Lista todas las sesiones activas, incluyendo su tiempo restante de vida (TTL) y ordenadas por fecha de inicio.
   static async listarSesionesActivas() {
     asegurarRedis();
     const tokens = await redisClient.sMembers('sesiones:activas');
@@ -96,6 +102,7 @@ export class SesionRepository {
     return sesiones.sort((a, b) => String(a.fecha_inicio).localeCompare(String(b.fecha_inicio)));
   }
 
+  // Renueva una sesión existente, extendiendo su tiempo de vida y actualizando el historial en PostgreSQL.
   static async renovarSesion(token, ttl = 3600) {
     asegurarRedis();
     const sesion = await this.obtenerSesion(token);
@@ -116,6 +123,7 @@ export class SesionRepository {
     return sesion;
   }
 
+  // Cierra una sesión específica, eliminándola de Redis y actualizando su estado en el historial de PostgreSQL.
   static async cerrarSesion(token) {
     asegurarRedis();
     const tokenNormalizado = normalizarToken(token);
@@ -149,6 +157,7 @@ export class SesionRepository {
     return Boolean(sesion || res.rows[0]);
   }
 
+  // Cierra todas las sesiones de un usuario específico, eliminándolas de Redis y actualizando su estado en el historial de PostgreSQL.
   static async cerrarSesionesUsuario(id_usuario) {
     asegurarRedis();
     const usuario = enteroPositivo(id_usuario, 'id_usuario');
@@ -170,6 +179,7 @@ export class SesionRepository {
     return tokens.length;
   }
 
+  // Cierra todas las sesiones activas, eliminándolas de Redis y actualizando su estado en el historial de PostgreSQL.
   static async cerrarTodas() {
     asegurarRedis();
     const tokens = await redisClient.sMembers('sesiones:activas');
@@ -194,6 +204,7 @@ export class SesionRepository {
     return tokens.length;
   }
 
+  // Lista el historial de sesiones, filtrando por usuario y estado, y limitando la cantidad de resultados devueltos.
   static async listarHistorialSesiones({ id_usuario = null, estado = null, limite = 50 } = {}) {
     await UsuarioRepository.ensureSchema();
     const condiciones = [];
@@ -224,6 +235,7 @@ export class SesionRepository {
     return res.rows;
   }
 
+  // Obtiene el historial de una sesión específica a partir de su token, devolviendo null si no existe.
   static async obtenerHistorialSesion(token) {
     await UsuarioRepository.ensureSchema();
     const tokenNormalizado = normalizarToken(token);
@@ -234,6 +246,7 @@ export class SesionRepository {
     return res.rows[0] || null;
   }
 
+  // Limpia el historial de sesiones expiradas, marcando como "EXPIRADA" aquellas que no han tenido actividad en los últimos días especificados.
   static async limpiarHistorialExpirado(dias = 30) {
     const diasNormalizados = enteroPositivo(dias, 'dias', { min: 1, max: 3650 });
     const res = await pgPool.query(`

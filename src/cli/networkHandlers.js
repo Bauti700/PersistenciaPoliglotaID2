@@ -20,6 +20,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatTableRows } from './cliFormatters.js';
 
+// Función para manejar la opción 9 del menú principal, que corresponde a la visualización de la red de relaciones logísticas. Permite al usuario autenticado ver la red completa de relaciones entre clientes, proveedores y operadores.
 export async function handleOption9({ ask, currentUser }) {
   console.log('\n--- RED LOGÍSTICA COMPLETA ---');
   const red = await Neo4jRouteRepository.obtenerRedRelaciones();

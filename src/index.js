@@ -6,6 +6,7 @@ import { runMainMenu } from './cli/mainMenu.js';
 process.stdout.setEncoding('utf8');
 process.stderr.setEncoding('utf8');
 
+// Función principal de la aplicación CLI
 async function main() {
   console.log('Verificando estado de conexiones...');
   const status = await initDatabaseConnections();

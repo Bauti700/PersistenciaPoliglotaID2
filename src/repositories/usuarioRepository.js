@@ -23,20 +23,24 @@ const PERMISOS_ADMIN = {
   finanzas: true
 };
 
+// Funciones auxiliares para normalizar y validar datos de usuarios y roles.
 function normalizarEmail(email) {
   return emailValido(email).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// Normaliza los permisos de un rol, asegurando que estén en formato JSON válido.
 function normalizarPermisos(permisos) {
   return objetoJson(permisos, 'permisos');
 }
 
+// Elimina la propiedad password_hash de un objeto usuario para evitar exponerla.
 function sinPassword(usuario) {
   if (!usuario) return null;
   const { password_hash, ...resto } = usuario;
   return resto;
 }
 
+// Repositorio para manejar todas las operaciones relacionadas con usuarios y roles, incluyendo creación, actualización, autenticación y gestión de permisos.
 export class UsuarioRepository {
   static async ensureSchema() {
     const alteraciones = [
@@ -91,6 +95,7 @@ export class UsuarioRepository {
   }
 
   // --- ROLES ---
+  // Valida los datos de un rol, asegurando que los campos requeridos estén presentes y sean correctos.
   static validarRol(data = {}, parcial = false) {
     const rol = {};
     let cantidad = 0;
@@ -129,6 +134,7 @@ export class UsuarioRepository {
     return rol;
   }
 
+  // Crea un nuevo rol en la base de datos, asegurando que no exista otro rol con la misma descripción.
   static async crearRol(data) {
     await this.ensureSchema();
     const rol = this.validarRol(data);
@@ -149,6 +155,7 @@ export class UsuarioRepository {
     return res.rows[0];
   }
 
+  // Lista todos los roles en la base de datos, con la opción de filtrar solo los activos.
   static async listarRoles({ soloActivos = false } = {}) {
     await this.ensureSchema();
     const where = soloActivos ? "WHERE estado = 'ACTIVO'" : '';
@@ -162,6 +169,7 @@ export class UsuarioRepository {
     return res.rows;
   }
 
+  // Obtiene un rol específico por su ID, devolviendo null si no existe.
   static async obtenerRolPorId(id_rol) {
     await this.ensureSchema();
     const id = enteroPositivo(id_rol, 'id_rol');
@@ -169,6 +177,7 @@ export class UsuarioRepository {
     return res.rows[0] || null;
   }
 
+  // Actualiza un rol existente en la base de datos, asegurando que no exista otro rol con la misma descripción.
   static async actualizarRol(id_rol, datos) {
     await this.ensureSchema();
     const id = enteroPositivo(id_rol, 'id_rol');
@@ -195,6 +204,7 @@ export class UsuarioRepository {
     return res.rows[0] || null;
   }
 
+  // Desactiva un rol existente en la base de datos, asegurando que no tenga usuarios activos asignados.
   static async desactivarRol(id_rol) {
     await this.ensureSchema();
     const id = enteroPositivo(id_rol, 'id_rol');
@@ -215,6 +225,7 @@ export class UsuarioRepository {
     return res.rows[0] || null;
   }
 
+  // Reactiva un rol previamente desactivado en la base de datos.
   static async activarRol(id_rol) {
     await this.ensureSchema();
     const id = enteroPositivo(id_rol, 'id_rol');
@@ -225,6 +236,7 @@ export class UsuarioRepository {
     return res.rows[0] || null;
   }
 
+  // Elimina un rol de la base de datos, asegurando que no tenga usuarios asignados.
   static async eliminarRol(id_rol) {
     await this.ensureSchema();
     const id = enteroPositivo(id_rol, 'id_rol');
@@ -240,6 +252,7 @@ export class UsuarioRepository {
   }
 
   // --- USUARIOS ---
+  // Obtiene un rol activo por su ID, lanzando un error si el rol no existe o está inactivo.
   static async obtenerRolActivo(id_rol) {
     const rol = await this.obtenerRolPorId(id_rol);
     if (!rol) {
@@ -251,6 +264,7 @@ export class UsuarioRepository {
     return rol;
   }
 
+  // Valida si un cliente existe en la base de datos, devolviendo null si no se proporciona un ID de cliente.
   static async validarCliente(id_cliente) {
     if (id_cliente === undefined || id_cliente === null || id_cliente === '') return null;
     const id = enteroPositivo(id_cliente, 'id_cliente');
@@ -261,6 +275,7 @@ export class UsuarioRepository {
     return id;
   }
 
+  // Crea un nuevo usuario en la base de datos, asegurando que el email sea único y que el rol asignado esté activo.
   static async crearUsuario(data) {
     await this.ensureSchema();
     const nombre = textoRequerido(data.nombre, 'nombre', { max: 100 });
@@ -289,6 +304,7 @@ export class UsuarioRepository {
     return sinPassword(res.rows[0]);
   }
 
+  // Lista todos los usuarios en la base de datos, con opciones de filtrado por estado y rol.
   static async listarUsuarios(filtro = {}) {
     await this.ensureSchema();
     let query = `
@@ -321,6 +337,7 @@ export class UsuarioRepository {
     return res.rows;
   }
 
+  // Obtiene un usuario específico por su ID, devolviendo null si no existe.
   static async obtenerUsuarioPorId(id_usuario) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -338,6 +355,7 @@ export class UsuarioRepository {
     return res.rows[0] || null;
   }
 
+  // Obtiene un usuario específico por su email, devolviendo null si no existe.
   static async obtenerUsuarioPorEmail(email) {
     await this.ensureSchema();
     const limpio = normalizarEmail(email);
@@ -351,6 +369,7 @@ export class UsuarioRepository {
     return res.rows[0] || null;
   }
 
+  // Autentica un usuario mediante email y contraseña, devolviendo el usuario sin la contraseña si es válido.
   static async autenticar(email, password) {
     const user = await this.obtenerUsuarioPorEmail(email);
     if (!user || user.estado !== 'ACTIVO') return null;
@@ -363,6 +382,7 @@ export class UsuarioRepository {
     return sinPassword({ ...user, sesion_activa: true });
   }
 
+  // Actualiza los datos de un usuario existente, asegurando que el email sea único y que el rol asignado esté activo.
   static async actualizarUsuario(id_usuario, datos) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -421,6 +441,7 @@ export class UsuarioRepository {
     }
   }
 
+  // Cambia el rol de un usuario existente, asegurando que el nuevo rol esté activo.
   static async cambiarRol(id_usuario, id_rol) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -433,6 +454,7 @@ export class UsuarioRepository {
     return sinPassword(res.rows[0] || null);
   }
 
+  // Bloquea un usuario existente, estableciendo su estado a "BLOQUEADO" y cerrando cualquier sesión activa.
   static async bloquearUsuario(id_usuario) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -443,6 +465,7 @@ export class UsuarioRepository {
     return sinPassword(res.rows[0] || null);
   }
 
+  // Reactiva un usuario previamente bloqueado, estableciendo su estado a "ACTIVO".
   static async activarUsuario(id_usuario) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -453,6 +476,7 @@ export class UsuarioRepository {
     return sinPassword(res.rows[0] || null);
   }
 
+  //
   static async eliminarUsuario(id_usuario) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -460,6 +484,7 @@ export class UsuarioRepository {
     return sinPassword(res.rows[0] || null);
   }
 
+  // Actualiza la fecha del último acceso de un usuario existente, y marca su sesión como activa.
   static async actualizarUltimoAcceso(id_usuario) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
@@ -470,18 +495,21 @@ export class UsuarioRepository {
     return sinPassword(res.rows[0] || null);
   }
 
+  // Marca la sesión de un usuario como activa o inactiva.
   static async marcarSesionActiva(id_usuario, activa) {
     await this.ensureSchema();
     const id = enteroPositivo(id_usuario, 'id_usuario');
     await pgPool.query('UPDATE usuarios SET sesion_activa = $2 WHERE id_usuario = $1', [id, Boolean(activa)]);
   }
 
+  // Verifica si un usuario tiene un permiso específico, devolviendo true si lo tiene o si es administrador.
   static tienePermiso(usuario, permiso) {
     if (!usuario) return false;
     if (usuario.permisos && usuario.permisos[permiso] === true) return true;
     return this.esAdministrador(usuario);
   }
 
+  // Verifica si un usuario es administrador, basándose en su rol, nivel de permisos o permisos específicos.
   static esAdministrador(usuario) {
     if (!usuario) return false;
     const rol = String(usuario.rol_descripcion || '').toUpperCase();

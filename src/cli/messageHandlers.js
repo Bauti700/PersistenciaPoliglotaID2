@@ -19,6 +19,7 @@ import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 import { formatDate } from './cliFormatters.js';
 
+// Función para manejar la opción 7 del menú principal, que corresponde a la mensajería y chat. Permite al usuario autenticado ver historiales de conversación, enviar mensajes privados y grupales, y listar grupos de trabajo disponibles.
 export async function handleOption7({ ask, currentUser }) {
             let volverMensajeria = false;
             while (!volverMensajeria) {

@@ -19,6 +19,7 @@ import { AnalyticsService } from '../services/analyticsService.js';
 import { menuABMEntidad } from './entityMenu.js';
 import { parsearIdsContenedores } from './cliHelpers.js';
 
+// Función para manejar la opción 15 del menú principal, que corresponde al ranking de rutas con mayor cantidad de incidentes. Permite al usuario autenticado obtener un ranking de rutas basado en la cantidad y severidad de incidentes reportados, con recomendaciones operativas asociadas.
 export async function handleOption15({ ask, currentUser }) {
   console.log('\n--- RANKING DE RUTAS CON MAYOR CANTIDAD DE INCIDENTES ---');
   const forzar = (await ask('¿Desea forzar el recálculo? (s/n) [n]: ')).toLowerCase() === 's';

@@ -59,6 +59,102 @@ db.sensores.insertMany([
     fecha_instalacion: new Date("2024-06-08T14:00:00Z"),
     estado: "ACTIVO",
     id_contenedor: "CONT-008"
+  },
+  {
+    id_sensor: "SENS-107",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "Carrier Transicold",
+    fecha_instalacion: new Date("2024-06-15T08:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-009"
+  },
+  {
+    id_sensor: "SENS-108",
+    tipo: "Vibración/Impacto/GPS",
+    fabricante: "SafeCargo Sensors",
+    fecha_instalacion: new Date("2024-06-20T10:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-010"
+  },
+  {
+    id_sensor: "SENS-109",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "IoTCorp Tech",
+    fecha_instalacion: new Date("2024-07-01T09:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-011"
+  },
+  {
+    id_sensor: "SENS-110",
+    tipo: "Presión/Vibración/GPS",
+    fabricante: "OrbitLink Sat",
+    fecha_instalacion: new Date("2024-07-05T11:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-012"
+  },
+  {
+    id_sensor: "SENS-111",
+    tipo: "Temperatura/GPS",
+    fabricante: "ColdChain Pro",
+    fecha_instalacion: new Date("2024-07-10T12:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-013"
+  },
+  {
+    id_sensor: "SENS-112",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "IoTCorp Tech",
+    fecha_instalacion: new Date("2024-07-15T14:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-014"
+  },
+  {
+    id_sensor: "SENS-113",
+    tipo: "GPS/Vibración",
+    fabricante: "SafeCargo Sensors",
+    fecha_instalacion: new Date("2024-07-20T16:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-015"
+  },
+  {
+    id_sensor: "SENS-114",
+    tipo: "Vibración/Impacto/GPS",
+    fabricante: "SafeCargo Sensors",
+    fecha_instalacion: new Date("2024-07-22T08:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-016"
+  },
+  {
+    id_sensor: "SENS-115",
+    tipo: "Presión/Vibración/GPS",
+    fabricante: "OrbitLink Sat",
+    fecha_instalacion: new Date("2024-07-22T09:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-017"
+  },
+  {
+    id_sensor: "SENS-116",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "IoTCorp Tech",
+    fecha_instalacion: new Date("2024-07-25T10:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-018"
+  },
+  {
+    id_sensor: "SENS-117",
+    tipo: "Temperatura/Humedad/GPS",
+    fabricante: "Carrier Transicold",
+    fecha_instalacion: new Date("2024-07-28T11:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-019"
+  },
+  {
+    id_sensor: "SENS-118",
+    tipo: "Humedad/GPS",
+    fabricante: "ColdChain Pro",
+    fecha_instalacion: new Date("2024-07-28T12:00:00Z"),
+    estado: "ACTIVO",
+    id_contenedor: "CONT-020"
   }
 ]);
 
@@ -186,6 +282,210 @@ db.lecturas_sensores.insertMany([
     vibracion: 0.04,
     posicion_gps: { type: "Point", coordinates: [-71.6127, -33.0472] },
     nivel_bateria: 89
+  },
+  {
+    id_lectura: "LEC-010",
+    id_sensor: "SENS-107",
+    id_contenedor: "CONT-009",
+    id_envio: "ENV-1009",
+    fecha_hora: new Date(Date.now() - 3600000 * 4),
+    temperatura: -18.2,
+    humedad: 45.0,
+    vibracion: 0.05,
+    posicion_gps: { type: "Point", coordinates: [-71.2489, -34.9828] },
+    nivel_bateria: 97
+  },
+  {
+    id_lectura: "LEC-011",
+    id_sensor: "SENS-107",
+    id_contenedor: "CONT-009",
+    id_envio: "ENV-1009",
+    fecha_hora: new Date(Date.now() - 3600000 * 2),
+    temperatura: -17.8,
+    humedad: 46.5,
+    vibracion: 0.07,
+    posicion_gps: { type: "Point", coordinates: [-71.6127, -33.0472] },
+    nivel_bateria: 96
+  },
+  {
+    id_lectura: "LEC-012",
+    id_sensor: "SENS-108",
+    id_contenedor: "CONT-010",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 3600000 * 5),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.28,
+    posicion_gps: { type: "Point", coordinates: [-69.0000, -23.8000] },
+    nivel_bateria: 90
+  },
+  {
+    id_lectura: "LEC-013",
+    id_sensor: "SENS-108",
+    id_contenedor: "CONT-010",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.14,
+    posicion_gps: { type: "Point", coordinates: [-70.3975, -23.6509] },
+    nivel_bateria: 89
+  },
+  {
+    id_lectura: "LEC-014",
+    id_sensor: "SENS-109",
+    id_contenedor: "CONT-011",
+    id_envio: "ENV-1011",
+    fecha_hora: new Date(Date.now() - 3600000 * 6),
+    temperatura: 2.4,
+    humedad: 40.0,
+    vibracion: 0.03,
+    posicion_gps: { type: "Point", coordinates: [-58.5358, -34.8222] },
+    nivel_bateria: 99
+  },
+  {
+    id_lectura: "LEC-015",
+    id_sensor: "SENS-109",
+    id_contenedor: "CONT-011",
+    id_envio: "ENV-1011",
+    fecha_hora: new Date(Date.now() - 3600000 * 2),
+    temperatura: 3.1,
+    humedad: 42.0,
+    vibracion: 0.08,
+    posicion_gps: { type: "Point", coordinates: [-74.1469, 4.7016] },
+    nivel_bateria: 98
+  },
+  {
+    id_lectura: "LEC-016",
+    id_sensor: "SENS-110",
+    id_contenedor: "CONT-012",
+    id_envio: "ENV-1012",
+    fecha_hora: new Date(Date.now() - 3600000 * 8),
+    temperatura: 21.0,
+    humedad: 75.0,
+    vibracion: 0.04,
+    posicion_gps: { type: "Point", coordinates: [-60.6393, -32.9468] },
+    nivel_bateria: 94
+  },
+  {
+    id_lectura: "LEC-017",
+    id_sensor: "SENS-110",
+    id_contenedor: "CONT-012",
+    id_envio: "ENV-1012",
+    fecha_hora: new Date(Date.now() - 3600000 * 3),
+    temperatura: 22.5,
+    humedad: 78.0,
+    vibracion: 0.05,
+    posicion_gps: { type: "Point", coordinates: [-57.6300, -25.2800] },
+    nivel_bateria: 93
+  },
+  {
+    id_lectura: "LEC-018",
+    id_sensor: "SENS-111",
+    id_contenedor: "CONT-013",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 3600000 * 12),
+    temperatura: 1.5,
+    humedad: 50.0,
+    vibracion: 0.06,
+    posicion_gps: { type: "Point", coordinates: [-77.1500, -12.0500] },
+    nivel_bateria: 95
+  },
+  {
+    id_lectura: "LEC-019",
+    id_sensor: "SENS-111",
+    id_contenedor: "CONT-013",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 3600000 * 2),
+    temperatura: 2.0,
+    humedad: 52.0,
+    vibracion: 0.05,
+    posicion_gps: { type: "Point", coordinates: [4.4000, 51.9000] },
+    nivel_bateria: 91
+  },
+  {
+    id_lectura: "LEC-020",
+    id_sensor: "SENS-112",
+    id_contenedor: "CONT-014",
+    id_envio: "ENV-1014",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    temperatura: 19.8,
+    humedad: 55.0,
+    vibracion: 0.09,
+    posicion_gps: { type: "Point", coordinates: [-46.6333, -23.5505] },
+    nivel_bateria: 100
+  },
+  {
+    id_lectura: "LEC-021",
+    id_sensor: "SENS-113",
+    id_contenedor: "CONT-015",
+    id_envio: "ENV-1015",
+    fecha_hora: new Date(Date.now() - 3600000 * 24),
+    temperatura: 15.0,
+    humedad: 60.0,
+    vibracion: 0.04,
+    posicion_gps: { type: "Point", coordinates: [9.9937, 53.5511] },
+    nivel_bateria: 85
+  },
+  {
+    id_lectura: "LEC-022",
+    id_sensor: "SENS-114",
+    id_contenedor: "CONT-016",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 3600000 * 3),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.22,
+    posicion_gps: { type: "Point", coordinates: [-69.0000, -23.8000] },
+    nivel_bateria: 92
+  },
+  {
+    id_lectura: "LEC-023",
+    id_sensor: "SENS-115",
+    id_contenedor: "CONT-017",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 3600000 * 2),
+    temperatura: null,
+    humedad: null,
+    vibracion: 0.18,
+    posicion_gps: { type: "Point", coordinates: [-69.5000, -23.7000] },
+    nivel_bateria: 95
+  },
+  {
+    id_lectura: "LEC-024",
+    id_sensor: "SENS-116",
+    id_contenedor: "CONT-018",
+    id_envio: "ENV-1012",
+    fecha_hora: new Date(Date.now() - 3600000 * 4),
+    temperatura: 22.0,
+    humedad: 76.0,
+    vibracion: 0.05,
+    posicion_gps: { type: "Point", coordinates: [-58.0000, -27.0000] },
+    nivel_bateria: 91
+  },
+  {
+    id_lectura: "LEC-025",
+    id_sensor: "SENS-117",
+    id_contenedor: "CONT-019",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    temperatura: 3.5,
+    humedad: 85.0,
+    vibracion: 0.06,
+    posicion_gps: { type: "Point", coordinates: [4.4000, 51.9000] },
+    nivel_bateria: 98
+  },
+  {
+    id_lectura: "LEC-026",
+    id_sensor: "SENS-118",
+    id_contenedor: "CONT-020",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    temperatura: 18.0,
+    humedad: 50.0,
+    vibracion: 0.04,
+    posicion_gps: { type: "Point", coordinates: [4.4000, 51.9000] },
+    nivel_bateria: 96
   }
 ]);
 
@@ -226,6 +526,62 @@ db.eventos_logisticos.insertMany([
     tipo_evento: "Entrega confirmada",
     ubicacion: "Asunción",
     descripcion: "Contenedor descargado y recepción firmada por el cliente."
+  },
+  {
+    id_evento: "EVT-005",
+    id_envio: "ENV-1009",
+    fecha_hora: new Date(Date.now() - 86400000 * 1),
+    tipo_evento: "Inspección Fitosanitaria SAG",
+    ubicacion: "Valparaíso Terminal",
+    descripcion: "Certificación de frío y control de plagas aprobado para fruta fresca."
+  },
+  {
+    id_evento: "EVT-006",
+    id_envio: "ENV-1010",
+    fecha_hora: new Date(Date.now() - 86400000 * 2),
+    tipo_evento: "Carga en Concesión Ferroviaria",
+    ubicacion: "Estación Salta Cargas",
+    descripcion: "Acople de vagones tolva y sellado de seguridad de concentrado de litio."
+  },
+  {
+    id_evento: "EVT-007",
+    id_envio: "ENV-1011",
+    fecha_hora: new Date(Date.now() - 3600000 * 5),
+    tipo_evento: "Embarque Aéreo Prioritario",
+    ubicacion: "Aeropuerto Ezeiza",
+    descripcion: "Paletizado térmico cargado en bodega presurizada vuelo AR-1360."
+  },
+  {
+    id_evento: "EVT-008",
+    id_envio: "ENV-1012",
+    fecha_hora: new Date(Date.now() - 86400000 * 3),
+    tipo_evento: "Zarpada de Barcaza Fluvial",
+    ubicacion: "Terminal Puerto Rosario",
+    descripcion: "Convoy de barcazas zarpó por Hidrovía hacia puerto de Asunción."
+  },
+  {
+    id_evento: "EVT-009",
+    id_envio: "ENV-1013",
+    fecha_hora: new Date(Date.now() - 86400000 * 10),
+    tipo_evento: "Cruce Transoceánico",
+    ubicacion: "Atlántico Norte",
+    descripcion: "Buque portacontenedores en derrota marítima hacia Róterdam sin novedad."
+  },
+  {
+    id_evento: "EVT-010",
+    id_envio: "ENV-1014",
+    fecha_hora: new Date(Date.now() - 3600000 * 1),
+    tipo_evento: "Consolidación de Carga",
+    ubicacion: "Centro Logístico San Pablo",
+    descripcion: "Piezas automotrices embaladas y listas para despacho por carretera."
+  },
+  {
+    id_evento: "EVT-011",
+    id_envio: "ENV-1015",
+    fecha_hora: new Date(Date.now() - 86400000 * 18),
+    tipo_evento: "Entrega Final y Descarga",
+    ubicacion: "Terminal Puerto Buenos Aires",
+    descripcion: "Contenedor desaduanado y recepcionado satisfactoriamente por el cliente."
   }
 ]);
 
@@ -335,6 +691,50 @@ db.incidentes.insertMany([
     estado: "CERRADO",
     descripcion: "Vibración elevada durante maniobra de carga portuaria.",
     fecha: new Date(Date.now() - 86400000)
+  },
+  {
+    id_incidente: "INC-210",
+    id_envio: "ENV-1009",
+    id_sensor: "SENS-107",
+    id_contenedor: "CONT-009",
+    tipo: "EXCESO_TEMPERATURA",
+    severidad: "MEDIA",
+    estado: "CERRADO",
+    descripcion: "Subida transitoria a -16.5°C por apertura en inspección fitosanitaria.",
+    fecha: new Date(Date.now() - 3600000 * 6)
+  },
+  {
+    id_incidente: "INC-211",
+    id_envio: "ENV-1010",
+    id_sensor: "SENS-108",
+    id_contenedor: "CONT-010",
+    tipo: "VIBRACION_EXCESIVA",
+    severidad: "BAJA",
+    estado: "CERRADO",
+    descripcion: "Picos de aceleración vertical en cambio de vías tramo ferroviario andino.",
+    fecha: new Date(Date.now() - 3600000 * 10)
+  },
+  {
+    id_incidente: "INC-212",
+    id_envio: "ENV-1012",
+    id_sensor: null,
+    id_contenedor: null,
+    tipo: "CONDICIONES_CLIMATICAS",
+    severidad: "MEDIA",
+    estado: "ABIERTO",
+    descripcion: "Baja cota de navegación por bajante estacional en tramo medio del Paraná.",
+    fecha: new Date(Date.now() - 3600000 * 7)
+  },
+  {
+    id_incidente: "INC-213",
+    id_envio: "ENV-1013",
+    id_sensor: "SENS-111",
+    id_contenedor: "CONT-013",
+    tipo: "DEMORA",
+    severidad: "BAJA",
+    estado: "ABIERTO",
+    descripcion: "Congestión portuaria en esclusas de acceso Terminal Róterdam.",
+    fecha: new Date(Date.now() - 3600000 * 4)
   }
 ]);
 
@@ -437,6 +837,36 @@ db.alertas.insertMany([
     id_regla: "REG-VIB-01",
     mensaje: "Vibración registrada durante la carga portuaria.",
     fecha: new Date(Date.now() - 86400000)
+  },
+  {
+    id_alerta: "ALT-504",
+    id_sensor: "SENS-107",
+    id_contenedor: "CONT-009",
+    id_envio: "ENV-1009",
+    tipo: "TEMPERATURA",
+    severidad: "MEDIA",
+    estado: "CERRADA",
+    motivo: "UMBRAL_TEMPERATURA",
+    valor_detectado: -16.5,
+    umbral_aplicado: -18.0,
+    id_regla: "REG-TEMP-01",
+    mensaje: "Desviación térmica durante inspección de fruta.",
+    fecha: new Date(Date.now() - 3600000 * 6)
+  },
+  {
+    id_alerta: "ALT-505",
+    id_sensor: "SENS-110",
+    id_contenedor: "CONT-012",
+    id_envio: "ENV-1012",
+    tipo: "INACTIVIDAD",
+    severidad: "ALTA",
+    estado: "ABIERTA",
+    motivo: "SIN_LECTURAS_RECIENTES",
+    valor_detectado: 2.8,
+    umbral_aplicado: 2.0,
+    id_regla: "REG-INACT-01",
+    mensaje: "Intermitencia satelital en convoy fluvial río Paraná.",
+    fecha: new Date(Date.now() - 3600000 * 1)
   }
 ]);
 
@@ -524,6 +954,50 @@ db.mensajes.insertMany([
     formato: "TEXTO",
     estado: "ENVIADO",
     fecha: new Date(Date.now() - 3600000)
+  },
+  {
+    id_mensaje: "MSG-8",
+    remitente: "maria.gonzalez@logistica.com",
+    destinatario: "admin@logistica.com",
+    id_grupo: null,
+    contenido: "El despacho de insumos médicos ENV-1011 despegó de Ezeiza sin novedades.",
+    tipo: "PRIVADO",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 4)
+  },
+  {
+    id_mensaje: "MSG-9",
+    remitente: "juan.perez@logistica.com",
+    destinatario: null,
+    id_grupo: "GRP-01",
+    contenido: "Atención: bajante en la Hidrovía Paraná retrasa el convoy del envío ENV-1012 unas 6 horas.",
+    tipo: "GRUPAL",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 3)
+  },
+  {
+    id_mensaje: "MSG-10",
+    remitente: "carlos.lopez@logistica.com",
+    destinatario: "juan.perez@logistica.com",
+    id_grupo: null,
+    contenido: "Juan, la carga de mineral ENV-1010 arribó a la estación Antofagasta para trasbordo marítimo.",
+    tipo: "PRIVADO",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 2)
+  },
+  {
+    id_mensaje: "MSG-11",
+    remitente: "admin@logistica.com",
+    destinatario: null,
+    id_grupo: "GRP-01",
+    contenido: "Confirmado el atraque en Róterdam del buque con el envío ENV-1013 de espárragos.",
+    tipo: "GRUPAL",
+    formato: "TEXTO",
+    estado: "ENVIADO",
+    fecha: new Date(Date.now() - 3600000 * 1)
   }
 ]);
 
@@ -567,6 +1041,42 @@ db.predicciones_riesgo.insertMany([
     probabilidad_demora: 0.08,
     factores: ["Ruta despejada", "Entrega ya confirmada"],
     fecha_calculo: new Date(Date.now() - 86400000 * 2)
+  },
+  {
+    id_prediccion: "PRED-1009",
+    id_envio: "ENV-1009",
+    riesgo_climatico: "BAJO",
+    riesgo_operativo: "BAJO",
+    probabilidad_demora: 0.12,
+    factores: ["Ruta Curicó-Valparaíso despejada", "Controles fitosanitarios al día"],
+    fecha_calculo: new Date()
+  },
+  {
+    id_prediccion: "PRED-1010",
+    id_envio: "ENV-1010",
+    riesgo_climatico: "MODERADO",
+    riesgo_operativo: "BAJO",
+    probabilidad_demora: 0.18,
+    factores: ["Viento blanco moderado en cordillera", "Locomotora con mantenimiento reciente"],
+    fecha_calculo: new Date()
+  },
+  {
+    id_prediccion: "PRED-1012",
+    id_envio: "ENV-1012",
+    riesgo_climatico: "ALTO",
+    riesgo_operativo: "ALTO",
+    probabilidad_demora: 0.74,
+    factores: ["Bajante crítica río Paraná", "Calado restringido para barcazas pesadas"],
+    fecha_calculo: new Date()
+  },
+  {
+    id_prediccion: "PRED-1013",
+    id_envio: "ENV-1013",
+    riesgo_climatico: "BAJO",
+    riesgo_operativo: "MODERADO",
+    probabilidad_demora: 0.35,
+    factores: ["Congestión en terminal portuaria europea", "Cadena de frío ultraestable"],
+    fecha_calculo: new Date()
   }
 ]);
 
