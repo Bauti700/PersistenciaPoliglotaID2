@@ -32,6 +32,17 @@ const RUTA_POSTGRES = fileURLToPath(new URL('./init_postgres.sql', import.meta.u
 const RUTA_MONGO = fileURLToPath(new URL('./init_mongo.js', import.meta.url));
 const RUTA_NEO4J = fileURLToPath(new URL('./init_neo4j.cypher', import.meta.url));
 
+const OPERADORES_NEO4J_SEED = [
+  { cuit: '30-10000001-2', id_envio: 'ENV-1001' },
+  { cuit: '30-10000002-0', id_envio: 'ENV-1002' },
+  { cuit: '30-10000003-9', id_envio: 'ENV-1003' },
+  { cuit: '30-10000004-7', id_envio: 'ENV-1004' },
+  { cuit: '30-10000005-5', id_envio: 'ENV-1005' },
+  { cuit: '30-10000006-3', id_envio: 'ENV-1006' },
+  { cuit: '30-10000007-1', id_envio: 'ENV-1007' },
+  { cuit: '30-10000008-9', id_envio: 'ENV-1008' }
+];
+
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:password123@localhost:27017/tpo_telemetria?authSource=admin';
 const MONGO_CONTAINER = process.env.MONGO_CONTAINER || 'tpo_mongo';
 
@@ -208,6 +219,41 @@ async function ejecutarSentenciasNeo4j(sentencias) {
   }
 }
 
+async function seedOperadoresNeo4j() {
+  const cuits = OPERADORES_NEO4J_SEED.map(operador => operador.cuit);
+  const { rows } = await pgPool.query(
+    'SELECT id_operador, razon_social, cuit FROM operadores WHERE cuit = ANY($1::varchar[])',
+    [cuits]
+  );
+  const operadoresPorCuit = new Map(rows.map(operador => [operador.cuit, operador]));
+  const operadores = OPERADORES_NEO4J_SEED.map(({ cuit, id_envio }) => {
+    const operador = operadoresPorCuit.get(cuit);
+    if (!operador) {
+      throw new Error(`No se encontró en PostgreSQL el operador con CUIT ${cuit}.`);
+    }
+    return {
+      id_actor: String(operador.id_operador),
+      nombre: operador.razon_social,
+      id_envio
+    };
+  });
+
+  const session = neoDriver.session();
+  try {
+    await session.run(
+      `UNWIND $operadores AS operador
+       MERGE (o:Operador {nombre: operador.nombre})
+       SET o.id_actor = toInteger(operador.id_actor)
+       WITH o, operador
+       MATCH (e:Envio {id_envio: operador.id_envio})
+       MERGE (e)-[:ASIGNADO_A]->(o)`,
+      { operadores }
+    );
+  } finally {
+    await session.close();
+  }
+}
+
 async function seedNeo4j() {
   logSeccion('Neo4j');
   const cypher = await readFile(RUTA_NEO4J, 'utf8');
@@ -231,6 +277,12 @@ async function seedNeo4j() {
     } catch (err2) {
       throw new Error(`No se pudo aplicar init_neo4j.cypher tras reintentar: ${err2.message}`);
     }
+  }
+
+  try {
+    await seedOperadoresNeo4j();
+  } catch (err) {
+    throw new Error(`No se pudieron sincronizar los nuevos operadores en Neo4j: ${err.message}`);
   }
 
   console.log(`Grafo recreado correctamente (${sentencias.length} sentencias ejecutadas).`);

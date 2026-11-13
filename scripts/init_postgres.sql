@@ -246,6 +246,17 @@ INSERT INTO operadores (id_operador, razon_social, cuit, email, telefono, direcc
 (1, 'Logística Express del Plata', '30-55667788-1', 'transporte@expressplata.com', '+54 11 4987-1234', 'Puerto Nuevo Dársena E', 'Argentina', 0.00)
 ON CONFLICT (cuit) DO UPDATE SET razon_social = EXCLUDED.razon_social;
 
+INSERT INTO operadores (razon_social, cuit, email, telefono, direccion, pais, estado, saldo, fecha_registro) VALUES
+('Naviera Río de la Plata S.A.', '30-10000001-2', 'trafico@navierariodelplata.com', '+54 11 4312-6500', 'Av. Eduardo Madero 1020, Buenos Aires', 'Argentina', 'ACTIVO', 185000.00, CURRENT_TIMESTAMP - INTERVAL '11 months'),
+('AeroCarga Brasil Ltda.', '30-10000002-0', 'cargas@aerocargabrasil.com.br', '+55 11 2445-3260', 'Av. Marginal do Rio Tietê 1500, Guarulhos, São Paulo', 'Brasil', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '10 months'),
+('Ferrocarriles Logísticos Andinos SpA', '30-10000003-9', 'operaciones@ferrologandinos.cl', '+56 2 2585-7300', 'Av. Libertador Bernardo O’Higgins 3170, Santiago', 'Chile', 'ACTIVO', 92000.00, CURRENT_TIMESTAMP - INTERVAL '8 months'),
+('Transporte Integral del Uruguay S.A.', '30-10000004-7', 'despacho@tiuruguay.com.uy', '+598 2 355-7840', 'Ruta 1 km 12, Montevideo', 'Uruguay', 'ACTIVO', 43600.00, CURRENT_TIMESTAMP - INTERVAL '7 months'),
+('Terminal y Servicios Portuarios Guaraní S.A.', '30-10000005-5', 'operaciones@puertoguarani.com.py', '+595 21 728-4600', 'Av. República 1420, Asunción', 'Paraguay', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '5 months'),
+('Shanghai Meridian 3PL Logistics Co.', '30-10000006-3', 'supply@meridian3pl.cn', '+86 21 5836 2740', 'No. 1888 Yixian Road, Baoshan, Shanghai', 'China', 'ACTIVO', 275000.00, CURRENT_TIMESTAMP - INTERVAL '4 months'),
+('Atlantic Gateway Cargo LLC', '30-10000007-1', 'freight@atlanticgatewaycargo.com', '+1 305 555 0147', '1200 NW 72nd Avenue, Miami, Florida', 'Estados Unidos', 'ACTIVO', 138500.00, CURRENT_TIMESTAMP - INTERVAL '2 months'),
+('Iberia Rail & Logistics S.L.', '30-10000008-9', 'intermodal@iberiarail.es', '+34 91 327 4860', 'Calle de Méndez Álvaro 84, Madrid', 'España', 'ACTIVO', 0.00, CURRENT_TIMESTAMP - INTERVAL '1 month')
+ON CONFLICT (cuit) DO NOTHING;
+
 INSERT INTO proveedores (id_proveedor, razon_social, cuit, email, telefono, direccion, pais, saldo) VALUES
 (1, 'Sensores del Sur Corp', '30-44332211-9', 'ventas@sensoresdelsur.com', '+54 11 5555-0100', 'Parque Industrial Pilar', 'Argentina', 80000.00)
 ON CONFLICT (cuit) DO NOTHING;
